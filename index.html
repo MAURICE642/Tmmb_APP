@@ -7188,18 +7188,15 @@ function _buildEscPos(data, recuNum, emissionDate, emissionHeure, agenceLabel){
   add(BT_ALIGN_CTR, BT_BOLD_ON);
   add(_btText('TRIOMPHANT MMB SERVICE'), BT_LF);
   add(BT_BOLD_OFF, BT_LF);
-
   const typeLabel = data.type==='adhesion' ? 'ENCAISSEMENT ADHESION' : 'PAIEMENT COTISATION(S)';
   add(BT_BOLD_ON, _btText(typeLabel), BT_BOLD_OFF, BT_LF);
   add(_btSep(COLS), BT_LF);
-
   // Infos reçu
   add(BT_ALIGN_LEFT);
   add(_btLine('N Recu:', recuNum, COLS), BT_LF);
   add(_btLine('Date:', emissionDate, COLS), BT_LF);
   add(_btLine('Heure:', emissionHeure, COLS), BT_LF);
   add(_btSep(COLS), BT_LF);
-
   // Client
   if(data.clientCode) add(_btLine('Code:', data.clientCode, COLS), BT_LF);
   add(_btLine('Client:', (data.clientNom||''), COLS), BT_LF);
@@ -7231,9 +7228,6 @@ function _buildEscPos(data, recuNum, emissionDate, emissionHeure, agenceLabel){
   add(BT_BOLD_OFF);
   add(_btText('Conservez ce recu'), BT_LF);
   add(_btText('preuve officielle'), BT_LF, BT_LF, BT_LF);
-
-  // Coupe papier
-  add(BT_CUT);
 
   // Fusionner
   let total=0; chunks.forEach(c=>total+=c.length);
