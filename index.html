@@ -57,6 +57,7 @@
     appId:             "1:53427091291:web:7747b725839c54a4070c7e"
   };
   // ✅ FIN DE LA CONFIGURATION
+  window.FIREBASE_CONFIG = FIREBASE_CONFIG;
 
   // ── Utilitaire : hachage PBKDF2 d'un PIN avec sel ──
   // Format stocké : "sel_hex$hash_hex"
@@ -2336,15 +2337,9 @@ window.useLocalMode = function() {
 // La config Firebase est chiffrée avant stockage dans localStorage.
 // La clé AES est dérivée d'un secret persistant propre à l'appareil (stocké en sessionStorage).
 async function _getCfgKey() {
-  let secret = sessionStorage.getItem('_gcsk');
-  if (!secret) {
-    // Générer un secret aléatoire de 32 octets pour cette session
-    const raw = crypto.getRandomValues(new Uint8Array(32));
-    secret = Array.from(raw).map(b => b.toString(16).padStart(2,'0')).join('');
-    sessionStorage.setItem('_gcsk', secret);
-  }
+  // Cle fixe derivee d'un secret constant — compatible mobile (sessionStorage efface sur mobile)
   const enc = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(secret), 'PBKDF2', false, ['deriveKey']);
+  const keyMaterial = await crypto.subtle.importKey('raw', enc.encode('triomphant-mmb-fixed-key-2024'), 'PBKDF2', false, ['deriveKey']);
   return crypto.subtle.deriveKey(
     { name:'PBKDF2', salt: enc.encode('gestcom-cfg-salt'), iterations: 100000, hash:'SHA-256' },
     keyMaterial,
@@ -2384,6 +2379,7 @@ async function _loadCfgDecrypted() {
       try { return JSON.parse(atob(stored)); } catch(e2) { return JSON.parse(stored); }
     }
   } catch(e) {
+    // Echec dechiffrement (ex: ancienne cle sessionStorage) — effacer et laisser le fallback hardcode prendre le relais
     localStorage.removeItem('gestcom_firebase_cfg');
     return null;
   }
@@ -8156,8 +8152,19 @@ window.connecterImprimanteBT = async function(){
         const el=document.getElementById('cfg-'+k); if(el&&cfg[k]) el.value=cfg[k];
       });
       await initFB(cfg);
+    } else {
+      // Aucune config sauvegardée : utiliser FIREBASE_CONFIG hardcode si les cles sont renseignees
+      const hc = window.FIREBASE_CONFIG || {};
+      const isConfigured = hc.apiKey && hc.apiKey.indexOf('%%') === -1;
+      if (isConfigured) {
+        ['apiKey','authDomain','projectId','storageBucket','messagingSenderId','appId'].forEach(k=>{
+          const el=document.getElementById('cfg-'+k); if(el&&hc[k]) el.value=hc[k];
+        });
+        await _saveCfgEncrypted(hc);
+        await initFB(hc);
+      }
     }
-  } catch(e) { /* afficher l'écran de configuration */ }
+  } catch(e) { /* afficher l'ecran de configuration */ }
 })();
 </script>
 </body>
