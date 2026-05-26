@@ -1357,8 +1357,8 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         <div class="fg">
           <div class="fr"><label>Nom complet *</label><input type="text" id="com-ncl-nom" placeholder="Prénom Nom"></div>
           <div class="fr"><label>Téléphone *</label><input type="tel" id="com-ncl-tel" placeholder="+229..."></div>
-          <div class="fr"><label>Ville</label><input type="text" id="com-ncl-ville" placeholder="Cotonou"></div>
-          <div class="fr"><label>Quartier</label><input type="text" id="com-ncl-qrt" placeholder="Akpakpa..."></div>
+          <div class="fr"><label>Ville *</label><input type="text" id="com-ncl-ville" placeholder="Cotonou"></div>
+          <div class="fr"><label>Quartier *</label><input type="text" id="com-ncl-qrt" placeholder="Akpakpa..."></div>
         </div>
         <div class="divider"></div>
         <div style="font-size:9.5px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">🎫 Encaissement d'adhésion</div>
@@ -1420,7 +1420,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
           </div>
         </div>
         <div id="com-ncl-calc-info" class="ib ib-green" style="display:none;font-size:12px;margin-bottom:8px;"></div>
-        <div class="fr"><label>Date de début *</label><input type="date" id="com-ncl-debut" onchange="calcJourComNcl()"></div>
+        <div class="fr"><label>Date de début</label><input type="date" id="com-ncl-debut" readonly style="opacity:0.6;cursor:not-allowed;background:var(--surface2);" onchange="calcJourComNcl()"></div>
         <div class="fr"><label>Note</label><input type="text" id="com-ncl-note" placeholder="Remarque..."></div>
         <div id="com-ncl-result" class="ib ib-green" style="display:none;margin-top:12px;font-size:13px;"></div>
         <button onclick="saveComNouveauClient()" style="width:100%;margin-top:14px;padding:13px;font-size:14px;font-weight:700;font-family:'Space Grotesk',sans-serif;background:linear-gradient(135deg,#0f766e,#22d4a0);border:none;border-radius:9px;color:#fff;cursor:pointer;transition:opacity 0.15s;" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
@@ -1830,7 +1830,17 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
 
     <!-- DÉTAILS LIVRAISON -->
     <div class="fg">
-      <div class="fr"><label>Article *</label><select id="liv-article" onchange="onLivArtChange()"><option value="">— Sélectionner —</option></select></div>
+      <div class="fr">
+        <label>Code article *</label>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <input type="text" id="liv-art-code" placeholder="ex: MOB-001" style="flex:1;text-transform:uppercase;font-weight:700;letter-spacing:1px;color:var(--accent);"
+            oninput="this.value=this.value.toUpperCase();onLivArtCodeInput()"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();onLivArtCodeInput(true);}">
+          <input type="hidden" id="liv-article">
+        </div>
+        <div id="liv-art-info" style="display:none;margin-top:6px;padding:7px 10px;background:rgba(34,212,160,0.08);border:1px solid rgba(34,212,160,0.3);border-radius:6px;font-size:11px;color:var(--text);"></div>
+        <div id="liv-art-err" style="display:none;margin-top:4px;font-size:11px;color:var(--danger);"></div>
+      </div>
       <div class="fr"><label>Quantité *</label><input type="number" id="liv-qty" value="1" oninput="calcLivMontant()"></div>
       <div class="fr"><label>Date *</label><input type="date" id="liv-date"></div>
       <div class="fr"><label>Statut</label><select id="liv-statut"><option value="en_attente">En attente</option><option value="livre">Livré</option><option value="annule">Annulé</option></select></div>
@@ -6417,7 +6427,7 @@ window.saveMvt = async function(){
 window.openMvtFor = function(artId){ openM('m-stock-mvt'); setTimeout(()=>{ document.getElementById('mvt-art').value=artId; },150); };
 
 window.saveLivraison = async function(){
-  if(!['admin','secretaire'].includes(session?.role)){ notify('Accès refusé : seuls l\'administrateur et la secrétaire peuvent enregistrer des livraisons','err'); return; }
+  if(!['admin','secretaire','commercial'].includes(session?.role)){ notify('Accès refusé','err'); return; }
   const cId=document.getElementById('liv-client').value;
   const aId=document.getElementById('liv-article').value;
   const qty=parseInt(document.getElementById('liv-qty').value)||1;
@@ -6639,6 +6649,50 @@ window.onLivClientChange = function(){
     el.innerHTML=`<span style="color:var(--danger);font-weight:700;">⛔ Solde insuffisant (${fmt(solde)}) — toute livraison sera bloquée.</span>`;
   }
 };
+// Recherche article par code dans le modal livraison
+window.onLivArtCodeInput = function(force){
+  const codeInput = document.getElementById('liv-art-code');
+  const artHidden = document.getElementById('liv-article');
+  const infoEl = document.getElementById('liv-art-info');
+  const errEl = document.getElementById('liv-art-err');
+  const code = (codeInput.value||'').trim().toUpperCase();
+  if(!code){
+    artHidden.value=''; infoEl.style.display='none'; errEl.style.display='none';
+    document.getElementById('liv-info').style.display='none';
+    return;
+  }
+  // Chercher par ref exacte, ou ref partielle, ou nom
+  let art = DB.articles.find(a=>(a.ref||'').toUpperCase()===code);
+  if(!art) art = DB.articles.find(a=>(a.ref||'').toUpperCase().startsWith(code));
+  if(!art && force) art = DB.articles.find(a=>(a.nom||'').toUpperCase().includes(code));
+  if(art){
+    artHidden.value = art._id;
+    errEl.style.display='none';
+    const cId = document.getElementById('liv-client').value;
+    const c = cId ? getCl(cId) : null;
+    const prixFige = c ? (c.articlesPrixFiges||[]).find(x=>x.articleId===art._id) : null;
+    const pvAff = prixFige ? prixFige.pvFige : art.pv;
+    const stockColor = art.stock>0?'var(--accent2)':'var(--danger)';
+    const prixLabel = prixFige
+      ? `${fmt(pvAff)} <span style="font-size:10px;color:var(--accent2);">🔒 prix contrat</span>`
+      : fmt(art.pv);
+    infoEl.style.display='block';
+    infoEl.innerHTML=`✅ <strong>${esc(art.nom)}</strong> &nbsp;·&nbsp; Réf: <strong style="color:var(--accent)">${esc(art.ref||'-')}</strong> &nbsp;·&nbsp; Stock : <strong style="color:${stockColor}">${art.stock} ${art.unite||''}</strong> &nbsp;·&nbsp; Prix : ${prixLabel}`;
+    // Déclencher onLivArtChange pour mettre à jour le panneau montant/solde
+    onLivArtChange();
+  } else {
+    artHidden.value='';
+    infoEl.style.display='none';
+    if(code.length>=3){
+      errEl.style.display='block';
+      errEl.textContent=`❌ Aucun article trouvé pour le code « ${code} »`;
+    } else {
+      errEl.style.display='none';
+    }
+    document.getElementById('liv-info').style.display='none';
+  }
+};
+
 window.onLivArtChange = function(){
   const aId=document.getElementById('liv-article').value;
   if(!aId) return;
@@ -6742,6 +6796,10 @@ window.openM = function(id){
     // Charger tous les clients
     livFiltrerClients();
     document.getElementById('liv-article').innerHTML='<option value="">— Sélectionner —</option>'+DB.articles.map(a=>`<option value="${a._id}">${a.nom} (stock: ${a.stock})</option>`).join('');
+    document.getElementById('liv-article').value='';
+    const livArtCode=document.getElementById('liv-art-code'); if(livArtCode) livArtCode.value='';
+    const livArtInfo=document.getElementById('liv-art-info'); if(livArtInfo) livArtInfo.style.display='none';
+    const livArtErr=document.getElementById('liv-art-err'); if(livArtErr) livArtErr.style.display='none';
     document.getElementById('liv-date').value=TODAY;document.getElementById('liv-qty').value='1';
     document.getElementById('liv-montant').value='';document.getElementById('liv-note').value='';
     document.getElementById('liv-info').style.display='none';
@@ -7215,10 +7273,17 @@ window.saveComNouveauClient = async function(){
   }
   const nom=document.getElementById('com-ncl-nom').value.trim();
   const tel=document.getElementById('com-ncl-tel').value.trim();
+  const ville=document.getElementById('com-ncl-ville').value.trim();
+  const qrt=document.getElementById('com-ncl-qrt').value.trim();
   const ct=document.getElementById('com-ncl-contrat').value.trim();
   const mt=parseFloat(document.getElementById('com-ncl-montant').value)||0;
   const debut=document.getElementById('com-ncl-debut').value;
-  if(!nom||!tel||!ct||mt<=0||!debut){notify('Champs obligatoires manquants','err');return;}
+  if(!nom||!tel||!ville||!qrt||!ct||mt<=0||!debut){
+    if(!ville) notify('La ville est obligatoire','err');
+    else if(!qrt) notify('Le quartier est obligatoire','err');
+    else notify('Champs obligatoires manquants','err');
+    return;
+  }
   // Anti-doublon final
   const doublon = DB.clients.find(c => c.codeClient && c.codeClient.toUpperCase() === codeClient);
   if(doublon){
@@ -7232,7 +7297,7 @@ window.saveComNouveauClient = async function(){
   const comNclAdhStatut = comNclAdhRadio ? comNclAdhRadio.value : 'non_paye';
   // Figer les prix des articles au moment de la création du contrat
   const articlesPrixFigesNcl = _articlesAdded['com-ncl'].map(a=>({articleId:a._id, pvFige:a.pv, nom:a.nom}));
-  const newClientRef = await fbAdd('clients',{nom,tel,ville:document.getElementById('com-ncl-ville').value,quartier:document.getElementById('com-ncl-qrt').value,contrat:ct,montantTotal:mt,duree:parseInt(document.getElementById('com-ncl-duree').value)||365,debut,note:document.getElementById('com-ncl-note').value,commercialId:comId,adhesion:200,adhesionStatut:comNclAdhStatut,codeClient,articlesPrixFiges:articlesPrixFigesNcl});
+  const newClientRef = await fbAdd('clients',{nom,tel,ville,quartier:qrt,contrat:ct,montantTotal:mt,duree:parseInt(document.getElementById('com-ncl-duree').value)||365,debut,note:document.getElementById('com-ncl-note').value,commercialId:comId,adhesion:200,adhesionStatut:comNclAdhStatut,codeClient,articlesPrixFiges:articlesPrixFigesNcl});
   // Si adhésion payée à la création → enregistrer dans adhesionPays pour le registre
   if(comNclAdhStatut === 'paye'){
     const now = new Date();
