@@ -1344,7 +1344,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
               <span style="font-size:9px;color:rgba(201,168,76,0.6);">🔒</span>
             </div>
             <!-- Séquence modifiable -->
-            <input type="text" id="com-ncl-seq" placeholder="0001"
+            <input type="text" id="com-ncl-seq" placeholder="001"
               style="flex:1;background:transparent;border:none;padding:10px 14px;color:var(--text);font-size:16px;font-weight:700;font-family:'Space Grotesk',sans-serif;outline:none;letter-spacing:2px;min-width:80px;"
               maxlength="6"
               oninput="this.value=this.value.replace(/[^0-9]/g,'');onSeqInput()" onblur="onSeqInput()">
@@ -7204,12 +7204,13 @@ window.suggererProchainCode = function(){
   let maxSeq = 0;
   clientsCom.forEach(c=>{
     if(c.codeClient){
-      const nums = c.codeClient.replace(/[^0-9]/g,'');
-      const n = parseInt(nums);
+      // Extraire uniquement les chiffres a la FIN du code (apres le prefixe)
+      const m = c.codeClient.match(/(\d+)$/);
+      const n = m ? parseInt(m[1], 10) : NaN;
       if(!isNaN(n) && n > maxSeq) maxSeq = n;
     }
   });
-  const nextSeq = String(maxSeq + 1).padStart(4,'0');
+  const nextSeq = String(maxSeq + 1).padStart(3,'0');
   const seqEl = document.getElementById('com-ncl-seq');
   if(seqEl) { seqEl.value = nextSeq; onSeqInput(); }
 };
