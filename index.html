@@ -8223,13 +8223,13 @@ async function _btSend(data){
       }else{
         await _btChar.writeValue(chunk);
       }
-      await new Promise(r=>setTimeout(r,80));
+      await new Promise(r=>setTimeout(r,50));
     }catch(e){
       throw new Error('Envoi échoué : '+e.message);
     }
   }
   // Pause finale : laisser l'imprimante terminer avant la coupe
-  await new Promise(r=>setTimeout(r,250));
+  await new Promise(r=>setTimeout(r,150));
   try{
     if(_btChar.properties.writeWithoutResponse){
       await _btChar.writeValueWithoutResponse(cut);
