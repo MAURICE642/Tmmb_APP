@@ -8210,7 +8210,7 @@ async function _btConnect(){
 }
 
 async function _btSend(data){
-  const CHUNK=128;
+  const CHUNK=256;
   // Séparer le contenu texte de la commande de coupe (3 derniers octets : 0x1D 0x56 0x01)
   const body = data.slice(0, data.length-3);
   const cut  = data.slice(data.length-3);
