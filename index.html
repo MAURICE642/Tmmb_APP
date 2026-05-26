@@ -1310,10 +1310,19 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
 
   <!-- COMMERCIAL: MES CLIENTS (lecture seule) -->
   <div id="page-com-clients" class="page">
-    <div style="margin-bottom:14px;">
+    <div style="margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
       <input type="text" id="com-cl-search" placeholder="🔍  Rechercher par code, nom, téléphone..."
-        style="width:100%;max-width:420px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 14px;color:var(--text);font-size:13px;outline:none;"
+        style="flex:1;min-width:200px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 14px;color:var(--text);font-size:13px;outline:none;"
         oninput="renderComClients()">
+      <select id="sort-com-clients" onchange="renderComClients()"
+        style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:12px;outline:none;cursor:pointer;min-width:170px;">
+        <option value="nom-asc">🔤 Nom A→Z</option>
+        <option value="nom-desc">🔤 Nom Z→A</option>
+        <option value="code-asc">🔢 Code A→Z</option>
+        <option value="code-desc">🔢 Code Z→A</option>
+        <option value="retard-desc">⚠️ Retard (+ élevé)</option>
+        <option value="cotis-desc">💰 Cotisation (+ élevée)</option>
+      </select>
     </div>
     <div class="tw"><table><thead><tr><th>Code</th><th>Client</th><th>Téléphone</th><th>Contrat</th><th>Cotis./j</th><th>Avancement</th><th>Retard</th><th>Détail</th></tr></thead><tbody id="tb-com-clients"></tbody></table></div>
   </div>
@@ -4806,9 +4815,11 @@ function renderTousCls(){
         if(c.contratArticles&&c.contratArticles.length){
           return c.contratArticles.map(a=>{
             const art=DB.articles.find(x=>x._id===a.artId);
-            const ref=art&&art.ref?art.ref:null;
-            return`<span style="display:inline-block;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.35);border-radius:4px;padding:1px 6px;font-size:9.5px;font-weight:700;color:var(--accent);margin:1px 2px 1px 0;white-space:nowrap;">${esc(ref||a.nom)}</span>`;
-          }).join('');
+            const ref=art&&art.ref?art.ref:(a.nom||'?');
+            const qty=parseInt(a.qty)||1;
+            const label=qty>1?`${ref} x${qty}`:ref;
+            return`<span style="display:inline-block;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.35);border-radius:4px;padding:1px 6px;font-size:9.5px;font-weight:700;color:var(--accent);margin:1px 2px 1px 0;white-space:nowrap;">${esc(label)}</span>`;
+          }).join('<span style="color:var(--muted);font-size:9px;margin:0 1px;">+</span>');
         }
         return esc(c.contrat||'—');
       })()}</td>
@@ -6979,6 +6990,18 @@ function renderComClients(){
     c.nom.toLowerCase().includes(q) ||
     (c.tel||'').includes(q)
   );
+  const sortVal = (document.getElementById('sort-com-clients')?.value)||'nom-asc';
+  cls = [...cls].sort((a,b)=>{
+    switch(sortVal){
+      case 'nom-asc':    return (a.nom||'').localeCompare(b.nom||'','fr',{sensitivity:'base'});
+      case 'nom-desc':   return (b.nom||'').localeCompare(a.nom||'','fr',{sensitivity:'base'});
+      case 'code-asc':   return (a.codeClient||'').localeCompare(b.codeClient||'');
+      case 'code-desc':  return (b.codeClient||'').localeCompare(a.codeClient||'');
+      case 'retard-desc':{ const sa=stats(a),sb=stats(b); return sb.joursRetard-sa.joursRetard; }
+      case 'cotis-desc': { const sa=stats(a),sb=stats(b); return sb.m-sa.m; }
+      default: return 0;
+    }
+  });
   document.getElementById('tb-com-clients').innerHTML = cls.map(c=>{
     const s=stats(c);
     return `<tr>
@@ -6989,9 +7012,11 @@ function renderComClients(){
         if(c.contratArticles&&c.contratArticles.length){
           return c.contratArticles.map(a=>{
             const art=DB.articles.find(x=>x._id===a.artId);
-            const ref=art&&art.ref?art.ref:null;
-            return`<span style="display:inline-block;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.35);border-radius:4px;padding:1px 6px;font-size:9.5px;font-weight:700;color:var(--accent);margin:1px 2px 1px 0;white-space:nowrap;">${esc(ref||a.nom)}</span>`;
-          }).join('');
+            const ref=art&&art.ref?art.ref:(a.nom||'?');
+            const qty=parseInt(a.qty)||1;
+            const label=qty>1?`${ref} x${qty}`:ref;
+            return`<span style="display:inline-block;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.35);border-radius:4px;padding:1px 6px;font-size:9.5px;font-weight:700;color:var(--accent);margin:1px 2px 1px 0;white-space:nowrap;">${esc(label)}</span>`;
+          }).join('<span style="color:var(--muted);font-size:9px;margin:0 1px;">+</span>');
         }
         return esc(c.contrat||'—');
       })()}</td>
@@ -7274,16 +7299,9 @@ function renderSaisieMises(){
     }
   }
 
-  // ── Bloc point journalier commercial ──
+  // ── Bloc point journalier commercial — masqué pour les commerciaux ──
   const comBloc = document.getElementById('com-point-bloc');
-  if(comBloc){
-    if(session.role === 'commercial'){
-      comBloc.style.display = 'block';
-      refreshComPointStatus();
-    } else {
-      comBloc.style.display = 'none';
-    }
-  }
+  if(comBloc){ comBloc.style.display = 'none'; }
 }
 
 window.miseLiveSearch = function(){
@@ -7363,6 +7381,8 @@ window.selectMiseClient = function(id){
 function miseAdhRefresh(id){
   const bloc = document.getElementById('mise-adh-bloc');
   if(!bloc) return;
+  // Masquer le bloc adhésion pour les commerciaux
+  if(session && session.role === 'commercial'){ bloc.style.display = 'none'; return; }
   const c = getCl(id);
   const sw = document.getElementById('mise-adh-status-wrap');
   const form = document.getElementById('mise-adh-form');
@@ -7536,7 +7556,7 @@ function afficherRecu(data){
   // Plein écran sur mobile, grande fenêtre sur desktop
   const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
   const winFeatures = isMobile
-    ? 'width=' + screen.width + ',height=' + screen.height + ',top=0,left=0,scrollbars=yes,fullscreen=yes'
+    ? 'width=' + screen.width + ',height=' + screen.height + ',top=0,left=0,scrollbars=yes,resizable=yes'
     : 'width=820,height=980,scrollbars=yes,left=' + Math.round((screen.width-820)/2) + ',top=40';
   const win = window.open('', '_blank', winFeatures);
   if(!win){ alert('Veuillez autoriser les popups pour imprimer le reçu.'); return; }
@@ -7564,17 +7584,23 @@ function afficherRecu(data){
   .amt-val{font-size:2.6rem;font-weight:700;color:#0c0e12;line-height:1.1;}
   .amt-sub{font-size:1rem;color:#555;margin-top:8px;}
   .ftr{background:#f5f5f8;border-top:1px dashed #bbb;padding:18px 22px;text-align:center;font-size:0.95rem;color:#777;line-height:2;border-radius:0 0 12px 12px;}
-  .ftr-ok{font-weight:700;color:#22a880;font-size:1.05rem;}
   .actions{display:flex;gap:10px;width:100%;max-width:620px;flex-wrap:wrap;}
   .btn-p{flex:1;background:#c9a84c;color:#0c0e12;border:none;padding:16px 0;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;}
   .btn-bt{flex:1;background:#1a6fc4;color:#fff;border:none;padding:16px 0;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;}
   .btn-f{background:#1c2130;color:#dce1ee;border:1px solid #444;padding:16px 20px;border-radius:10px;font-size:1rem;cursor:pointer;}
-  @media(max-width:480px){
-    html{font-size:19px;}
-    .hdr-name{font-size:1.2rem;}
-    .amt-val{font-size:2.8rem;}
-    .row{font-size:1.05rem;}
-    .btn-p,.btn-bt,.btn-f{padding:18px 0;font-size:1.05rem;}
+  @media(max-width:768px){
+    html{font-size:20px;}
+    body{padding:0;gap:0;background:#fff;min-height:100vh;}
+    .ticket{max-width:100%;width:100%;border-radius:0;box-shadow:none;}
+    .hdr{border-radius:0;padding:28px 20px 22px;}
+    .hdr-name{font-size:1.3rem;}
+    .amt-val{font-size:3rem;}
+    .row{font-size:1.1rem;padding:9px 0;}
+    .body{padding:22px 20px 18px;}
+    .actions{position:fixed;bottom:0;left:0;width:100%;padding:10px 12px;background:#e8eaf0;box-shadow:0 -2px 12px rgba(0,0,0,0.15);gap:8px;max-width:100%;}
+    .btn-p,.btn-bt{padding:18px 0;font-size:1.1rem;}
+    .btn-f{padding:18px 16px;font-size:1.1rem;}
+    .ticket{padding-bottom:90px;}
   }
   @media print{
     @page{margin:4mm;size:auto;}
@@ -7617,7 +7643,6 @@ function afficherRecu(data){
       font-size:10px !important;
       border-radius:0 !important;
     }
-    .ftr-ok{font-size:12px !important;color:#22a880 !important;}
     .actions{display:none !important;}
   }
 </style>
@@ -7645,7 +7670,6 @@ function afficherRecu(data){
     ${data.note?`<div class="row"><span class="lbl">Note</span><span class="val">${_escHtml(data.note)}</span></div>`:''}
   </div>
   <div class="ftr">
-    <div class="ftr-ok">✔ Paiement enregistré</div>
     Conservez ce reçu — preuve officielle
   </div>
 </div>
@@ -8199,13 +8223,13 @@ async function _btSend(data){
       }else{
         await _btChar.writeValue(chunk);
       }
-      await new Promise(r=>setTimeout(r,120));
+      await new Promise(r=>setTimeout(r,80));
     }catch(e){
       throw new Error('Envoi échoué : '+e.message);
     }
   }
   // Pause finale : laisser l'imprimante terminer avant la coupe
-  await new Promise(r=>setTimeout(r,500));
+  await new Promise(r=>setTimeout(r,250));
   try{
     if(_btChar.properties.writeWithoutResponse){
       await _btChar.writeValueWithoutResponse(cut);
