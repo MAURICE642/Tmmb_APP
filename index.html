@@ -1286,26 +1286,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     </div>
 
     <!-- ═══════════════════════════════════════════════════ -->
-    <!-- BLOC POINT JOURNALIER — Secrétaire uniquement      -->
-    <!-- ═══════════════════════════════════════════════════ -->
-    <div id="sec-point-bloc" style="max-width:620px;margin:20px auto 0;display:none;">
-      <div class="tw" style="padding:20px;border-color:rgba(247,201,79,0.45);background:linear-gradient(135deg,rgba(201,168,76,0.07) 0%,transparent 70%);">
-        <div style="font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:800;color:var(--accent);margin-bottom:6px;">📥 Point journalier</div>
-        <div style="font-size:11px;color:var(--muted);margin-bottom:14px;">À la fin de la journée, versez votre point pour transmettre le total des encaissements au responsable. Cette action bloque toute saisie supplémentaire pour aujourd'hui.</div>
-        <div id="sec-point-status"></div>
-      </div>
-    </div>
 
-    <!-- ═══════════════════════════════════════════════════ -->
-    <!-- BLOC POINT JOURNALIER — Commercial uniquement      -->
-    <!-- ═══════════════════════════════════════════════════ -->
-    <div id="com-point-bloc" style="max-width:620px;margin:20px auto 0;display:none;">
-      <div class="tw" style="padding:20px;border-color:rgba(201,168,76,0.45);background:linear-gradient(135deg,rgba(201,168,76,0.07) 0%,transparent 70%);">
-        <div style="font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:800;color:var(--accent);margin-bottom:6px;">💰 Point journalier</div>
-        <div style="font-size:11px;color:var(--muted);margin-bottom:14px;">À la fin de la journée, marquez votre point comme versé pour transmettre le total des encaissements au responsable. Cette action bloque toute saisie supplémentaire pour aujourd'hui.</div>
-        <div id="com-point-status"></div>
-      </div>
-    </div>
   </div>
 
   <!-- COMMERCIAL: MES CLIENTS (lecture seule) -->
@@ -2322,16 +2303,8 @@ import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/1
 
 const TODAY = new Date().toISOString().split('T')[0];
 
-// Retourne la date effective de saisie pour un commercial.
-// Si ce commercial a versé son point aujourd'hui (pointVerseDate === TODAY),
-// les prochains encaissements sont datés au lendemain (J+1).
+// Retourne la date effective de saisie pour un commercial (toujours aujourd'hui).
 function getDateEffectiveCommercial(comId) {
-  const com = DB.commerciaux.find(c => c._id === comId);
-  if (com && com.pointVerseDate === TODAY) {
-    const d = new Date(TODAY + 'T12:00:00');
-    d.setDate(d.getDate() + 1);
-    return d.toISOString().split('T')[0];
-  }
   return TODAY;
 }
 let db_fs = null, auth = null;
@@ -3002,13 +2975,12 @@ function genererCalendrierClient(cid){
     else break;
   }
 
-  // Regrouper par mois
-  const moisNoms = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
-  const moisMap = {}; // key: YYYY-MM -> [{index, ds, d}]
+  // Regrouper par tranches de 31 jours (Mois 1 = jours 1-31, Mois 2 = jours 32-62, etc.)
+  const moisMap = {}; // key: numéro de mois (1-based) -> [{index, date, d}]
   jours.forEach(j=>{
-    const key = j.date.slice(0,7);
-    if(!moisMap[key]) moisMap[key]=[];
-    moisMap[key].push(j);
+    const numMois = Math.floor(j.index / 31) + 1;
+    if(!moisMap[numMois]) moisMap[numMois]=[];
+    moisMap[numMois].push(j);
   });
 
   const joursCouverts = jourCouvert.filter(Boolean).length;
@@ -3039,10 +3011,9 @@ function genererCalendrierClient(cid){
       </div>
     </div>`;
 
-  // Grille mois par mois
-  Object.entries(moisMap).forEach(([key, joursM])=>{
-    const [yr, mo] = key.split('-');
-    const moisLabel = moisNoms[parseInt(mo)-1]+' '+yr;
+  // Grille mois par mois (31 jours chacun)
+  Object.entries(moisMap).forEach(([numMois, joursM])=>{
+    const moisLabel = 'Mois ' + numMois;
     html += `<div style="margin-bottom:14px;">
       <div class="cal-mois-label">${moisLabel}</div>
       <div style="display:flex;flex-wrap:wrap;gap:3px;">`;
@@ -3419,7 +3390,7 @@ function stats(cl){
 
 function sb(t,c){ return `<span class="sb ${c}">${t}</span>`; }
 function ratio(montant,cotis){ const r=cotis>0?(montant/cotis):1; const col=r>=2?'var(--accent3)':r>=1?'var(--accent2)':'var(--muted)'; return`<span style="font-size:11px;color:${col}">${Math.round(r*10)/10}x</span>`; }
-function joursEnJM(jours){ if(!jours||jours<=0) return "0/1"; const mois=Math.floor((jours-1)/30)+1; const jour=((jours-1)%30)+1; return jour+"/"+mois; }
+function joursEnJM(jours){ if(!jours||jours<=0) return "0/1"; const mois=Math.floor((jours-1)/31)+1; const jour=((jours-1)%31)+1; return jour+"/"+mois; }
 function stockStatut(a){ if(a.stock<=0)return sb('Rupture','sr'); if(a.stock<=a.stockMin)return sb('Stock bas','sy'); return sb('OK','sg'); }
 function livStatut(s){ if(s==='livre')return sb('Livré','sg'); if(s==='annule')return sb('Annulé','sr'); return sb('En attente','sy'); }
 function setSyncStatus(ok){ document.getElementById('sync-status').innerHTML=`<div class="sync-dot" style="background:${ok?'var(--accent2)':'var(--accent3)'}"></div><span style="color:${ok?'var(--accent2)':'var(--accent3)'}">${ok?'Synchronisé':'Synchronisation...'}</span>`; }
@@ -5228,63 +5199,6 @@ function renderRegistre(){
 
   </div>`;
 
-  // ── Points versés par les secrétaires ──
-  const canVoirPoints = session.role === 'admin' || session.role === 'responsable';
-  if(canVoirPoints){
-    const pointsDuJour = (DB.pointsJour||[]).filter(p => p.date === date);
-    // Filtrer par agence si besoin
-    const pointsFiltres = effectiveAgenceId
-      ? pointsDuJour.filter(p => p.agenceId === effectiveAgenceId)
-      : pointsDuJour;
-
-    if(pointsFiltres.length > 0){
-      const totalPoints = pointsFiltres.reduce((s, p) => s + (Number(p.total)||0), 0);
-      html += `
-  <div class="tw" style="margin-top:20px;border-color:rgba(201,168,76,0.4);">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
-      <div style="font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:800;color:var(--accent);">📥 Points journaliers — Secrétaires</div>
-      <div style="font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;color:var(--accent2);">Total : ${fmt(totalPoints)} FCFA</div>
-    </div>
-    <table class="tw" style="width:100%;border-color:rgba(201,168,76,0.2);">
-      <thead><tr>
-        <th style="padding:8px 12px;font-size:11px;text-align:left;">Secrétaire</th>
-        <th style="padding:8px 12px;font-size:11px;text-align:left;">Heure versement</th>
-        <th style="padding:8px 12px;font-size:11px;text-align:right;">Total encaissé</th>
-        <th style="padding:8px 12px;font-size:11px;text-align:center;">Statut</th>
-        <th style="padding:8px 12px;font-size:11px;text-align:center;">Action</th>
-      </tr></thead>
-      <tbody>
-        ${pointsFiltres.map(p => `
-        <tr style="border-top:1px solid var(--border);">
-          <td style="padding:9px 12px;font-weight:700;">${esc(p.secNom||'—')}</td>
-          <td style="padding:9px 12px;font-size:12px;color:var(--muted);">${esc(p.heure||'—')}</td>
-          <td style="padding:9px 12px;font-weight:800;color:var(--accent2);text-align:right;">${fmt(p.total)}</td>
-          <td style="padding:9px 12px;text-align:center;">
-            ${p.valide
-              ? `<span style="background:rgba(34,212,160,0.15);border:1px solid rgba(34,212,160,0.45);border-radius:20px;padding:3px 12px;font-size:11px;font-weight:700;color:var(--accent2);">✅ Validé — ${esc(p.valideParNom||'')} à ${esc(p.valideHeure||'')}</span>`
-              : `<span style="background:rgba(247,201,79,0.15);border:1px solid rgba(247,201,79,0.45);border-radius:20px;padding:3px 12px;font-size:11px;font-weight:700;color:var(--accent3);">⏳ En attente</span>`
-            }
-          </td>
-          <td style="padding:9px 12px;text-align:center;">
-            ${!p.valide
-              ? `<button onclick="validerPointJour('${p._id}')" style="background:rgba(34,212,160,0.15);border:1px solid rgba(34,212,160,0.4);border-radius:7px;padding:5px 12px;color:var(--accent2);font-weight:700;font-size:11px;cursor:pointer;">✔ Valider</button>`
-              : '—'
-            }
-          </td>
-        </tr>`).join('')}
-      </tbody>
-      <tfoot>
-        <tr style="border-top:2px solid rgba(201,168,76,0.3);background:rgba(201,168,76,0.06);">
-          <td colspan="2" style="padding:8px 12px;font-family:'Space Grotesk',sans-serif;font-size:11px;font-weight:800;color:var(--accent);text-align:right;">TOTAL POINTS VERSÉS :</td>
-          <td style="padding:8px 12px;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:800;color:var(--accent);text-align:right;">${fmt(totalPoints)}</td>
-          <td colspan="2"></td>
-        </tr>
-      </tfoot>
-    </table>
-  </div>`;
-    }
-  }
-
   document.getElementById('reg-content').innerHTML=html;
 }
 
@@ -5691,20 +5605,9 @@ function renderFiche(){
     </div>`;
 
   if(rienDuTout){
-    const pvBlocVide = (role==='commercial'||role==='secretaire') ? `
-      <div style="margin:16px 0;padding:14px;border:1.5px solid rgba(201,168,76,0.35);border-radius:10px;background:rgba(201,168,76,0.06);display:flex;align-items:center;justify-content:space-between;gap:12px;">
-        <div>
-          <div style="font-weight:700;font-size:13px;color:var(--accent);">💰 Point versé</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px;">
-            ${(()=>{const com2=DB.commerciaux.find(c=>c._id===comId);if(com2&&com2.pointVerseDate===TODAY){const d=new Date(TODAY+'T12:00:00');d.setDate(d.getDate()+1);return`<span style="color:var(--accent2);font-weight:700;">✅ Point du ${new Date(TODAY+'T12:00:00').toLocaleDateString('fr-FR')} versé — encaissements suivants datés au ${d.toLocaleDateString('fr-FR')}</span>`;}return'Cliquer pour marquer le point du jour comme versé.';})()}
-          </div>
-        </div>
-        ${(()=>{const com2=DB.commerciaux.find(c=>c._id===comId);if(com2&&com2.pointVerseDate===TODAY){return`<span style="background:rgba(34,212,160,0.18);border:1px solid rgba(34,212,160,0.45);border-radius:20px;padding:5px 16px;font-size:12px;font-weight:700;color:var(--accent2);white-space:nowrap;">✅ Versé</span>`;}return`<button onclick="marquerPointVerse('${comId}')" style="background:linear-gradient(135deg,rgba(201,168,76,0.25),rgba(201,168,76,0.15));border:1.5px solid var(--accent);border-radius:9px;padding:9px 20px;color:var(--accent);font-weight:800;font-size:13px;font-family:'Space Grotesk',sans-serif;cursor:pointer;white-space:nowrap;" >💰 Marquer point versé</button>`;})()}
-      </div>` : '';
     document.getElementById('fiche-content').innerHTML=`
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:20px;">
         ${headerHTML}
-        ${pvBlocVide}
         <div class="emp" style="padding:40px;">Aucune activité enregistrée pour cette journée.</div>
       </div>`;
     return;
@@ -5824,16 +5727,6 @@ function renderFiche(){
           </tbody>
         </table></div>
       </div>`:''}
-      ${(role==='commercial'||role==='secretaire')?`
-      <div style="margin-bottom:16px;padding:14px;border:1.5px solid rgba(201,168,76,0.35);border-radius:10px;background:rgba(201,168,76,0.06);display:flex;align-items:center;justify-content:space-between;gap:12px;">
-        <div>
-          <div style="font-weight:700;font-size:13px;color:var(--accent);">💰 Point versé</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px;">
-            ${(()=>{const com2=DB.commerciaux.find(c=>c._id===comId);if(com2&&com2.pointVerseDate===TODAY){const d=new Date(TODAY+'T12:00:00');d.setDate(d.getDate()+1);return`<span style="color:var(--accent2);font-weight:700;">✅ Point du ${new Date(TODAY+'T12:00:00').toLocaleDateString('fr-FR')} versé — encaissements suivants datés au ${d.toLocaleDateString('fr-FR')}</span>`;}return'Cliquer pour marquer le point du jour comme versé. Les encaissements suivants seront datés à demain.';})()}
-          </div>
-        </div>
-        ${(()=>{const com2=DB.commerciaux.find(c=>c._id===comId);if(com2&&com2.pointVerseDate===TODAY){return`<span style="background:rgba(34,212,160,0.18);border:1px solid rgba(34,212,160,0.45);border-radius:20px;padding:5px 16px;font-size:12px;font-weight:700;color:var(--accent2);white-space:nowrap;">✅ Versé</span>`;}return`<button onclick="marquerPointVerse('${comId}')" style="background:linear-gradient(135deg,rgba(201,168,76,0.25),rgba(201,168,76,0.15));border:1.5px solid var(--accent);border-radius:9px;padding:9px 20px;color:var(--accent);font-weight:800;font-size:13px;font-family:'Space Grotesk',sans-serif;cursor:pointer;white-space:nowrap;transition:opacity 0.15s;" onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">💰 Marquer point versé</button>`;})()}
-      </div>`:''}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
         <div style="border:1px solid var(--border);border-radius:7px;padding:12px;"><div style="font-size:10px;color:var(--muted);margin-bottom:26px;">Signature du commercial</div><div style="border-bottom:1px solid var(--border);"></div><div style="font-size:9px;color:var(--muted);margin-top:4px;">${com?com.nom:'—'}</div></div>
         <div style="border:1px solid var(--border);border-radius:7px;padding:12px;"><div style="font-size:10px;color:var(--muted);margin-bottom:26px;">Visa superviseur</div><div style="border-bottom:1px solid var(--border);"></div><div style="font-size:9px;color:var(--muted);margin-top:4px;">Date : ___________</div></div>
@@ -5841,178 +5734,7 @@ function renderFiche(){
     </div>`;
 }
 
-// ========= POINT JOURNALIER SECRÉTAIRE =========
-function getPointJourSec(date){
-  date = date || TODAY;
-  return (DB.pointsJour||[]).find(p => p.secId === session.userId && p.date === date) || null;
-}
 
-function totalEncaissementsJour(date){
-  date = date || TODAY;
-  // Total des paiements saisis par cette secrétaire pour today (via la page saisie-mises, source='secretaire', ou tous les paiements du jour dans son agence)
-  return DB.paiements
-    .filter(p => p.date === date && (p.saisiParId === session.userId || p.source === 'secretaire'))
-    .reduce((s, p) => s + (Number(p.montant)||0), 0);
-}
-
-function refreshSecPointStatus(){
-  const el = document.getElementById('sec-point-status');
-  if(!el) return;
-  const point = getPointJourSec(TODAY);
-  const total = totalEncaissementsJour(TODAY);
-  const sec = DB.commerciaux.find(c => c._id === session.userId);
-  const heure = new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
-
-  if(point){
-    // Point déjà versé
-    const valide = point.valide;
-    el.innerHTML = `
-      <div class="ib ib-green" style="margin:0 0 12px 0;display:flex;align-items:center;gap:12px;">
-        <span style="font-size:22px;">✅</span>
-        <div>
-          <div style="font-weight:800;font-size:13px;">Point versé à ${point.heure} — ${new Date(TODAY+'T12:00:00').toLocaleDateString('fr-FR')}</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px;">Total encaissements : <strong style="color:var(--accent2);">${fmt(point.total)} FCFA</strong>${valide ? ' · <span style="color:var(--accent2);">✔ Validé par le responsable</span>' : ' · <span style="color:var(--accent3);">⏳ En attente de validation</span>'}</div>
-        </div>
-      </div>
-      <div style="font-size:11px;color:var(--danger);font-weight:600;">🔒 Saisie de mises bloquée pour aujourd'hui — Le point a été déposé.</div>`;
-  } else {
-    // Calculer le total actuel
-    const totalFmt = total > 0 ? fmt(total) : '0';
-    el.innerHTML = `
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:12px;">
-        <div>
-          <div style="font-size:12px;color:var(--muted);">Total encaissements aujourd'hui</div>
-          <div style="font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:800;color:var(--accent2);">${totalFmt} FCFA</div>
-        </div>
-        <button onclick="verslerPointJour()"
-          style="background:linear-gradient(135deg,rgba(201,168,76,0.3),rgba(201,168,76,0.15));border:2px solid var(--accent);border-radius:10px;padding:12px 22px;color:var(--accent);font-weight:800;font-size:14px;font-family:'Space Grotesk',sans-serif;cursor:pointer;white-space:nowrap;transition:opacity 0.15s;"
-          onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
-          📥 Verser le point
-        </button>
-      </div>
-      <div style="font-size:11px;color:var(--muted);">⚠️ Après le versement, plus aucune saisie ne sera possible pour aujourd'hui.</div>`;
-  }
-}
-
-function refreshComPointStatus(){
-  const el = document.getElementById('com-point-status');
-  if(!el) return;
-  const com = DB.commerciaux.find(c => c._id === session.userId);
-  const dejaVerse = com && com.pointVerseDate === TODAY;
-
-  // Calcul total encaissements du jour pour ce commercial
-  const totalCom = DB.paiements
-    .filter(p => p.date === TODAY && p.commercialId === session.userId)
-    .reduce((s, p) => s + (Number(p.montant)||0), 0);
-
-  if(dejaVerse){
-    const demain = new Date(TODAY+'T12:00:00');
-    demain.setDate(demain.getDate()+1);
-    el.innerHTML = `
-      <div class="ib ib-green" style="margin:0 0 12px 0;display:flex;align-items:center;gap:12px;">
-        <span style="font-size:22px;">✅</span>
-        <div>
-          <div style="font-weight:800;font-size:13px;">Point versé — ${new Date(TODAY+'T12:00:00').toLocaleDateString('fr-FR')}</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px;">Total encaissements : <strong style="color:var(--accent2);">${fmt(totalCom)} FCFA</strong></div>
-        </div>
-      </div>
-      <div style="font-size:11px;color:var(--danger);font-weight:600;">🔒 Saisie de mises bloquée pour aujourd'hui — Reprise le ${demain.toLocaleDateString('fr-FR')}.</div>`;
-  } else {
-    el.innerHTML = `
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:12px;">
-        <div>
-          <div style="font-size:12px;color:var(--muted);">Total encaissements aujourd'hui</div>
-          <div style="font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:800;color:var(--accent2);">${fmt(totalCom)} FCFA</div>
-        </div>
-        <button onclick="verserPointCommercial()"
-          style="background:linear-gradient(135deg,rgba(201,168,76,0.3),rgba(201,168,76,0.15));border:2px solid var(--accent);border-radius:10px;padding:12px 22px;color:var(--accent);font-weight:800;font-size:14px;font-family:'Space Grotesk',sans-serif;cursor:pointer;white-space:nowrap;transition:opacity 0.15s;"
-          onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
-          💰 Verser le point
-        </button>
-      </div>
-      <div style="font-size:11px;color:var(--muted);">⚠️ Après le versement, plus aucune saisie ne sera possible pour aujourd'hui.</div>`;
-  }
-}
-
-window.verserPointCommercial = async function(){
-  const com = DB.commerciaux.find(c => c._id === session.userId);
-  if(!com){ notify('Compte introuvable','err'); return; }
-  const totalCom = DB.paiements
-    .filter(p => p.date === TODAY && p.commercialId === session.userId)
-    .reduce((s, p) => s + (Number(p.montant)||0), 0);
-  const demain = new Date(TODAY+'T12:00:00');
-  demain.setDate(demain.getDate()+1);
-  const demainStr = demain.toLocaleDateString('fr-FR');
-  if(!confirm(`💰 VERSER LE POINT DU JOUR\n\nCommercial : ${com.nom}\nDate : ${new Date(TODAY+'T12:00:00').toLocaleDateString('fr-FR')}\nTotal encaissements : ${fmt(totalCom)} FCFA\n\n⚠️ Cette action bloquera toute saisie supplémentaire pour aujourd'hui.\n\nConfirmer le versement ?`)) return;
-  await fbUpdate('commerciaux', session.userId, { pointVerseDate: TODAY });
-  const idx = DB.commerciaux.findIndex(c => c._id === session.userId);
-  if(idx >= 0) DB.commerciaux[idx].pointVerseDate = TODAY;
-  notify(`✅ Point versé — ${fmt(totalCom)} FCFA déposé. Saisie bloquée pour aujourd'hui.`);
-  refreshComPointStatus();
-  // Masquer le formulaire de saisie
-  const sf = document.getElementById('mise-saisie-form-zone');
-  if(sf) sf.style.display = 'none';
-  const il = document.getElementById('mise-lecture-seule-info');
-  if(il){ il.style.display = 'block'; il.innerHTML = '🔒 <strong>Point versé</strong> — Saisie bloquée pour aujourd\'hui. Reprise demain.'; }
-};
-
-window.verslerPointJour = async function(){
-  const total = totalEncaissementsJour(TODAY);
-  const sec = DB.commerciaux.find(c => c._id === session.userId);
-  const nomSec = sec ? sec.nom : session.nom;
-  if(!confirm(`📥 VERSER LE POINT DU JOUR\n\nSecrétaire : ${nomSec}\nDate : ${new Date(TODAY+'T12:00:00').toLocaleDateString('fr-FR')}\nTotal encaissements : ${fmt(total)} FCFA\n\n⚠️ Cette action bloquera toute saisie supplémentaire pour aujourd'hui.\n\nConfirmer le versement ?`)) return;
-  const now = new Date();
-  const heure = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
-  await fbAdd('pointsJour', {
-    secId: session.userId,
-    secNom: nomSec,
-    agenceId: sec ? (sec.agenceId||null) : null,
-    date: TODAY,
-    heure,
-    total,
-    valide: false,
-    valideParId: null,
-    valideParNom: null,
-    valideHeure: null
-  });
-  // Bloquer les saisies du jour en mettant un flag sur la secrétaire
-  await fbUpdate('commerciaux', session.userId, { pointVerseDate: TODAY });
-  const idx = DB.commerciaux.findIndex(c => c._id === session.userId);
-  if(idx >= 0) DB.commerciaux[idx].pointVerseDate = TODAY;
-  notify(`✅ Point versé — ${fmt(total)} FCFA déposé. Saisie bloquée pour aujourd'hui.`);
-  refreshSecPointStatus();
-  // Masquer le formulaire de saisie
-  const sf = document.getElementById('mise-saisie-form-zone');
-  if(sf) sf.style.display = 'none';
-  const il = document.getElementById('mise-lecture-seule-info');
-  if(il){ il.style.display = 'block'; il.innerHTML = '🔒 <strong>Point versé</strong> — Saisie bloquée pour aujourd\'hui. Reprise demain.'; }
-};
-
-window.validerPointJour = async function(pointId){
-  const point = (DB.pointsJour||[]).find(p => p._id === pointId);
-  if(!point){ notify('Point introuvable','err'); return; }
-  if(!confirm(`Valider le point de ${point.secNom} du ${point.date} ?\nTotal : ${fmt(point.total)} FCFA`)) return;
-  const now = new Date();
-  const h = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
-  await fbUpdate('pointsJour', pointId, { valide: true, valideParId: session.userId, valideParNom: session.nom, valideHeure: h });
-  notify(`✅ Point de ${point.secNom} validé`);
-};
-
-// ========= MARQUER POINT VERSÉ =========
-window.marquerPointVerse = async function(comId) {
-  const com = DB.commerciaux.find(c => c._id === comId);
-  if (!com) return;
-  const demain = new Date(TODAY + 'T12:00:00');
-  demain.setDate(demain.getDate() + 1);
-  const demainStr = demain.toLocaleDateString('fr-FR');
-  if (!confirm(`Marquer le point de ${com.nom} comme versé ?\n\n✅ Confirmé = les prochains encaissements seront datés au ${demainStr}.`)) return;
-  await fbUpdate('commerciaux', comId, { pointVerseDate: TODAY });
-  // Mettre à jour le cache local immédiatement
-  const idx = DB.commerciaux.findIndex(c => c._id === comId);
-  if (idx >= 0) DB.commerciaux[idx].pointVerseDate = TODAY;
-  notify(`✅ Point versé — encaissements suivants datés au ${demainStr}`);
-  renderFiche();
-};
 window.encaisserAdhesionFiche = async function(cid){
   const c = getCl(cid);
   if(!c || c.adhesionStatut==='paye'){ notify('Adhésion déjà encaissée','err'); return; }
@@ -6131,16 +5853,6 @@ window.openPay = function(cid){
 window.savePay = async function(){
   if(!['admin','commercial'].includes(session?.role)){ notify('Accès refusé','err'); return; }
   if(!payCtx) return;
-  // Bloquer si le point est déjà versé aujourd'hui (non-admin)
-  if(session.role !== 'admin'){
-    const _comIdPay = session.userId;
-    const _comPay = DB.commerciaux.find(c=>c._id===_comIdPay);
-    if(_comPay && _comPay.pointVerseDate === TODAY){
-      const _dem = new Date(TODAY+'T12:00:00'); _dem.setDate(_dem.getDate()+1);
-      notify(`🔒 Point du jour versé — nouvelles mises autorisées à partir du ${_dem.toLocaleDateString('fr-FR')}`,'err');
-      return;
-    }
-  }
   // ── Bloquer si montant contrat totalement atteint (non-admin) ──
   if(session.role !== 'admin'){
     const _cl = getCl(payCtx);
@@ -7375,44 +7087,17 @@ function renderSaisieMises(){
   const nv = document.getElementById('mc-niveau-wrap'); if(nv) nv.innerHTML='';
   miseClientCtx = null;
   // Admin, commercial ET secrétaire peuvent saisir des mises
-  // (secrétaire et commercial bloqués après versement du point du jour)
-  const pointVerseSec = session.role==='secretaire' && (()=>{
-    const sec = DB.commerciaux.find(c=>c._id===session.userId);
-    return sec && sec.pointVerseDate === TODAY;
-  })();
-  const pointVerseCom = session.role==='commercial' && (()=>{
-    const com = DB.commerciaux.find(c=>c._id===session.userId);
-    return com && com.pointVerseDate === TODAY;
-  })();
-  const canSaisirMise = (session.role==='admin' || session.role==='commercial' || session.role==='secretaire') && !pointVerseSec && !pointVerseCom;
+  const canSaisirMise = ['admin','commercial','secretaire'].includes(session.role);
   const saisieForm = document.getElementById('mise-saisie-form-zone');
   if(saisieForm) saisieForm.style.display = canSaisirMise ? '' : 'none';
   const infoLecture = document.getElementById('mise-lecture-seule-info');
   if(infoLecture){
-    if(pointVerseSec || pointVerseCom){
-      infoLecture.style.display = 'block';
-      infoLecture.innerHTML = '🔒 <strong>Point versé</strong> — Saisie bloquée pour aujourd\'hui. Reprise demain.';
-    } else if(!canSaisirMise){
+    if(!canSaisirMise){
       infoLecture.style.display = 'block';
     } else {
       infoLecture.style.display = 'none';
     }
   }
-
-  // ── Bloc point journalier secrétaire ──
-  const secBloc = document.getElementById('sec-point-bloc');
-  if(secBloc){
-    if(session.role === 'secretaire'){
-      secBloc.style.display = 'block';
-      refreshSecPointStatus();
-    } else {
-      secBloc.style.display = 'none';
-    }
-  }
-
-  // ── Bloc point journalier commercial — masqué pour les commerciaux ──
-  const comBloc = document.getElementById('com-point-bloc');
-  if(comBloc){ comBloc.style.display = 'none'; }
 }
 
 window.miseLiveSearch = function(){
@@ -7819,19 +7504,6 @@ function afficherRecu(data){
 window.enregistrerMiseSaisie = async function(){
   if(!['admin','commercial','secretaire'].includes(session?.role)){ notify('Accès refusé','err'); return; }
   if(!miseClientCtx){ notify("Sélectionnez un client d'abord",'err'); return; }
-  // Bloquer si le point est déjà versé aujourd'hui (non-admin)
-  if(session.role !== 'admin'){
-    const _comMise = DB.commerciaux.find(c=>c._id===session.userId);
-    if(_comMise && _comMise.pointVerseDate === TODAY){
-      const _dem2 = new Date(TODAY+'T12:00:00'); _dem2.setDate(_dem2.getDate()+1);
-      if(session.role === 'secretaire'){
-        notify(`🔒 Point versé — nouvelles saisies autorisées à partir du ${_dem2.toLocaleDateString('fr-FR')}`,'err');
-      } else {
-        notify(`🔒 Point du jour versé — nouvelles mises autorisées à partir du ${_dem2.toLocaleDateString('fr-FR')}`,'err');
-      }
-      return;
-    }
-  }
   const nb = parseInt(document.getElementById('mise-nb-cotis').value);
   if(!nb||nb<=0){ notify('Entrez un nombre de cotisations valide','err'); return; }
   const c = getCl(miseClientCtx);
@@ -8039,15 +7711,6 @@ window.confirmerEncaissementAdh = async function(){
 window.enregistrerAdhesionMise = async function(){
   if(!['admin','commercial'].includes(session?.role)){ notify('Accès refusé','err'); return; }
   if(!miseClientCtx){ notify("Sélectionnez un client d'abord",'err'); return; }
-  // Bloquer si le point est déjà versé aujourd'hui (non-admin)
-  if(session.role !== 'admin'){
-    const _comAdh = DB.commerciaux.find(c=>c._id===session.userId);
-    if(_comAdh && _comAdh.pointVerseDate === TODAY){
-      const _dem3 = new Date(TODAY+'T12:00:00'); _dem3.setDate(_dem3.getDate()+1);
-      notify(`🔒 Point du jour versé — nouvelles mises autorisées à partir du ${_dem3.toLocaleDateString('fr-FR')}`,'err');
-      return;
-    }
-  }
   const c = getCl(miseClientCtx);
   if(c.adhesionStatut === 'paye'){ notify('Adhésion déjà encaissée','err'); return; }
   const montant = parseFloat(document.getElementById('mise-adh-montant').value);
