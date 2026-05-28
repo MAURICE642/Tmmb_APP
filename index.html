@@ -1509,7 +1509,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
 
 <!-- MODIFIER CONTRAT (admin) -->
 <div class="mo" id="m-modif-contrat" style="z-index:10001;">
-  <div class="md md-lg" style="border:1px solid rgba(201,168,76,0.4);max-width:600px;">
+  <div class="md md-lg" style="border:1px solid rgba(201,168,76,0.4);max-width:640px;">
     <div class="md-title" style="color:var(--accent);">✏️ Modifier le contrat</div>
     <input type="hidden" id="mc-cl-id">
     <div id="mc-cl-info" class="ib ib-green" style="font-size:12px;margin-bottom:12px;"></div>
@@ -1533,26 +1533,43 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     </div>
 
     <!-- Séparateur articles -->
-    <div style="font-size:9.5px;font-weight:700;color:var(--accent2);text-transform:uppercase;letter-spacing:1px;margin:10px 0 8px;">📦 Articles du contrat</div>
+    <div style="font-size:9.5px;font-weight:700;color:var(--accent2);text-transform:uppercase;letter-spacing:1px;margin:12px 0 8px;">📦 Articles du contrat</div>
 
-    <!-- Picker d'ajout -->
-    <div style="display:flex;gap:7px;align-items:flex-end;margin-bottom:10px;flex-wrap:wrap;">
-      <div style="flex:2;min-width:140px;">
-        <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;">Article</label>
-        <select id="mc-art-sel" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px 10px;color:var(--text);font-size:12px;outline:none;">
-          <option value="">— Sélectionner un article —</option>
-        </select>
+    <!-- Ajout par code article -->
+    <div style="display:flex;gap:7px;align-items:flex-end;margin-bottom:8px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:130px;">
+        <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;">🔍 Code / Réf article</label>
+        <input type="text" id="mc-art-code" placeholder="ex: ART001" autocomplete="off"
+          oninput="this.value=this.value.toUpperCase()"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();mcAjouterParCode();}"
+          style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px 10px;color:var(--text);font-size:13px;outline:none;box-sizing:border-box;">
       </div>
       <div style="flex:0 0 80px;">
         <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;">Qté</label>
-        <input type="number" id="mc-art-qty" value="1" min="1" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px 10px;color:var(--text);font-size:13px;outline:none;box-sizing:border-box;">
+        <input type="number" id="mc-art-qty-code" value="1" min="1" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px 10px;color:var(--text);font-size:13px;outline:none;box-sizing:border-box;">
       </div>
-      <div style="flex:0 0 110px;">
-        <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;">Prix unit. (FCFA)</label>
-        <input type="number" id="mc-art-pv" placeholder="Auto" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px 10px;color:var(--text);font-size:12px;outline:none;box-sizing:border-box;">
-      </div>
-      <button onclick="mcAjouterArticle()" style="flex:0 0 auto;height:37px;background:rgba(56,201,160,0.15);border:1px solid rgba(56,201,160,0.4);border-radius:8px;padding:0 14px;color:var(--accent2);font-size:12px;font-weight:700;cursor:pointer;font-family:'Outfit',sans-serif;white-space:nowrap;transition:background .15s;" onmouseover="this.style.background='rgba(56,201,160,0.28)'" onmouseout="this.style.background='rgba(56,201,160,0.15)'">+ Ajouter</button>
+      <button onclick="mcAjouterParCode()" style="flex:0 0 auto;height:37px;background:rgba(56,201,160,0.15);border:1px solid rgba(56,201,160,0.4);border-radius:8px;padding:0 14px;color:var(--accent2);font-size:12px;font-weight:700;cursor:pointer;font-family:'Outfit',sans-serif;white-space:nowrap;transition:background .15s;" onmouseover="this.style.background='rgba(56,201,160,0.28)'" onmouseout="this.style.background='rgba(56,201,160,0.15)'">+ Ajouter</button>
     </div>
+    <div id="mc-art-code-msg" style="display:none;font-size:11px;padding:4px 8px;border-radius:5px;margin-bottom:8px;"></div>
+
+    <!-- Picker d'ajout par sélection (fallback) -->
+    <details style="margin-bottom:10px;">
+      <summary style="font-size:10px;color:var(--muted);cursor:pointer;user-select:none;padding:4px 0;">▸ Sélectionner depuis la liste</summary>
+      <div style="display:flex;gap:7px;align-items:flex-end;margin-top:8px;flex-wrap:wrap;">
+        <div style="flex:2;min-width:140px;">
+          <select id="mc-art-sel" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px 10px;color:var(--text);font-size:12px;outline:none;">
+            <option value="">— Sélectionner un article —</option>
+          </select>
+        </div>
+        <div style="flex:0 0 80px;">
+          <input type="number" id="mc-art-qty" value="1" min="1" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px 10px;color:var(--text);font-size:13px;outline:none;box-sizing:border-box;">
+        </div>
+        <div style="flex:0 0 110px;">
+          <input type="number" id="mc-art-pv" placeholder="Prix unit." style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px 10px;color:var(--text);font-size:12px;outline:none;box-sizing:border-box;">
+        </div>
+        <button onclick="mcAjouterArticle()" style="flex:0 0 auto;height:37px;background:rgba(56,201,160,0.10);border:1px solid rgba(56,201,160,0.3);border-radius:8px;padding:0 14px;color:var(--accent2);font-size:12px;font-weight:700;cursor:pointer;font-family:'Outfit',sans-serif;white-space:nowrap;">+ Ajouter</button>
+      </div>
+    </details>
 
     <!-- Liste articles du contrat -->
     <div id="mc-art-liste" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;overflow:hidden;min-height:48px;margin-bottom:10px;">
@@ -1563,7 +1580,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     <div class="fg" style="align-items:flex-end;">
       <div class="fr" style="flex:1;">
         <label>Montant total (FCFA) *
-          <span style="font-size:9px;color:var(--muted);font-weight:400;"> — calculé automatiquement ou saisir manuellement</span>
+          <span style="font-size:9px;color:var(--muted);font-weight:400;"> — calculé auto ou manuel</span>
         </label>
         <input type="number" id="mc-montant" oninput="calcMC()" placeholder="0" style="font-weight:700;">
       </div>
@@ -1571,10 +1588,15 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         <button onclick="mcRecalcTotal()" style="height:37px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.3);border-radius:8px;padding:0 13px;color:var(--accent);font-size:11px;font-weight:700;cursor:pointer;font-family:'Outfit',sans-serif;white-space:nowrap;" title="Recalculer depuis les articles">🔄 Recalc.</button>
       </div>
     </div>
-
     <div id="mc-calc-info" class="ib ib-green" style="display:none;font-size:12px;margin-bottom:8px;"></div>
 
-    <div class="ma">
+    <!-- Note de modification (gardée en historique) -->
+    <div style="margin-top:10px;">
+      <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;">📝 Motif de la modification <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;">(optionnel — l'ancien contrat sera conservé en note)</span></label>
+      <input type="text" id="mc-note-modif" placeholder="ex: Ajout climatiseur, Remplacement TV…" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px 11px;color:var(--text);font-size:12px;outline:none;box-sizing:border-box;">
+    </div>
+
+    <div class="ma" style="margin-top:14px;">
       <button class="btn btn-ghost" onclick="closeM('m-modif-contrat')">Annuler</button>
       <button class="btn btn-primary" onclick="sauvegarderModifContrat()">✓ Enregistrer le contrat</button>
     </div>
@@ -2489,6 +2511,16 @@ function setupRealtimeListeners() {
       const modalOuvert = document.querySelector('.modal-overlay.open, .md.open, [id^="m-"][style*="flex"], [id^="m-"][style*="block"]');
       if (modalOuvert) return;
 
+      // Ne pas re-rendre si l'utilisateur est en train de saisir dans le formulaire nouveau client
+      if (curPg === 'com-nouveau-client') {
+        const champsFormulaire = ['com-ncl-nom','com-ncl-tel','com-ncl-ville','com-ncl-qrt','com-ncl-contrat','com-ncl-note','com-ncl-montant','com-ncl-seq'];
+        const enCoursDeSaisie = champsFormulaire.some(id => {
+          const el = document.getElementById(id);
+          return el && el.value && el.value.trim() !== '';
+        });
+        if (enCoursDeSaisie) return;
+      }
+
       // Ne re-rendre que si la collection concerne la page actuellement affichée
       const depsPage = _PAGE_DEPS[curPg] || [];
       if (session && curPg && depsPage.includes(col)) {
@@ -3164,6 +3196,8 @@ window.sauvegarderEditionClient = async function(){
 // State temporaire des articles du contrat en cours d'édition
 let _mcArticles = []; // [{artId, nom, qty, pv}]
 
+let _mcArticlesInitial = []; // snapshot avant modification pour diff
+
 window.ouvrirModifContrat = function(cid){
   if(!cid){ notify("Client introuvable","err"); return; }
   const c = getCl(cid);
@@ -3173,19 +3207,29 @@ window.ouvrirModifContrat = function(cid){
     "<strong>"+esc(c.nom)+"</strong> · "+esc(c.contrat||"—")+"<br>"
     +"Déjà payé : <strong style=\"color:var(--accent2)\">"+fmt(s.totalPaye)+"</strong> / "+fmt(c.montantTotal||0)+" "
     +"— Restant : <strong style=\"color:"+(s.totalRestant>0?"var(--accent)":"var(--accent2)")+"\">"+fmt(s.totalRestant)+"</strong>";
-  document.getElementById("mc-contrat").value = c.contrat||"";
+  const mcContratEl = document.getElementById("mc-contrat");
+  mcContratEl.value = c.contrat||"";
+  // Marquer la désignation initiale comme "auto" si elle correspond au pattern articles
+  // (sera écrasée librement par mcAutoNom si l'admin ne l'a pas modifiée manuellement)
+  mcContratEl.dataset.auto = c.contrat||"";
   document.getElementById("mc-montant").value = c.montantTotal||"";
   syncDureeSelect("mc-duree-sel","mc-duree",c.duree||372);
 
-  // Charger les articles actuels du contrat
+  // Réinitialiser les nouveaux champs
+  const codeEl = document.getElementById("mc-art-code"); if(codeEl) codeEl.value='';
+  const qtyCodeEl = document.getElementById("mc-art-qty-code"); if(qtyCodeEl) qtyCodeEl.value=1;
+  const msgEl = document.getElementById("mc-art-code-msg"); if(msgEl) msgEl.style.display='none';
+  const noteEl = document.getElementById("mc-note-modif"); if(noteEl) noteEl.value='';
+
+  // Charger les articles actuels du contrat + snapshot initial pour diff
   _mcArticles = (c.contratArticles||[]).map(a=>({...a}));
+  _mcArticlesInitial = (c.contratArticles||[]).map(a=>({...a}));
 
   // Remplir le select d'articles
   const sel = document.getElementById("mc-art-sel");
   sel.innerHTML = '<option value="">— Sélectionner un article —</option>'
     + DB.articles.filter(a=>a.nom).sort((a,b)=>a.nom.localeCompare(b.nom))
         .map(a=>'<option value="'+a._id+'" data-pv="'+(a.pv||0)+'" data-nom="'+esc(a.nom)+'">'+esc(a.nom)+' — '+fmt(a.pv)+'</option>').join('');
-  // Pré-remplir le prix unitaire quand on change l'article
   sel.onchange = function(){
     const opt = sel.options[sel.selectedIndex];
     const pv = opt ? opt.getAttribute('data-pv') : '';
@@ -3204,18 +3248,20 @@ function _mcRenderArticles(){
   const vide  = document.getElementById("mc-art-vide");
   if(!_mcArticles.length){
     vide.style.display='';
-    // Effacer les lignes existantes sauf le vide
     [...liste.querySelectorAll('.mc-art-row')].forEach(r=>r.remove());
     return;
   }
   vide.style.display='none';
   [...liste.querySelectorAll('.mc-art-row')].forEach(r=>r.remove());
   _mcArticles.forEach((a,i)=>{
+    // Détecter si cet article était dans le contrat initial (pack d'origine) ou ajouté
+    const estOriginal = _mcArticlesInitial.some(o=>o.artId===a.artId);
     const row = document.createElement('div');
     row.className = 'mc-art-row';
-    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--border);'+(i%2?'background:rgba(26,32,53,0.35)':'');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--border);'+(i%2?'background:rgba(26,32,53,0.35)':'')+(estOriginal?'':'background:rgba(56,201,160,0.05);border-left:2px solid rgba(56,201,160,0.4);');
+    const badgeNouv = !estOriginal ? '<span style="font-size:9px;background:rgba(56,201,160,0.15);color:var(--accent2);border:1px solid rgba(56,201,160,0.3);border-radius:4px;padding:1px 5px;margin-left:4px;font-weight:700;">NOUVEAU</span>' : '';
     row.innerHTML =
-      '<span style="flex:2;font-size:12px;font-weight:600;color:var(--text);">'+esc(a.nom)+'</span>'
+      '<span style="flex:2;font-size:12px;font-weight:600;color:var(--text);">'+esc(a.nom)+badgeNouv+'</span>'
       +'<span style="flex:0 0 34px;text-align:center;">'
         +'<input type="number" min="1" value="'+a.qty+'" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:4px 6px;color:var(--accent);font-weight:700;font-size:12px;text-align:center;outline:none;" onchange="mcChangerQty('+i+',this.value)">'
       +'</span>'
@@ -3223,17 +3269,59 @@ function _mcRenderArticles(){
         +'<input type="number" min="0" value="'+a.pv+'" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:4px 6px;color:var(--accent2);font-weight:600;font-size:11px;text-align:right;outline:none;" onchange="mcChangerPv('+i+',this.value)">'
       +'</span>'
       +'<span style="flex:0 0 90px;text-align:right;font-size:11px;font-weight:700;color:var(--accent);">'+fmt(a.qty*a.pv)+'</span>'
-      +'<button onclick="mcSupprimerArticle('+i+')" style="flex:0 0 auto;background:rgba(224,92,82,0.12);border:1px solid rgba(224,92,82,0.3);border-radius:6px;padding:4px 9px;color:var(--danger);font-size:11px;font-weight:700;cursor:pointer;font-family:\'Outfit\',sans-serif;">✕</button>';
+      +'<button onclick="mcSupprimerArticle('+i+')" title="Retirer du contrat (−'+fmt(a.qty*a.pv)+')" style="flex:0 0 auto;background:rgba(224,92,82,0.12);border:1px solid rgba(224,92,82,0.3);border-radius:6px;padding:4px 9px;color:var(--danger);font-size:11px;font-weight:700;cursor:pointer;font-family:\'Outfit\',sans-serif;">➖</button>';
     liste.appendChild(row);
   });
   // Ligne total
-  const total = _mcArticles.reduce((s,a)=>s+a.qty*a.pv,0);
+  const totalNouv = _mcArticles.reduce((s,a)=>s+a.qty*a.pv,0);
+  const totalAnc  = _mcArticlesInitial.reduce((s,a)=>s+a.qty*a.pv,0);
+  const delta = totalNouv - totalAnc;
+  const deltaHtml = (totalAnc>0 && delta!==0)
+    ? ' <span style="font-size:11px;font-weight:600;color:'+(delta>0?'var(--accent2)':'var(--danger)')+';">'+(delta>0?'▲ +':'▼ ')+fmt(Math.abs(delta))+'</span>'
+    : '';
   const totRow = document.createElement('div');
   totRow.className = 'mc-art-row';
   totRow.style.cssText = 'display:flex;justify-content:flex-end;align-items:center;gap:8px;padding:8px 12px;background:rgba(201,168,76,0.06);border-top:2px solid rgba(201,168,76,0.2);';
   totRow.innerHTML = '<span style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.8px;">Total articles</span>'
-    +'<span style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:800;color:var(--accent);">'+fmt(total)+'</span>';
+    +'<span style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:800;color:var(--accent);">'+fmt(totalNouv)+'</span>'
+    +deltaHtml;
   liste.appendChild(totRow);
+}
+
+window.mcAjouterParCode = function(){
+  const codeEl = document.getElementById('mc-art-code');
+  const msgEl  = document.getElementById('mc-art-code-msg');
+  const qtyEl  = document.getElementById('mc-art-qty-code');
+  if(!codeEl||!msgEl) return;
+  const code = codeEl.value.trim().toUpperCase();
+  if(!code){ _mcShowMsg(msgEl,'Veuillez saisir un code ou une référence article.','err'); return; }
+  const art = DB.articles.find(a=>
+    (a.ref||'').toUpperCase()===code ||
+    a.nom.toUpperCase()===code
+  );
+  if(!art){ _mcShowMsg(msgEl,`Aucun article trouvé pour « ${code} ».`,'err'); return; }
+  const qty = Math.max(1, parseInt(qtyEl?qtyEl.value:1)||1);
+  const existing = _mcArticles.find(a=>a.artId===art._id);
+  if(existing){
+    existing.qty += qty;
+    _mcShowMsg(msgEl,`✓ Quantité mise à jour : ${existing.nom} × ${existing.qty}`,'ok');
+  } else {
+    _mcArticles.push({artId:art._id, nom:art.nom, qty, pv:art.pv||0});
+    _mcShowMsg(msgEl,`✓ « ${art.nom} » ajouté au contrat.`,'ok');
+  }
+  codeEl.value='';
+  if(qtyEl) qtyEl.value=1;
+  _mcRenderArticles();
+  mcRecalcTotal();
+  mcAutoNom();
+};
+
+function _mcShowMsg(el, txt, type){
+  const colors={ok:'rgba(34,212,160,0.15)',err:'rgba(224,92,82,0.14)',warn:'rgba(247,201,79,0.15)'};
+  const tcol={ok:'var(--accent2)',err:'var(--danger)',warn:'var(--accent3)'};
+  el.style.cssText=`display:block;background:${colors[type]||colors.ok};color:${tcol[type]||tcol.ok};border:1px solid ${tcol[type]||tcol.ok};border-radius:5px;padding:4px 9px;font-size:11px;`;
+  el.textContent=txt;
+  setTimeout(()=>{ if(type==='ok') el.style.display='none'; },2500);
 }
 
 window.mcAjouterArticle = function(){
@@ -3277,17 +3365,23 @@ window.mcChangerPv = function(i, val){
   mcRecalcTotal();
 };
 
-// Recalcule le montant total depuis la liste d'articles
+// Recalcule le montant total depuis la liste d'articles — toujours écrasé
 window.mcRecalcTotal = function(){
   const total = _mcArticles.reduce((s,a)=>s+a.qty*a.pv,0);
-  if(total>0) document.getElementById("mc-montant").value = total;
+  document.getElementById("mc-montant").value = total > 0 ? total : '';
   calcMC();
 };
 
-// Auto-génère la désignation du contrat depuis les articles si le champ est vide ou générique
+// Auto-génère la désignation du contrat depuis les articles
 window.mcAutoNom = function(){
   const inp = document.getElementById("mc-contrat");
-  if(!_mcArticles.length) return;
+  if(!_mcArticles.length){
+    // Si la désignation était auto, la vider aussi
+    if(!inp.dataset.auto || inp.value.trim() === inp.dataset.auto){
+      inp.value = ''; inp.dataset.auto = '';
+    }
+    return;
+  }
   // Ne pas écraser une désignation saisie manuellement
   const current = inp.value.trim();
   const autoLabel = _mcArticles.map(a=>a.qty>1?a.qty+'× '+a.nom:a.nom).join(' + ');
@@ -3318,14 +3412,76 @@ window.sauvegarderModifContrat = async function(){
   const mt  = parseFloat(document.getElementById("mc-montant").value)||0;
   const dur = parseInt(document.getElementById("mc-duree").value)||372;
   if(!ct || mt<=0 || dur<=0){ notify("Contrat, montant et durée obligatoires","err"); return; }
+
+  const c = getCl(cid);
+  const noteMotif = (document.getElementById("mc-note-modif").value||"").trim();
+
+  // ── Calculer le diff articles (ajoutés / retirés) ──
+  const ancienIds  = new Set(_mcArticlesInitial.map(a=>a.artId));
+  const nouveauIds = new Set(_mcArticles.map(a=>a.artId));
+
+  const articlesAjoutes   = _mcArticles.filter(a=>!ancienIds.has(a.artId));
+  const articlesSupprimés = _mcArticlesInitial.filter(a=>!nouveauIds.has(a.artId));
+  const articlesQteChange = _mcArticles.filter(a=>{
+    const old = _mcArticlesInitial.find(o=>o.artId===a.artId);
+    return old && old.qty !== a.qty;
+  });
+
+  // ── Construire la note historique ──
+  const ancienContratLabel = c.contrat || "—";
+  const ancienMontant = c.montantTotal || 0;
+  const ancienDuree   = c.duree || 372;
+  const dateModif = TODAY;
+  const now = new Date();
+  const heureModif = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+
+  let noteHistorique = `[Modif ${dateModif} ${heureModif} par ${session.nom}]`;
+  noteHistorique += ` Ancien contrat : « ${ancienContratLabel} » — ${fmt(ancienMontant)} — ${ancienDuree}j.`;
+  if(articlesAjoutes.length)   noteHistorique += ` +Ajout : ${articlesAjoutes.map(a=>a.nom+(a.qty>1?' ×'+a.qty:'')).join(', ')}.`;
+  if(articlesSupprimés.length) noteHistorique += ` −Retrait : ${articlesSupprimés.map(a=>a.nom).join(', ')}.`;
+  if(articlesQteChange.length) noteHistorique += ` Qté modifiée : ${articlesQteChange.map(a=>{const o=_mcArticlesInitial.find(x=>x.artId===a.artId); return a.nom+' ('+o.qty+'→'+a.qty+')';}).join(', ')}.`;
+  if(noteMotif) noteHistorique += ` Motif : ${noteMotif}.`;
+
+  // Conserver les notes précédentes si existantes
+  const noteExistante = (c.note||"").trim();
+  const nouvelleNote = noteExistante ? noteExistante + "\n" + noteHistorique : noteHistorique;
+
+  // ── Enregistrer ──
   await fbUpdate("clients", cid, {
     contrat: ct,
     montantTotal: mt,
     duree: dur,
-    contratArticles: _mcArticles.map(a=>({artId:a.artId,nom:a.nom,qty:a.qty,pv:a.pv}))
+    contratArticles: _mcArticles.map(a=>({artId:a.artId,nom:a.nom,qty:a.qty,pv:a.pv})),
+    note: nouvelleNote
   });
+
   closeM("m-modif-contrat");
-  notify("Contrat mis à jour : "+ct+" — "+fmt(mt)+" ✓");
+
+  // ── Notification résumée ──
+  let notifMsg = `✅ Contrat mis à jour — ${ct} — ${fmt(mt)}`;
+  if(articlesAjoutes.length)   notifMsg += ` | ➕ ${articlesAjoutes.map(a=>a.nom+(a.qty>1?' ×'+a.qty:'')).join(', ')}`;
+  if(articlesSupprimés.length) notifMsg += ` | ➖ ${articlesSupprimés.map(a=>a.nom).join(', ')}`;
+  notify(notifMsg, "ok");
+
+  // Si des articles ont été ajoutés, afficher une alerte récap visible
+  if(articlesAjoutes.length || articlesSupprimés.length || articlesQteChange.length){
+    setTimeout(()=>{
+      let lignes = `<strong style="color:var(--accent)">📋 Résumé modification contrat — ${esc(c.nom)}</strong><br><span style="font-size:11px;color:var(--muted);">${dateModif} ${heureModif}</span><br><br>`;
+      if(articlesAjoutes.length)   lignes += `<span style="color:var(--accent2)">➕ Ajoutés :</span> ${articlesAjoutes.map(a=>'<strong>'+esc(a.nom)+'</strong>'+(a.qty>1?' ×'+a.qty:'')+' — '+fmt(a.pv*a.qty)).join(', ')}<br>`;
+      if(articlesSupprimés.length) lignes += `<span style="color:var(--danger)">➖ Retirés :</span> ${articlesSupprimés.map(a=>'<strong>'+esc(a.nom)+'</strong>').join(', ')}<br>`;
+      if(articlesQteChange.length) lignes += `<span style="color:var(--accent)">🔄 Qté modifiée :</span> ${articlesQteChange.map(a=>{const o=_mcArticlesInitial.find(x=>x.artId===a.artId);return'<strong>'+esc(a.nom)+'</strong> : '+o.qty+' → '+a.qty;}).join(', ')}<br>`;
+      lignes += `<br><span style="color:var(--muted);font-size:11px;">Ancien : ${esc(ancienContratLabel)} — ${fmt(ancienMontant)}<br>Nouveau : ${esc(ct)} — ${fmt(mt)}</span>`;
+      if(noteMotif) lignes += `<br><span style="color:var(--subtle);font-size:11px;">Motif : ${esc(noteMotif)}</span>`;
+      // Afficher dans un modal d'info rapide ou dans une notification enrichie
+      const overlay = document.createElement('div');
+      overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:12000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(3px);';
+      overlay.innerHTML=`<div style="background:var(--surface);border:1px solid rgba(201,168,76,0.4);border-radius:16px;padding:28px 30px;max-width:420px;width:94vw;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+        <div style="margin-bottom:14px;line-height:1.8;">${lignes}</div>
+        <button onclick="this.closest('div[style*=fixed]').remove()" style="width:100%;padding:9px;background:rgba(201,168,76,0.14);border:1px solid rgba(201,168,76,0.35);border-radius:8px;color:var(--accent);font-weight:700;font-size:13px;cursor:pointer;font-family:'Outfit',sans-serif;">✓ Compris</button>
+      </div>`;
+      document.body.appendChild(overlay);
+    }, 400);
+  }
 };
 
 window.supprimerClient = async function(cid){
