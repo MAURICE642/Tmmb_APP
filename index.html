@@ -1015,6 +1015,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
           <button class="art-view-btn" id="art-btn-liste" onclick="setArtView('liste')">☰ Liste</button>
         </div>
         <label class="btn btn-ghost btn-sm" style="cursor:pointer;margin:0;">📥 Importer articles<input type="file" id="import-articles-file" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleImportArticles(event)"></label>
+        <button class="btn btn-ghost btn-sm" onclick="downloadArticleTemplate()" title="Télécharger un modèle Excel à remplir">📋 Modèle</button>
         <button class="btn btn-primary btn-sm" onclick="openM('m-article')">+ Nouvel article</button>
       </div>
     </div>
@@ -1742,43 +1743,74 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
   <div class="md md-lg">
     <div class="md-title" id="m-article-title">📦 Nouvel article</div>
     <input type="hidden" id="art-edit-id" value="">
+
+    <!-- Type : Article unitaire ou Pack -->
+    <div style="display:flex;gap:8px;margin-bottom:14px;">
+      <button id="art-type-btn-article" onclick="artSetType('article')"
+        style="flex:1;padding:10px;border-radius:9px;border:2px solid var(--accent);background:rgba(201,168,76,0.12);color:var(--accent);font-weight:700;font-size:13px;cursor:pointer;transition:all 0.15s;">
+        📦 Article unitaire
+      </button>
+      <button id="art-type-btn-pack" onclick="artSetType('pack')"
+        style="flex:1;padding:10px;border-radius:9px;border:2px solid var(--border);background:transparent;color:var(--muted);font-weight:700;font-size:13px;cursor:pointer;transition:all 0.15s;">
+        🎁 Pack / Bundle
+      </button>
+    </div>
+    <input type="hidden" id="art-type" value="article">
+
     <div class="fg">
       <div class="fr"><label>Référence</label><input type="text" id="art-ref" placeholder="ART-001"></div>
       <div class="fr"><label>Désignation *</label><input type="text" id="art-nom" placeholder="Nom de l'article"></div>
       <div class="fr"><label>Catégorie</label><input type="text" id="art-cat" placeholder="Mobilier, Électro..."></div>
       <div class="fr"><label>Prix de vente (FCFA) *</label><input type="number" id="art-prix-vente" placeholder="0"></div>
       <div class="fr"><label>Prix d'achat (FCFA)</label><input type="number" id="art-prix-achat" placeholder="0"></div>
-      <div class="fr"><label>Stock initial</label><input type="number" id="art-stock" value="0"></div>
-      <div class="fr"><label>Stock minimum alerte</label><input type="number" id="art-stock-min" value="5"></div>
+      <!-- Stock : masqué pour les packs (calculé automatiquement) -->
+      <div class="fr" id="art-stock-zone"><label>Stock initial</label><input type="number" id="art-stock" value="0"></div>
+      <div class="fr" id="art-stock-min-zone"><label>Stock minimum alerte</label><input type="number" id="art-stock-min" value="5"></div>
       <div class="fr"><label>Unité</label><input type="text" id="art-unite" placeholder="pièce, kg..."></div>
     </div>
     <div class="fr"><label>Description / Notes</label><textarea id="art-desc" placeholder="Dimensions, couleurs, caractéristiques..." style="height:60px;resize:vertical;"></textarea></div>
-    <!-- Zone image -->
-    <div class="fr">
-      <label>Photo / Illustration</label>
-      <div class="art-img-drop" id="art-img-drop"
-        onclick="document.getElementById('art-img-input').click()"
-        ondragover="event.preventDefault();this.classList.add('dragover')"
-        ondragleave="this.classList.remove('dragover')"
-        ondrop="dropArtImage(event)">
-        <div style="font-size:28px;margin-bottom:4px;">📷</div>
-        <div style="font-size:12px;color:var(--muted);">Cliquez ou glissez une image ici</div>
-        <div style="font-size:10px;color:var(--muted);margin-top:2px;">JPG, PNG, WEBP — max 2 Mo</div>
-        <input type="file" id="art-img-input" accept="image/*" style="display:none" onchange="chargerArtImage(this)">
+
+    <!-- ══ COMPOSITION DU PACK (visible uniquement si type=pack) ══ -->
+    <div id="art-pack-zone" style="display:none;margin:14px 0;padding:14px;background:rgba(201,168,76,0.07);border:1px solid rgba(201,168,76,0.3);border-radius:11px;">
+      <div style="font-size:11px;color:var(--warn);text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:10px;">🎁 Composition du pack</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">Définissez les articles unitaires qui composent ce pack. Lors d'une livraison, le stock de chaque composant sera déduit.</div>
+      <!-- Recherche article composant -->
+      <div style="position:relative;margin-bottom:8px;">
+        <input type="text" id="pack-comp-search" placeholder="🔍 Rechercher un article composant..."
+          style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:12px;outline:none;box-sizing:border-box;"
+          oninput="packCompSearch()" autocomplete="off">
+        <div id="pack-comp-results" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:300;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.4);max-height:200px;overflow-y:auto;margin-top:2px;"></div>
       </div>
-      <img id="art-img-preview" class="art-img-preview" alt="Aperçu">
-      <div id="art-img-actions" style="display:none;margin-top:6px;display:none;gap:6px;">
-        <button class="btn btn-ghost btn-xs" onclick="document.getElementById('art-img-input').click()">🔄 Changer</button>
-        <button class="btn btn-xs btn-warn" onclick="supprimerArtImage()">✕ Retirer</button>
-      </div>
+      <!-- Liste des composants -->
+      <div id="pack-comp-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+      <div id="pack-comp-info" style="font-size:11px;color:var(--muted);margin-top:8px;padding:8px;background:var(--surface2);border-radius:7px;display:none;"></div>
     </div>
+
+    <!-- ══ ILLUSTRATIONS (multi-images, max 5) ══ -->
+    <div class="fr">
+      <label>Illustrations <span style="font-size:10px;color:var(--muted);font-weight:400;">— Photo principale + jusqu'à 4 vignettes (max 5)</span></label>
+      <!-- Grille galerie éditable -->
+      <div id="art-gallery-edit" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;"></div>
+      <!-- Bouton ajout -->
+      <label id="art-img-add-btn" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;background:var(--surface2);border:2px dashed var(--border);border-radius:9px;cursor:pointer;font-size:12px;color:var(--muted);transition:all 0.15s;"
+        onmouseover="this.style.borderColor='var(--accent3)';this.style.color='var(--accent3)'"
+        onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">
+        <span style="font-size:20px;">📷</span> Ajouter une illustration (JPG, PNG, WEBP — max 2 Mo)
+        <input type="file" id="art-img-input" accept="image/*" multiple style="display:none" onchange="chargerArtImages(this)">
+      </label>
+      <!-- Legacy hidden — gardé pour compatibilité -->
+      <img id="art-img-preview" class="art-img-preview" alt="Aperçu" style="display:none;">
+      <div id="art-img-actions" style="display:none;"></div>
+      <div id="art-img-drop" style="display:none;"></div>
+    </div>
+
     <div class="ma"><button class="btn btn-ghost" onclick="closeM('m-article')">Annuler</button><button class="btn btn-primary" onclick="saveArticle()">Enregistrer</button></div>
   </div>
 </div>
 
 <!-- MODAL ZOOM CATALOGUE -->
 <div class="mo" id="m-cat-zoom">
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;width:680px;max-width:97vw;max-height:95vh;overflow-y:auto;display:flex;flex-direction:column;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;width:700px;max-width:97vw;max-height:95vh;overflow-y:auto;display:flex;flex-direction:column;">
     <!-- Header -->
     <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border);">
       <div>
@@ -1790,19 +1822,31 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     </div>
     <!-- Image principale -->
     <div id="zoom-img-wrap" style="width:100%;background:var(--surface2);position:relative;min-height:260px;display:flex;align-items:center;justify-content:center;">
-      <img id="zoom-cat-img" style="max-width:100%;max-height:400px;object-fit:contain;display:block;" alt="">
+      <img id="zoom-cat-img" style="max-width:100%;max-height:380px;object-fit:contain;display:block;" alt="">
       <div id="zoom-cat-noimg" style="display:none;flex-direction:column;align-items:center;gap:8px;padding:40px;">
         <div style="font-size:72px;" id="zoom-cat-emoji"></div>
         <div style="font-size:12px;color:var(--muted);">Aucune image pour cet article</div>
       </div>
+      <!-- Flèches navigation -->
+      <button id="zoom-prev-btn" onclick="zoomNavImg(-1)" style="display:none;position:absolute;left:10px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.5);border:none;border-radius:50%;width:36px;height:36px;color:#fff;font-size:18px;cursor:pointer;line-height:36px;text-align:center;">‹</button>
+      <button id="zoom-next-btn" onclick="zoomNavImg(1)"  style="display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.5);border:none;border-radius:50%;width:36px;height:36px;color:#fff;font-size:18px;cursor:pointer;line-height:36px;text-align:center;">›</button>
+      <!-- Compteur -->
+      <div id="zoom-img-counter" style="display:none;position:absolute;bottom:8px;right:12px;background:rgba(0,0,0,0.55);color:#fff;font-size:11px;border-radius:20px;padding:3px 10px;"></div>
     </div>
-    <!-- Zone upload -->
-    <div style="padding:14px 20px;border-bottom:1px solid var(--border);">
+    <!-- Vignettes -->
+    <div id="zoom-thumbs" style="display:flex;gap:7px;padding:10px 16px;overflow-x:auto;background:var(--surface2);border-bottom:1px solid var(--border);min-height:0;"></div>
+    <!-- Zone upload admin -->
+    <div id="zoom-upload-section" style="padding:12px 16px;border-bottom:1px solid var(--border);">
       <label class="cat-upload-zone" id="zoom-upload-zone">
-        <input type="file" id="zoom-img-input" accept="image/*" style="display:none" onchange="uploadImageCatalogue(this)">
-        <span id="zoom-upload-label">📷 Cliquer pour ajouter / changer l'image</span>
+        <input type="file" id="zoom-img-input" accept="image/*" multiple style="display:none" onchange="uploadImagesCatalogue(this)">
+        <span id="zoom-upload-label">📷 Ajouter des illustrations (max 5 au total)</span>
       </label>
       <div id="zoom-upload-progress" style="display:none;font-size:11px;color:var(--accent2);margin-top:6px;text-align:center;">Chargement…</div>
+    </div>
+    <!-- Section Pack / Composition -->
+    <div id="zoom-pack-section" style="display:none;padding:14px 20px;border-bottom:1px solid var(--border);background:rgba(201,168,76,0.05);">
+      <div style="font-size:10px;color:var(--warn);text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:8px;">🎁 Composition du pack</div>
+      <div id="zoom-pack-list"></div>
     </div>
     <!-- Infos article -->
     <div style="padding:16px 20px;">
@@ -1822,7 +1866,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         </div>
       </div>
       <div style="margin-top:10px;display:flex;gap:8px;justify-content:flex-end;">
-        <button id="zoom-del-img-btn" class="btn btn-xs btn-warn" onclick="supprimerImgCatalogue()" style="display:none;">✕ Supprimer l'image</button>
+        <button id="zoom-del-img-btn" class="btn btn-xs btn-warn" onclick="supprimerImgCatalogueActuelle()" style="display:none;">✕ Supprimer cette image</button>
         <button class="btn btn-ghost btn-sm" onclick="closeM('m-cat-zoom')">Fermer</button>
       </div>
     </div>
@@ -2293,17 +2337,29 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
 
 <!-- IMPORT ARTICLES PREVIEW -->
 <div class="mo" id="m-import-articles">
-  <div class="md md-lg">
+  <div class="md md-lg" style="max-width:820px;">
     <div class="md-title">📦 Aperçu — Import articles</div>
+    <!-- Résumé KPI -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;" id="import-art-kpi"></div>
+    <!-- Info générale -->
     <div id="import-art-info" class="ib ib-green" style="margin-bottom:10px;"></div>
-    <div class="tw" style="max-height:300px;overflow-y:auto;margin-bottom:10px;">
-      <table><thead><tr><th>Réf.</th><th>Désignation</th><th>Catégorie</th><th>Prix vente</th><th>Prix achat</th><th>Stock</th><th>Statut</th></tr></thead>
+    <!-- Erreurs bloquantes -->
+    <div id="import-art-errors" class="ib ib-red" style="display:none;margin-bottom:10px;"></div>
+    <!-- Doublons bloquants -->
+    <div id="import-art-doublons" class="ib" style="display:none;margin-bottom:10px;background:rgba(247,201,79,0.12);border:1px solid rgba(247,201,79,0.4);color:var(--warn);"></div>
+    <!-- Tableau aperçu -->
+    <div class="tw" style="max-height:340px;overflow-y:auto;margin-bottom:10px;">
+      <table><thead><tr>
+        <th>#</th><th>Réf.</th><th>Désignation</th><th>Catégorie</th>
+        <th>Prix vente</th><th>Prix achat</th><th>Stock</th><th>Unité</th><th>Statut</th>
+      </tr></thead>
       <tbody id="import-art-body"></tbody></table>
     </div>
-    <div id="import-art-errors" class="ib ib-red" style="display:none;"></div>
     <div class="ma">
       <button class="btn btn-ghost" onclick="closeM('m-import-articles');importArticlesData=[];">Annuler</button>
-      <button class="btn btn-primary" onclick="confirmImportArticles()">✓ Importer <span id="import-art-count"></span> articles</button>
+      <button class="btn btn-primary" id="import-art-confirm-btn" onclick="confirmImportArticles()">
+        ✓ Importer <span id="import-art-count"></span> article(s)
+      </button>
     </div>
   </div>
 </div>
@@ -4604,12 +4660,16 @@ function renderCatalogue(){
   }
 
   grid.innerHTML = arts.map(a=>{
-    const stockColor = a.stock<=0?'var(--danger)':a.stock<=a.stockMin?'var(--accent3)':'var(--accent2)';
-    const stockLabel = a.stock<=0?'Rupture':a.stock<=a.stockMin?'Stock bas':'En stock';
-    const stockBg    = a.stock<=0?'rgba(224,92,82,0.14)':a.stock<=a.stockMin?'rgba(247,201,79,0.15)':'rgba(34,212,160,0.15)';
-
-    const imgSection = a.image
-      ? `<img src="${a.image}" alt="${a.nom}" style="width:100%;height:200px;object-fit:cover;display:block;transition:transform 0.3s;" class="cat-card-photo">`
+    const stockDispo = packStockDispo(a);
+    const stockColor = stockDispo<=0?'var(--danger)':stockDispo<=a.stockMin?'var(--accent3)':'var(--accent2)';
+    const stockLabel = stockDispo<=0?'Rupture':stockDispo<=a.stockMin?'Stock bas':'En stock';
+    const stockBg    = stockDispo<=0?'rgba(224,92,82,0.14)':stockDispo<=a.stockMin?'rgba(247,201,79,0.15)':'rgba(34,212,160,0.15)';
+    const imgs = artImages(a);
+    const imgSection = imgs.length>0
+      ? `<div style="position:relative;width:100%;height:200px;overflow:hidden;">
+           <img src="${imgs[0]}" alt="${esc(a.nom)}" style="width:100%;height:200px;object-fit:cover;display:block;transition:transform 0.3s;" class="cat-card-photo">
+           ${imgs.length>1?`<div style="position:absolute;bottom:6px;right:8px;background:rgba(0,0,0,0.55);color:#fff;font-size:10px;border-radius:12px;padding:2px 8px;">📷 ${imgs.length}</div>`:''}
+         </div>`
       : `<div class="cat-card-no-img">
            <div style="font-size:56px;">${catEmoji(a.cat)}</div>
            ${(session&&(session.role==='admin'||session.role==='gestionnaire_stock'))?`<label style="font-size:10px;color:var(--muted);cursor:pointer;padding:4px 10px;border:1px dashed var(--border);border-radius:6px;transition:all 0.15s;"
@@ -4619,11 +4679,12 @@ function renderCatalogue(){
              &#128247; Ajouter une image
            </label>`:''}
          </div>`;
-
+    const packBadge = a.type==='pack'?`<span style="position:absolute;top:8px;left:8px;background:rgba(201,168,76,0.9);color:#fff;font-size:9px;font-weight:800;padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:0.5px;">🎁 Pack</span>`:'';
     return `<div class="cat-card" onclick="ouvrirZoomCatalogue('${a._id}')">
-      <div class="cat-card-img-wrap">
+      <div class="cat-card-img-wrap" style="position:relative;">
         ${imgSection}
         ${_isComCat?'':`<span class="cat-card-badge" style="background:${stockBg};color:${stockColor};">${stockLabel}</span>`}
+        ${packBadge}
       </div>
       <div class="cat-card-body">
         <div class="cat-card-cat">${a.cat||'—'} · <span class="tag" style="font-size:9px;">${a.ref||'—'}</span></div>
@@ -4631,7 +4692,7 @@ function renderCatalogue(){
         ${a.desc?`<div class="cat-card-desc">${a.desc}</div>`:''}
         <div class="cat-card-footer">
           <div class="cat-card-prix">${fmt(a.pv)}</div>
-          ${_isComCat?'':`<div style="font-size:10px;color:${stockColor};font-weight:600;">${a.stock} ${a.unite||'pcs'}</div>`}
+          ${_isComCat?'':`<div style="font-size:10px;color:${stockColor};font-weight:600;">${stockDispo} ${a.unite||'pcs'}${a.type==='pack'?' (calculé)':''}</div>`}
         </div>
       </div>
     </div>`;
@@ -4651,9 +4712,14 @@ window.filtrerCatalogueStock = function(val){
 };
 
 let catZoomId = null;
+let catZoomImgIndex = 0; // index de l'image affichée dans le zoom
 
+// ══════════════════════════════════════════
+//  ZOOM CATALOGUE — multi-images + pack
+// ══════════════════════════════════════════
 window.ouvrirZoomCatalogue = function(artId, focusUpload=false){
   catZoomId = artId;
+  catZoomImgIndex = 0;
   const a = DB.articles.find(x=>x._id===artId);
   if(!a) return;
 
@@ -4665,25 +4731,42 @@ window.ouvrirZoomCatalogue = function(artId, focusUpload=false){
   document.getElementById('zoom-cat-pa').textContent    = a.pa>0?fmt(a.pa):'—';
   document.getElementById('zoom-cat-emoji').textContent = catEmoji(a.cat);
 
+  // Stock — pack = calculé
   const stockEl = document.getElementById('zoom-cat-stock');
-  const stockColor = a.stock<=0?'var(--danger)':a.stock<=a.stockMin?'var(--accent3)':'var(--accent2)';
-  stockEl.textContent = `${a.stock} ${a.unite||'pcs'}`;
+  const stockDispo = packStockDispo(a);
+  const stockColor = stockDispo<=0?'var(--danger)':stockDispo<=a.stockMin?'var(--accent3)':'var(--accent2)';
+  stockEl.textContent = `${stockDispo} ${a.unite||'pcs'}${a.type==='pack'?' (calculé)':''}`;
   stockEl.style.color = stockColor;
 
-  const img  = document.getElementById('zoom-cat-img');
-  const noImg = document.getElementById('zoom-cat-noimg');
-  const delBtn = document.getElementById('zoom-del-img-btn');
-  if(a.image){ img.src=a.image; img.style.display='block'; noImg.style.display='none'; delBtn.style.display=''; }
-  else { img.src=''; img.style.display='none'; noImg.style.display='flex'; delBtn.style.display='none'; }
+  // Afficher section composition pack
+  const packSec = document.getElementById('zoom-pack-section');
+  if(a.type==='pack' && (a.composition||[]).length>0){
+    packSec.style.display='';
+    document.getElementById('zoom-pack-list').innerHTML=(a.composition||[]).map(c=>{
+      const comp=DB.articles.find(x=>x._id===c.articleId);
+      if(!comp) return '';
+      const sc = comp.stock<=0?'var(--danger)':comp.stock<=(comp.stockMin||0)?'var(--warn)':'var(--accent2)';
+      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:var(--surface2);border-radius:7px;margin-bottom:5px;">
+        <div>
+          <span style="font-weight:600;font-size:13px;">${esc(comp.nom)}</span>
+          <span style="font-size:10px;color:var(--muted);margin-left:6px;">${esc(comp.ref||'')}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-weight:700;color:var(--accent);">${c.qte}x</span>
+          <span style="font-size:11px;color:${sc};font-weight:600;">Stock: ${comp.stock}</span>
+        </div>
+      </div>`;
+    }).join('');
+  } else { packSec.style.display='none'; }
+
+  // Galerie images (images[] array ou image legacy)
+  zoomRenderGallery(a);
 
   document.getElementById('zoom-upload-progress').style.display='none';
   document.getElementById('zoom-img-input').value='';
-  // Masquer les actions d'édition pour les commerciaux (lecture seule)
   const canEditCat = session && (session.role==='admin'||session.role==='gestionnaire_stock');
   const _isComZoom = session && session.role==='commercial';
-  document.getElementById('zoom-upload-zone').style.display = canEditCat ? '' : 'none';
-  document.getElementById('zoom-del-img-btn').style.display = 'none'; // reset, géré ailleurs
-  // Masquer stock et prix d'achat pour les commerciaux
+  document.getElementById('zoom-upload-section').style.display = canEditCat ? '' : 'none';
   const _sw = document.getElementById('zoom-cat-stock-wrap');
   const _pw = document.getElementById('zoom-cat-pa-wrap');
   const _ig = document.getElementById('zoom-cat-info-grid');
@@ -4694,33 +4777,264 @@ window.ouvrirZoomCatalogue = function(artId, focusUpload=false){
   if(focusUpload && canEditCat) setTimeout(()=>document.getElementById('zoom-img-input').click(),200);
 };
 
-window.uploadImageCatalogue = async function(input){
-  if(!input.files[0]||!catZoomId) return;
-  const prog = document.getElementById('zoom-upload-progress');
-  prog.style.display='block';
-  const b64 = await fileToBase64(input.files[0]);
-  if(!b64){ prog.style.display='none'; notify('Image trop grande (max 2 Mo)','err'); return; }
-  await fbUpdate('articles', catZoomId, {image:b64});
-  document.getElementById('zoom-cat-img').src = b64;
-  document.getElementById('zoom-cat-img').style.display='block';
-  document.getElementById('zoom-cat-noimg').style.display='none';
-  document.getElementById('zoom-del-img-btn').style.display='';
-  prog.style.display='none';
-  notify('Image mise à jour ✓');
+// Rendu galerie dans le zoom
+function zoomRenderGallery(a){
+  const imgs = artImages(a); // tableau d'URLs
+  const main = document.getElementById('zoom-cat-img');
+  const noImg = document.getElementById('zoom-cat-noimg');
+  const thumbsEl = document.getElementById('zoom-thumbs');
+  const counter = document.getElementById('zoom-img-counter');
+  const prevBtn = document.getElementById('zoom-prev-btn');
+  const nextBtn = document.getElementById('zoom-next-btn');
+  const delBtn  = document.getElementById('zoom-del-img-btn');
+  const canEdit = session && (session.role==='admin'||session.role==='gestionnaire_stock');
+  if(catZoomImgIndex >= imgs.length) catZoomImgIndex=0;
+  if(imgs.length>0){
+    main.src=imgs[catZoomImgIndex]; main.style.display='block';
+    noImg.style.display='none';
+    counter.style.display = imgs.length>1 ? '' : 'none';
+    counter.textContent = `${catZoomImgIndex+1} / ${imgs.length}`;
+    prevBtn.style.display = imgs.length>1 ? '' : 'none';
+    nextBtn.style.display = imgs.length>1 ? '' : 'none';
+    if(canEdit) delBtn.style.display='';
+  } else {
+    main.src=''; main.style.display='none'; noImg.style.display='flex';
+    counter.style.display='none'; prevBtn.style.display='none'; nextBtn.style.display='none';
+    delBtn.style.display='none';
+  }
+  // Vignettes
+  if(imgs.length>1){
+    thumbsEl.style.display='flex';
+    thumbsEl.innerHTML=imgs.map((src,i)=>`
+      <img src="${src}" onclick="zoomSetImg(${i})"
+        style="width:64px;height:64px;object-fit:cover;border-radius:7px;cursor:pointer;border:2px solid ${i===catZoomImgIndex?'var(--accent)':'transparent'};flex-shrink:0;transition:border-color 0.15s;">`
+    ).join('');
+  } else { thumbsEl.style.display='none'; thumbsEl.innerHTML=''; }
+  // Label upload
+  const lbl = document.getElementById('zoom-upload-label');
+  if(lbl) lbl.textContent = imgs.length>=5 ? '✅ 5 illustrations — max atteint' : `📷 Ajouter des illustrations (${imgs.length}/5)`;
+  const inp = document.getElementById('zoom-img-input');
+  if(inp) inp.disabled = imgs.length>=5;
+}
+
+window.zoomSetImg = function(idx){
+  const a=DB.articles.find(x=>x._id===catZoomId); if(!a) return;
+  catZoomImgIndex=idx; zoomRenderGallery(a);
+};
+window.zoomNavImg = function(dir){
+  const a=DB.articles.find(x=>x._id===catZoomId); if(!a) return;
+  const imgs=artImages(a);
+  catZoomImgIndex=(catZoomImgIndex+dir+imgs.length)%imgs.length;
+  zoomRenderGallery(a);
 };
 
-window.supprimerImgCatalogue = async function(){
-  if(!catZoomId) return;
-  if(!confirm('Supprimer l\'image de cet article ?')) return;
-  await fbUpdate('articles', catZoomId, {image:''});
-  document.getElementById('zoom-cat-img').src='';
-  document.getElementById('zoom-cat-img').style.display='none';
-  document.getElementById('zoom-cat-noimg').style.display='flex';
-  document.getElementById('zoom-del-img-btn').style.display='none';
-  notify('Image supprimée');
+window.uploadImagesCatalogue = async function(input){
+  if(!input.files||!input.files.length||!catZoomId) return;
+  const prog = document.getElementById('zoom-upload-progress');
+  prog.style.display='block'; prog.textContent='Chargement…';
+  const a = DB.articles.find(x=>x._id===catZoomId);
+  if(!a){ prog.style.display='none'; return; }
+  const existingImgs = artImages(a);
+  const remaining = 5 - existingImgs.length;
+  if(remaining<=0){ notify('Maximum 5 illustrations atteint','err'); prog.style.display='none'; return; }
+  const files = Array.from(input.files).slice(0,remaining);
+  const newB64 = [];
+  for(const f of files){
+    const b64 = await fileToBase64(f);
+    if(!b64){ notify('Une image est trop grande (max 2 Mo)','err'); continue; }
+    newB64.push(b64);
+  }
+  if(!newB64.length){ prog.style.display='none'; return; }
+  const merged = [...existingImgs, ...newB64].slice(0,5);
+  // Sauvegarder : images[] + image (legacy = 1ère)
+  await fbUpdate('articles', catZoomId, {images: merged, image: merged[0]});
+  catZoomImgIndex = existingImgs.length; // pointer sur la 1ère nouvellement ajoutée
+  const updated = DB.articles.find(x=>x._id===catZoomId);
+  if(updated){ updated.images=merged; updated.image=merged[0]; }
+  zoomRenderGallery({...a, images:merged, image:merged[0]});
+  prog.style.display='none';
+  notify(`${newB64.length} illustration(s) ajoutée(s) ✓`);
 };
-let artImageBase64 = null;
-let artImageModalId = null;
+
+window.supprimerImgCatalogueActuelle = async function(){
+  if(!catZoomId) return;
+  const a=DB.articles.find(x=>x._id===catZoomId); if(!a) return;
+  const imgs=artImages(a);
+  if(!imgs.length) return;
+  if(!confirm('Supprimer cette illustration ?')) return;
+  const newImgs = imgs.filter((_,i)=>i!==catZoomImgIndex);
+  catZoomImgIndex = Math.min(catZoomImgIndex, Math.max(0,newImgs.length-1));
+  await fbUpdate('articles', catZoomId, {images:newImgs, image:newImgs[0]||''});
+  a.images=newImgs; a.image=newImgs[0]||'';
+  zoomRenderGallery(a);
+  notify('Illustration supprimée');
+};
+
+// Compat legacy : récupérer tableau d'images depuis un article
+function artImages(a){
+  if(a.images && a.images.length) return a.images;
+  if(a.image) return [a.image];
+  return [];
+}
+
+// ══════════════════════════════════════════
+//  PACKS — helpers stock
+// ══════════════════════════════════════════
+// Stock disponible d'un pack = floor(min(stock_composant / qte_requise))
+function packStockDispo(a){
+  if(a.type!=='pack') return a.stock;
+  const comp = a.composition||[];
+  if(!comp.length) return 0;
+  return Math.floor(Math.min(...comp.map(c=>{
+    const art=DB.articles.find(x=>x._id===c.articleId);
+    return art ? Math.floor(art.stock / c.qte) : 0;
+  })));
+}
+
+// ══════════════════════════════════════════
+//  MODAL ARTICLE — type + pack + multi-images
+// ══════════════════════════════════════════
+let artEditImages = []; // tableau de base64 en cours d'édition
+let artImageBase64 = null; // compat legacy (inutilisé si multi)
+
+window.artSetType = function(type){
+  document.getElementById('art-type').value=type;
+  const isPack = type==='pack';
+  document.getElementById('art-type-btn-article').style.cssText=`flex:1;padding:10px;border-radius:9px;border:2px solid ${isPack?'var(--border)':'var(--accent)'};background:${isPack?'transparent':'rgba(201,168,76,0.12)'};color:${isPack?'var(--muted)':'var(--accent)'};font-weight:700;font-size:13px;cursor:pointer;transition:all 0.15s;`;
+  document.getElementById('art-type-btn-pack').style.cssText=`flex:1;padding:10px;border-radius:9px;border:2px solid ${isPack?'var(--warn)':'var(--border)'};background:${isPack?'rgba(201,168,76,0.12)':'transparent'};color:${isPack?'var(--warn)':'var(--muted)'};font-weight:700;font-size:13px;cursor:pointer;transition:all 0.15s;`;
+  document.getElementById('art-pack-zone').style.display = isPack?'':'none';
+  document.getElementById('art-stock-zone').style.display = isPack?'none':'';
+  document.getElementById('art-stock-min-zone').style.display = isPack?'none':'';
+};
+
+window.packCompSearch = function(){
+  const q=(document.getElementById('pack-comp-search').value||'').toLowerCase().trim();
+  const res=document.getElementById('pack-comp-results');
+  if(!q){ res.style.display='none'; return; }
+  const editId = document.getElementById('art-edit-id').value;
+  const found = DB.articles.filter(a=>
+    a._id!==editId &&
+    ((a.nom||'').toLowerCase().includes(q)||(a.ref||'').toLowerCase().includes(q))
+  ).slice(0,7);
+  if(!found.length){ res.style.display='block'; res.innerHTML='<div style="padding:10px;font-size:12px;color:var(--muted);">Aucun article trouvé.</div>'; return; }
+  res.style.display='block';
+  res.innerHTML=found.map(a=>`
+    <div onclick="packAddComp('${a._id}','${esc(a.nom)}','${esc(a.ref||'')}')"
+      style="padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;"
+      onmouseover="this.style.background='rgba(201,168,76,0.1)'" onmouseout="this.style.background=''">
+      <div>
+        <div style="font-weight:600;font-size:13px;">${esc(a.nom)}</div>
+        <div style="font-size:10px;color:var(--muted);">${a.ref?'Réf: '+esc(a.ref)+' · ':''}${esc(a.cat||'—')}</div>
+      </div>
+      <div style="font-size:11px;color:var(--accent2);font-weight:700;">Stock: ${a.stock}</div>
+    </div>`
+  ).join('');
+};
+
+let _packComposition = []; // [{articleId, nom, ref, qte}]
+
+window.packAddComp = function(artId, nom, ref){
+  document.getElementById('pack-comp-search').value='';
+  document.getElementById('pack-comp-results').style.display='none';
+  if(_packComposition.find(c=>c.articleId===artId)){ notify('Composant déjà ajouté','err'); return; }
+  _packComposition.push({articleId:artId, nom, ref, qte:1});
+  renderPackCompList();
+};
+
+window.packUpdateQte = function(artId, val){
+  const c=_packComposition.find(x=>x.articleId===artId);
+  if(c) c.qte=Math.max(1,parseInt(val)||1);
+  renderPackCompList();
+};
+
+window.packRemoveComp = function(artId){
+  _packComposition=_packComposition.filter(c=>c.articleId!==artId);
+  renderPackCompList();
+};
+
+function renderPackCompList(){
+  const el=document.getElementById('pack-comp-list');
+  const info=document.getElementById('pack-comp-info');
+  if(!_packComposition.length){
+    el.innerHTML='<div style="font-size:12px;color:var(--muted);padding:8px 0;">Aucun composant ajouté.</div>';
+    info.style.display='none'; return;
+  }
+  el.innerHTML=_packComposition.map(c=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(c.nom)}</div>
+        ${c.ref?`<div style="font-size:10px;color:var(--muted);">${esc(c.ref)}</div>`:''}
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <label style="font-size:11px;color:var(--muted);">Qté</label>
+        <input type="number" min="1" value="${c.qte}" onchange="packUpdateQte('${c.articleId}',this.value)"
+          style="width:56px;padding:4px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;font-weight:700;outline:none;text-align:center;">
+        <button onclick="packRemoveComp('${c.articleId}')" style="background:rgba(224,92,82,0.12);border:1px solid rgba(224,92,82,0.3);border-radius:6px;color:var(--danger);padding:4px 8px;font-size:11px;cursor:pointer;">✕</button>
+      </div>
+    </div>`
+  ).join('');
+  // Info stock dispo théorique
+  const dispo=Math.floor(Math.min(..._packComposition.map(c=>{
+    const art=DB.articles.find(x=>x._id===c.articleId);
+    return art ? Math.floor(art.stock/c.qte) : 0;
+  })));
+  info.style.display='';
+  info.innerHTML=`📦 Stock disponible théorique du pack : <strong style="color:${dispo>0?'var(--accent2)':'var(--danger)'};">${dispo} unité(s)</strong>`;
+}
+
+// Galerie éditable dans le modal article
+function renderArtGalleryEdit(){
+  const el=document.getElementById('art-gallery-edit');
+  if(!el) return;
+  if(!artEditImages.length){ el.innerHTML=''; return; }
+  el.innerHTML=artEditImages.map((src,i)=>`
+    <div style="position:relative;border-radius:9px;overflow:hidden;aspect-ratio:1;background:var(--surface2);">
+      <img src="${src}" style="width:100%;height:100%;object-fit:cover;display:block;">
+      ${i===0?'<div style="position:absolute;top:5px;left:5px;background:rgba(201,168,76,0.9);color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;text-transform:uppercase;letter-spacing:0.5px;">Principale</div>':''}
+      <button onclick="artRemoveImg(${i})" style="position:absolute;top:5px;right:5px;background:rgba(0,0,0,0.6);border:none;border-radius:50%;width:22px;height:22px;color:#fff;font-size:12px;cursor:pointer;line-height:22px;text-align:center;">✕</button>
+    </div>`
+  ).join('');
+  // Mettre à jour label du bouton d'ajout
+  const addBtn=document.getElementById('art-img-add-btn');
+  if(addBtn){
+    const spans=addBtn.querySelectorAll('span:not(:first-child)');
+    if(artEditImages.length>=5){
+      addBtn.style.opacity='0.5'; addBtn.style.pointerEvents='none';
+    } else {
+      addBtn.style.opacity='1'; addBtn.style.pointerEvents='';
+    }
+  }
+}
+
+window.artRemoveImg = function(idx){
+  artEditImages=artEditImages.filter((_,i)=>i!==idx);
+  renderArtGalleryEdit();
+};
+
+window.chargerArtImages = async function(input){
+  if(!input.files||!input.files.length) return;
+  const remaining=5-artEditImages.length;
+  if(remaining<=0){ notify('Maximum 5 illustrations atteint','err'); return; }
+  const files=Array.from(input.files).slice(0,remaining);
+  for(const f of files){
+    const b64=await fileToBase64(f);
+    if(!b64){ notify('Image trop grande (max 2 Mo)','err'); continue; }
+    artEditImages.push(b64);
+  }
+  artEditImages=artEditImages.slice(0,5);
+  renderArtGalleryEdit();
+  input.value='';
+};
+
+// Legacy compat (gardé pour les anciens appels)
+window.chargerArtImage = window.chargerArtImages;
+window.supprimerArtImage = function(){ artEditImages=[]; renderArtGalleryEdit(); };
+window.dropArtImage = function(e){
+  e.preventDefault();
+  document.getElementById('art-img-drop')?.classList?.remove('dragover');
+  const f=e.dataTransfer?.files?.[0];
+  if(f&&f.type.startsWith('image/')) chargerArtImages({files:[f]});
+};
 
 window.setArtView = function(mode){
   artViewMode = mode;
@@ -4804,22 +5118,11 @@ function catEmoji(cat){
   return '📦';
 }
 
-// ── Ouvrir modal image article ──
+let artImageModalId = null; // compat legacy
+
+// ── Ouvrir modal image article → redirige vers zoom catalogue multi-images ──
 window.ouvrirArtModal = function(artId){
-  artImageModalId = artId;
-  const a = DB.articles.find(x=>x._id===artId);
-  if(!a) return;
-  document.getElementById('art-img-modal-title').textContent = a.nom;
-  const imgEl = document.getElementById('art-img-modal-img');
-  imgEl.src = a.image || '';
-  imgEl.style.display = a.image ? '' : 'none';
-  document.getElementById('art-img-modal-desc').textContent = a.desc||a.description||'';
-  document.getElementById('art-img-modal-details').innerHTML=`
-    <div class="ib ib-green" style="margin:0;"><strong>Prix vente</strong><br>${fmt(a.pv)}</div>
-    <div class="ib ib-blue" style="margin:0;"><strong>Stock</strong><br>${a.stock} ${a.unite||'pcs'}</div>
-    <div class="ib ib-yellow" style="margin:0;"><strong>Réf.</strong><br>${a.ref||'—'}</div>
-    <div class="ib ib-purple" style="margin:0;"><strong>Catégorie</strong><br>${a.cat||'—'}</div>`;
-  openM('m-art-image');
+  ouvrirZoomCatalogue(artId);
 };
 
 window.changerImageArticle = async function(input){
@@ -4841,40 +5144,6 @@ window.supprimerImageArticle = async function(){
   notify('Image supprimée');
 };
 
-// ── Gestion image dans le modal création ──
-window.chargerArtImage = function(input){
-  if(!input.files[0]) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    const b64 = e.target.result;
-    if(b64.length > 2.5*1024*1024){ notify('Image trop grande (max ~2 Mo)','err'); artImageBase64=null; return; }
-    artImageBase64 = b64;
-    const preview = document.getElementById('art-img-preview');
-    preview.src = b64; preview.style.display='block';
-    document.getElementById('art-img-actions').style.display='flex';
-    document.getElementById('art-img-drop').style.display='none';
-  };
-  reader.readAsDataURL(input.files[0]);
-};
-
-window.dropArtImage = function(e){
-  e.preventDefault();
-  document.getElementById('art-img-drop').classList.remove('dragover');
-  const f = e.dataTransfer.files[0];
-  if(f&&f.type.startsWith('image/')){
-    const fakeInput={files:[f]};
-    chargerArtImage(fakeInput);
-  }
-};
-
-window.supprimerArtImage = function(){
-  artImageBase64=null;
-  document.getElementById('art-img-preview').style.display='none';
-  document.getElementById('art-img-preview').src='';
-  document.getElementById('art-img-actions').style.display='none';
-  document.getElementById('art-img-drop').style.display='';
-  document.getElementById('art-img-input').value='';
-};
 
 function fileToBase64(file){
   return new Promise(res=>{
@@ -6670,39 +6939,40 @@ window.saveArticle = async function(){
   const pv=parseFloat(document.getElementById('art-prix-vente').value)||0;
   if(!nom||pv<=0){notify('Désignation et prix obligatoires','err');return;}
   const editId = document.getElementById('art-edit-id').value;
-  const stock=parseInt(document.getElementById('art-stock').value)||0;
+  const type = document.getElementById('art-type').value||'article';
+  const isPack = type==='pack';
+  if(isPack && !_packComposition.length){ notify('Ajoutez au moins un composant au pack','err'); return; }
+  const stock = isPack ? 0 : (parseInt(document.getElementById('art-stock').value)||0);
   const data={
     ref:document.getElementById('art-ref').value||`ART-${Date.now()}`,
     nom, cat:document.getElementById('art-cat').value,
     pv, pa:parseFloat(document.getElementById('art-prix-achat').value)||0,
-    stock, stockMin:parseInt(document.getElementById('art-stock-min').value)||5,
+    stock, stockMin: isPack ? 0 : (parseInt(document.getElementById('art-stock-min').value)||5),
     unite:document.getElementById('art-unite').value||'pièce',
-    desc:document.getElementById('art-desc').value.trim()
+    desc:document.getElementById('art-desc').value.trim(),
+    type,
+    composition: isPack ? _packComposition.map(c=>({articleId:c.articleId,nom:c.nom,ref:c.ref,qte:c.qte})) : []
   };
-  if(artImageBase64!==null) data.image=artImageBase64;
+  // Images
+  if(artEditImages.length){
+    data.images = artEditImages;
+    data.image  = artEditImages[0];
+  }
   if(editId){
-    // Vérifier si le prix a changé pour informer sur les contrats protégés
     const artActuel = DB.articles.find(a=>a._id===editId);
     const ancienPv = artActuel ? artActuel.pv : null;
-    const nouveauPv = data.pv;
     await fbUpdate('articles', editId, data);
-    artImageBase64=null;
     closeM('m-article');
-    if(ancienPv !== null && ancienPv !== nouveauPv){
+    if(ancienPv !== null && ancienPv !== data.pv){
       const clientsProtéges = DB.clients.filter(c=>(c.articlesPrixFiges||[]).some(x=>x.articleId===editId));
       if(clientsProtéges.length>0){
-        notify(`Article modifié ✓ — Prix ${fmt(ancienPv)} → ${fmt(nouveauPv)} · ${clientsProtéges.length} client(s) en cours conservent leur ancien prix 🔒`);
-      } else {
-        notify(`Article modifié ✓ — Nouveau prix : ${fmt(nouveauPv)}`);
-      }
-    } else {
-      notify('Article modifié ✓');
-    }
+        notify(`Article modifié ✓ — Prix ${fmt(ancienPv)} → ${fmt(data.pv)} · ${clientsProtéges.length} client(s) conservent leur prix 🔒`);
+      } else { notify(`Article modifié ✓`); }
+    } else { notify('Article modifié ✓'); }
   } else {
-    data.image=artImageBase64||'';
+    if(!artEditImages.length) data.images=[]; data.image='';
     const art=await fbAdd('articles',data);
     if(stock>0) await fbAdd('stockMvts',{articleId:art._id,type:'entree',qty:stock,stockApres:stock,date:TODAY,note:'Stock initial'});
-    artImageBase64=null;
     closeM('m-article');notify('Article créé ✓');
   }
 };
@@ -6789,9 +7059,8 @@ window.saveLivraison = async function(){
   const montantFinal = montantLivraison || (_prixFigeLiv * qty);
 
   if(statut==='livre'&&art){
-    const newStock=Math.max(0,art.stock-qty);
-    await fbUpdate('articles',aId,{stock:newStock});
-    await fbAdd('stockMvts',{articleId:aId,type:'sortie',qty,stockApres:newStock,date,note:`Livraison client ${getCl(cId).nom}`});
+    const warnings = await deduireStockLivraison(art, qty, getCl(cId)?.nom||'');
+    if(warnings.length) notify(`⚠️ Stock insuffisant sur : ${warnings.join(', ')}`,'warn');
   }
   await fbAdd('livraisons',{clientId:cId,commercialId:session.userId,articleId:aId,qty,montant:montantFinal,pvFige:_prixFigeLiv,date,statut,note:document.getElementById('liv-note').value});
   closeM('m-livraison');notify('Livraison enregistrée ✓');
@@ -6802,10 +7071,39 @@ window.marquerLivre = async function(id){
   const l=DB.livraisons.find(l=>l._id===id);
   if(!l) return;
   const art=DB.articles.find(a=>a._id===l.articleId);
-  if(art){const ns=Math.max(0,art.stock-l.qty);await fbUpdate('articles',l.articleId,{stock:ns});await fbAdd('stockMvts',{articleId:l.articleId,type:'sortie',qty:l.qty,stockApres:ns,date:TODAY,note:`Livraison ${getCl(l.clientId).nom}`});}
+  if(!art){ await fbUpdate('livraisons',id,{statut:'livre'}); notify('Livraison marquée livrée ✓'); return; }
+  const warnings = await deduireStockLivraison(art, l.qty, l.clientId||'');
   await fbUpdate('livraisons',id,{statut:'livre'});
-  notify('Livraison marquée livrée ✓');
+  if(warnings.length){
+    notify(`⚠️ Livraison marquée livrée — Stock insuffisant sur : ${warnings.join(', ')}`,'warn');
+  } else {
+    notify('Livraison marquée livrée ✓');
+  }
 };
+
+// Déduit le stock selon type article ou pack. Retourne liste des alertes manque.
+async function deduireStockLivraison(art, qty, clientNom){
+  const warnings=[];
+  if(art.type==='pack'){
+    const comp=art.composition||[];
+    for(const c of comp){
+      const compArt=DB.articles.find(x=>x._id===c.articleId);
+      if(!compArt){ warnings.push(`(composant inconnu)`); continue; }
+      const needed=c.qte*qty;
+      const deduct=Math.min(needed, compArt.stock);
+      const ns=Math.max(0,compArt.stock-needed);
+      await fbUpdate('articles',c.articleId,{stock:ns});
+      await fbAdd('stockMvts',{articleId:c.articleId,type:'sortie',qty:deduct,stockApres:ns,date:TODAY,note:`Pack livré: ${art.nom} × ${qty} → client ${clientNom}`});
+      if(deduct<needed) warnings.push(`${compArt.nom} (manque ${needed-deduct})`);
+    }
+  } else {
+    const ns=Math.max(0,art.stock-qty);
+    await fbUpdate('articles',art._id,{stock:ns});
+    await fbAdd('stockMvts',{articleId:art._id,type:'sortie',qty:Math.min(qty,art.stock),stockApres:ns,date:TODAY,note:`Livraison client ${clientNom}`});
+    if(qty>art.stock) warnings.push(`${art.nom} (manque ${qty-art.stock})`);
+  }
+  return warnings;
+}
 
 window.verifierPrefix = function(input){
   const p = input.value.trim().toUpperCase();
@@ -6876,10 +7174,14 @@ window.editArt = function(id){
   document.getElementById('art-stock-min').value = a.stockMin||5;
   document.getElementById('art-unite').value = a.unite||'';
   document.getElementById('art-desc').value = a.desc||a.description||'';
-  artImageBase64 = null; // ne pas écraser l'image existante sauf si l'user en choisit une nouvelle
-  const prev = document.getElementById('art-img-preview');
-  if(a.image){ prev.src=a.image; prev.style.display=''; document.getElementById('art-img-actions').style.display='flex'; document.getElementById('art-img-drop').style.display='none'; }
-  else { prev.style.display='none'; prev.src=''; document.getElementById('art-img-actions').style.display='none'; document.getElementById('art-img-drop').style.display=''; }
+  // Type pack / article
+  artSetType(a.type==='pack'?'pack':'article');
+  // Composition pack
+  _packComposition = (a.composition||[]).map(c=>({...c}));
+  renderPackCompList();
+  // Images
+  artEditImages = artImages(a);
+  renderArtGalleryEdit();
   openM('m-article');
 };
 window.delLiv = async function(id){ if(!['admin','secretaire'].includes(session?.role)){ notify('Accès refusé','err'); return; } if(!confirm('Supprimer cette livraison ?')) return; await fbDelete('livraisons',id); notify('Livraison supprimée'); };
@@ -7181,11 +7483,18 @@ window.openM = function(id){
     document.getElementById('art-stock').value='0';
     document.getElementById('art-stock-min').value='5';
     artImageBase64=null;
+    artEditImages=[];
+    renderArtGalleryEdit();
+    _packComposition=[];
+    renderPackCompList();
+    artSetType('article');
     document.getElementById('art-img-preview').style.display='none';
     document.getElementById('art-img-preview').src='';
     document.getElementById('art-img-actions').style.display='none';
-    document.getElementById('art-img-drop').style.display='';
+    document.getElementById('art-img-drop').style.display='none';
     document.getElementById('art-img-input').value='';
+    document.getElementById('pack-comp-search').value='';
+    document.getElementById('pack-comp-results').style.display='none';
   }
   if(id==='m-stock-mvt'){
     // Réinitialiser la recherche article
@@ -7443,8 +7752,61 @@ window.confirmImport = async function(){
 };
 
 // ========= IMPORT ARTICLES =========
-let importArticlesData = [];
+let importArticlesData = []; // lignes valides
+let importArticlesRaw  = []; // toutes les lignes parsées (pour aperçu complet)
 
+// ══════════════════════════════════════════
+//  TÉLÉCHARGER LE MODÈLE
+// ══════════════════════════════════════════
+window.downloadArticleTemplate = async function(){
+  // Charger SheetJS si pas encore disponible
+  if(!window.XLSX){
+    await new Promise((res,rej)=>{
+      const s=document.createElement('script');
+      s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      s.onload=res; s.onerror=rej;
+      document.head.appendChild(s);
+    });
+  }
+  const cols = [
+    'ref','nom','categorie','prix_vente','prix_achat','stock','stock_min','unite','description'
+  ];
+  const exemple = [
+    ['CE-001','Chauffe-eau 10L','Électroménager',45000,30000,20,5,'pièce','Chauffe-eau électrique 10 litres'],
+    ['RAL-001','Rallonge 5m','Électricité',3500,2000,50,10,'pièce','Rallonge électrique 5 mètres'],
+    ['GAZ-6KG','Gaz 6kg','Gaz',12000,8500,30,5,'bouteille','Bouteille de gaz 6 kg'],
+  ];
+  const ws = XLSX.utils.aoa_to_sheet([cols, ...exemple]);
+  // Largeurs colonnes
+  ws['!cols'] = [8,25,18,12,12,8,8,10,30].map(w=>({wch:w}));
+  // Style entête (gras) — note: XLSX de base ne gère pas le style, mais on peut noter
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Articles');
+  // Feuille guide
+  const guide = XLSX.utils.aoa_to_sheet([
+    ['Colonne','Description','Obligatoire ?','Exemple'],
+    ['ref','Référence unique de l\'article (code)','Non','CE-001'],
+    ['nom','Désignation / nom de l\'article','OUI','Chauffe-eau 10L'],
+    ['categorie','Famille ou catégorie','Non','Électroménager'],
+    ['prix_vente','Prix de vente en FCFA','OUI','45000'],
+    ['prix_achat','Prix d\'achat en FCFA','Non','30000'],
+    ['stock','Stock initial','Non (0 par défaut)','20'],
+    ['stock_min','Seuil d\'alerte stock bas','Non (5 par défaut)','5'],
+    ['unite','Unité de mesure','Non (pièce par défaut)','pièce / kg / litre'],
+    ['description','Notes ou description libre','Non','Chauffe-eau électrique...'],
+    ['','','',''],
+    ['⚠️ Important','Les colonnes ref, nom, categorie... acceptent aussi les noms sans accent.','',''],
+    ['','Ex: "référence" ou "reference" sont tous les deux reconnus.','',''],
+  ]);
+  guide['!cols'] = [{wch:15},{wch:45},{wch:22},{wch:30}];
+  XLSX.utils.book_append_sheet(wb, guide, 'Guide colonnes');
+  XLSX.writeFile(wb, 'modele_import_articles.xlsx');
+  notify('Modèle téléchargé ✓');
+};
+
+// ══════════════════════════════════════════
+//  GESTION IMPORT
+// ══════════════════════════════════════════
 window.handleImportArticles = async function(event){
   const file = event.target.files[0];
   if(!file) return;
@@ -7461,54 +7823,143 @@ window.handleImportArticles = async function(event){
 };
 
 function normalizeArticleRow(row){
-  const get = (...keys) => { for(const k of keys){ if(row[k]!==undefined&&row[k]!=='') return row[k]; } return ''; };
+  const get = (...keys) => { for(const k of keys){ const v=row[k]; if(v!==undefined&&v!=='') return String(v).trim(); } return ''; };
   return {
-    ref:      get('ref','référence','reference','code','code_article'),
-    nom:      get('nom','designation','désignation','libelle','libellé','article','name','produit'),
-    cat:      get('categorie','catégorie','cat','famille','type'),
-    pv:       parseFloat(get('prix_vente','pv','prix vente','prix','price','montant','vente')) || 0,
-    pa:       parseFloat(get('prix_achat','pa','prix achat','achat','cout','coût','cost')) || 0,
-    stock:    parseInt(get('stock','quantite','quantité','qty','qte')) || 0,
-    stockMin: parseInt(get('stock_min','stock min','stockmin','min','minimum','seuil')) || 5,
-    unite:    get('unite','unité','unit','mesure') || 'pièce',
+    ref:      get('ref','référence','reference','code','code_article','Réf.','Ref'),
+    nom:      get('nom','designation','désignation','libelle','libellé','article','name','produit','Désignation','Designation'),
+    cat:      get('categorie','catégorie','cat','famille','type','Catégorie','Categorie'),
+    pv:       parseFloat(get('prix_vente','pv','prix vente','prix','price','montant','vente','Prix vente','Prix_vente')) || 0,
+    pa:       parseFloat(get('prix_achat','pa','prix achat','achat','cout','coût','cost','Prix achat','Prix_achat')) || 0,
+    stock:    parseInt(get('stock','quantite','quantité','qty','qte','Stock')) || 0,
+    stockMin: parseInt(get('stock_min','stock min','stockmin','min','minimum','seuil','Stock min')) || 5,
+    unite:    get('unite','unité','unit','mesure','Unité','Unite') || 'pièce',
+    desc:     get('description','desc','note','notes','Description'),
   };
 }
 
 function prepareImportArticlesPreview(rows){
-  importArticlesData = rows.map(normalizeArticleRow).filter(r=>r.nom&&r.pv>0);
-  const errors = rows.length - importArticlesData.length;
+  importArticlesRaw = rows.map(normalizeArticleRow);
+  // Identifier les refs existantes dans DB
+  const refsExistantes = new Set(DB.articles.map(a=>(a.ref||'').toLowerCase().trim()).filter(Boolean));
+  // Identifier les refs en doublon DANS le fichier lui-même
+  const refsVues = new Set();
+  const refsDoublonsFichier = new Set();
+  importArticlesRaw.forEach(r=>{ const k=(r.ref||'').toLowerCase().trim(); if(k){ if(refsVues.has(k)) refsDoublonsFichier.add(k); else refsVues.add(k); } });
+
+  // Annoter chaque ligne
+  const annotated = importArticlesRaw.map(r=>{
+    const erreurs = [];
+    if(!r.nom) erreurs.push('Désignation manquante');
+    if(!r.pv||r.pv<=0) erreurs.push('Prix vente manquant ou nul');
+    const refKey = (r.ref||'').toLowerCase().trim();
+    let statut = 'ok';
+    let statutMsg = '';
+    if(erreurs.length){ statut='erreur'; statutMsg=erreurs.join(', '); }
+    else if(refKey && refsExistantes.has(refKey)){ statut='doublon_db'; statutMsg=`Réf. "${r.ref}" existe déjà en base`; }
+    else if(refKey && refsDoublonsFichier.has(refKey)){ statut='doublon_fichier'; statutMsg=`Réf. "${r.ref}" en doublon dans ce fichier`; }
+    return {...r, statut, statutMsg};
+  });
+
+  // Séparer valides / bloqués
+  importArticlesData = annotated.filter(r=>r.statut==='ok');
+  const erreurs     = annotated.filter(r=>r.statut==='erreur');
+  const doublonsDB  = annotated.filter(r=>r.statut==='doublon_db');
+  const doublonsFic = annotated.filter(r=>r.statut==='doublon_fichier');
+  const bloquees    = erreurs.length + doublonsDB.length + doublonsFic.length;
+
+  // KPI
+  document.getElementById('import-art-kpi').innerHTML=`
+    <div style="background:var(--surface2);border-radius:9px;padding:10px;text-align:center;border:1px solid var(--border);">
+      <div style="font-size:18px;font-weight:800;color:var(--accent2);">${rows.length}</div>
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">Lignes lues</div>
+    </div>
+    <div style="background:rgba(34,212,160,0.08);border-radius:9px;padding:10px;text-align:center;border:1px solid rgba(34,212,160,0.25);">
+      <div style="font-size:18px;font-weight:800;color:var(--accent2);">${importArticlesData.length}</div>
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">✅ À importer</div>
+    </div>
+    <div style="background:rgba(247,201,79,0.08);border-radius:9px;padding:10px;text-align:center;border:1px solid rgba(247,201,79,0.25);">
+      <div style="font-size:18px;font-weight:800;color:var(--warn);">${doublonsDB.length+doublonsFic.length}</div>
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">⚠️ Doublons bloqués</div>
+    </div>
+    <div style="background:rgba(224,92,82,0.08);border-radius:9px;padding:10px;text-align:center;border:1px solid rgba(224,92,82,0.25);">
+      <div style="font-size:18px;font-weight:800;color:var(--danger);">${erreurs.length}</div>
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">❌ Erreurs</div>
+    </div>`;
+
+  // Info principale
   document.getElementById('import-art-info').innerHTML =
-    `Fichier lu : <strong>${rows.length} ligne(s)</strong> — <strong style="color:var(--accent2)">${importArticlesData.length} article(s) valides</strong>`+
-    (errors>0?` — <strong style="color:var(--danger)">${errors} ignorée(s)</strong> (nom ou prix manquant)`:'');
+    `<strong>${rows.length}</strong> ligne(s) lues — <strong style="color:var(--accent2)">${importArticlesData.length} article(s) prêts à importer</strong>`+
+    (bloquees>0?` — <strong style="color:var(--danger)">${bloquees} bloquée(s)</strong>`:'');
+
+  // Message doublons
+  const doubEl = document.getElementById('import-art-doublons');
+  if(doublonsDB.length||doublonsFic.length){
+    doubEl.style.display='';
+    let msg = `⚠️ <strong>${doublonsDB.length+doublonsFic.length} ligne(s) bloquée(s) pour doublon :</strong><ul style="margin:6px 0 0 16px;font-size:12px;">`;
+    if(doublonsDB.length) msg+=`<li>${doublonsDB.length} réf. existent déjà en base de données (non importées)</li>`;
+    if(doublonsFic.length) msg+=`<li>${doublonsFic.length} réf. en doublon dans le fichier lui-même (seule la 1ère occurrence sera prise)</li>`;
+    msg+='</ul>';
+    doubEl.innerHTML=msg;
+  } else { doubEl.style.display='none'; }
+
+  // Message erreurs
+  const errEl = document.getElementById('import-art-errors');
+  if(erreurs.length){
+    errEl.style.display='';
+    errEl.innerHTML=`❌ <strong>${erreurs.length} ligne(s) ignorée(s)</strong> : désignation ou prix de vente manquant.`;
+  } else { errEl.style.display='none'; }
+
+  // Tableau — toutes les lignes avec statut coloré
   document.getElementById('import-art-count').textContent = importArticlesData.length;
-  if(errors>0){ document.getElementById('import-art-errors').style.display=''; document.getElementById('import-art-errors').textContent=errors+' lignes ignorées (désignation ou prix vente manquant).'; }
-  else { document.getElementById('import-art-errors').style.display='none'; }
-  document.getElementById('import-art-body').innerHTML = importArticlesData.slice(0,50).map(r=>
-    `<tr>
-      <td><span class="tag">${r.ref||'—'}</span></td>
-      <td class="fw6">${r.nom}</td>
-      <td class="tm">${r.cat||'—'}</td>
-      <td style="color:var(--accent2);font-weight:600;">${fmt(r.pv)}</td>
+  const btnConfirm = document.getElementById('import-art-confirm-btn');
+  if(btnConfirm) btnConfirm.disabled = importArticlesData.length===0;
+
+  document.getElementById('import-art-body').innerHTML = annotated.slice(0,80).map((r,i)=>{
+    const statutBadge = r.statut==='ok'
+      ? sb('✅ OK','sg')
+      : r.statut==='doublon_db'
+        ? `<span class="sb sy" title="${esc(r.statutMsg)}">⚠️ Doublon DB</span>`
+        : r.statut==='doublon_fichier'
+          ? `<span class="sb sy" title="${esc(r.statutMsg)}">⚠️ Doublon fichier</span>`
+          : `<span class="sb sr" title="${esc(r.statutMsg)}">❌ Erreur</span>`;
+    const rowOpacity = r.statut!=='ok' ? 'opacity:0.55;' : '';
+    return `<tr style="${rowOpacity}">
+      <td style="color:var(--muted);font-size:11px;">${i+1}</td>
+      <td><span class="tag">${esc(r.ref||'—')}</span></td>
+      <td class="fw6">${esc(r.nom||'—')}</td>
+      <td class="tm">${esc(r.cat||'—')}</td>
+      <td style="color:var(--accent2);font-weight:600;">${r.pv>0?fmt(r.pv):'—'}</td>
       <td class="tm">${r.pa>0?fmt(r.pa):'—'}</td>
-      <td>${r.stock}</td>
-      <td>${sb('OK','sg')}</td>
-    </tr>`
-  ).join('')+(importArticlesData.length>50?`<tr><td colspan="7" style="text-align:center;padding:10px;color:var(--muted);font-size:12px;">… et ${importArticlesData.length-50} autres</td></tr>`:'');
+      <td>${r.stock||0}</td>
+      <td class="tm">${esc(r.unite||'pièce')}</td>
+      <td>${statutBadge}</td>
+    </tr>`;
+  }).join('')+(annotated.length>80?`<tr><td colspan="9" style="text-align:center;padding:10px;color:var(--muted);font-size:12px;">… et ${annotated.length-80} autres lignes</td></tr>`:'');
+
   openM('m-import-articles');
 }
 
 window.confirmImportArticles = async function(){
   if(!importArticlesData.length){ notify('Aucun article à importer','err'); return; }
+  const btn = document.getElementById('import-art-confirm-btn');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Import en cours…'; }
   let count=0;
   for(const r of importArticlesData){
     const ref = r.ref || `ART-${Date.now()}-${count}`;
-    const art = await fbAdd('articles',{ref,nom:r.nom,cat:r.cat,pv:r.pv,pa:r.pa,stock:r.stock,stockMin:r.stockMin,unite:r.unite});
-    if(r.stock>0) await fbAdd('stockMvts',{articleId:art._id||art.id,type:'entree',qty:r.stock,stockApres:r.stock,date:TODAY,note:'Stock initial — import'});
+    const art = await fbAdd('articles',{
+      ref, nom:r.nom, cat:r.cat, pv:r.pv, pa:r.pa,
+      stock:r.stock, stockMin:r.stockMin, unite:r.unite,
+      desc:r.desc||'', type:'article', composition:[], images:[], image:''
+    });
+    if(r.stock>0) await fbAdd('stockMvts',{
+      articleId:art._id||art.id, type:'entree', qty:r.stock,
+      stockApres:r.stock, date:TODAY, note:'Stock initial — import fichier'
+    });
     count++;
   }
   closeM('m-import-articles');
-  importArticlesData=[];
-  notify(`${count} article(s) importé(s) avec succès !`);
+  importArticlesData=[]; importArticlesRaw=[];
+  notify(`✅ ${count} article(s) importé(s) avec succès !`);
 };
 
 // ========= COMMERCIAL : MES CLIENTS (lecture seule) =========
