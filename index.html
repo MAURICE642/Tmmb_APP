@@ -1250,6 +1250,13 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
             <input type="text" id="mise-saisie-note" placeholder="Avance, terrain..."
               style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:13px;outline:none;">
           </div>
+          <!-- Champ date personnalisée — admin uniquement -->
+          <div id="mise-date-admin-zone" style="display:none;margin-bottom:14px;">
+            <label style="display:block;font-size:9.5px;color:var(--warn);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">📅 Date de la mise (admin)</label>
+            <input type="date" id="mise-date-admin"
+              style="width:100%;background:var(--surface2);border:2px solid rgba(212,137,58,0.5);border-radius:8px;padding:9px 12px;color:var(--text);font-size:14px;font-weight:600;outline:none;font-family:'Space Grotesk',sans-serif;">
+            <div style="font-size:10px;color:var(--warn);margin-top:4px;opacity:0.8;">⚠️ Réservé à l'administrateur. Laisser la date du jour si aucune modification nécessaire.</div>
+          </div>
           <div id="mise-saisie-warn" style="display:none;margin-bottom:10px;"></div>
           <button onclick="enregistrerMiseSaisie()" style="width:100%;padding:14px;font-size:15px;font-weight:700;font-family:'Space Grotesk',sans-serif;background:linear-gradient(135deg,#15803d,#22d4a0);border:none;border-radius:9px;color:#fff;cursor:pointer;transition:opacity 0.15s;" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
             ✅ Confirmer le paiement — irrévocable
@@ -7437,6 +7444,11 @@ function renderSaisieMises(){
       infoLecture.style.display = 'none';
     }
   }
+  // Champ date admin : afficher uniquement pour l'admin
+  const dateAdminZone = document.getElementById('mise-date-admin-zone');
+  const dateAdminInput = document.getElementById('mise-date-admin');
+  if(dateAdminZone) dateAdminZone.style.display = (session.role === 'admin') ? '' : 'none';
+  if(dateAdminInput) dateAdminInput.value = TODAY;
 }
 
 window.miseLiveSearch = function(){
@@ -7857,16 +7869,23 @@ window.enregistrerMiseSaisie = async function(){
   }
   const montant = nb * jm(c);
   const note = document.getElementById('mise-saisie-note').value.trim();
+  // Date : l'admin peut choisir une date personnalisée
+  let dateChoisie = TODAY;
+  if(session.role === 'admin'){
+    const dateAdminVal = (document.getElementById('mise-date-admin')?.value || '').trim();
+    if(dateAdminVal) dateChoisie = dateAdminVal;
+  }
   const now = new Date();
   const heure = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
   // Confirmation irréversible obligatoire
-  if(!confirm(`⚠️ CONFIRMATION IRRÉVERSIBLE\n\nClient : ${c.nom}\nCotisations : ${nb}x\nMontant : ${fmt(montant)}\n\nCe paiement ne pourra pas être modifié.\nConfirmer ?`)) return;
+  const dateMention = dateChoisie !== TODAY ? `\nDate : ${dateChoisie} ⚠️ (date modifiée par l'admin)` : '';
+  if(!confirm(`⚠️ CONFIRMATION IRRÉVERSIBLE\n\nClient : ${c.nom}\nCotisations : ${nb}x\nMontant : ${fmt(montant)}${dateMention}\n\nCe paiement ne pourra pas être modifié.\nConfirmer ?`)) return;
   // Enregistrer dans paiements (pas mises) — verrouillé (source: commercial)
   await fbAdd('paiements',{
     clientId:miseClientCtx, commercialId:c.commercialId,
-    cotisJour:jm(c), montant, date:TODAY, heure,
-    note: note || `${nb} cotisation(s) — saisie ${session.role==='secretaire'?'secrétaire':'commercial'}`,
-    nbCotis:nb, type:'mise', source:session.role==='secretaire'?'secretaire':'commercial',
+    cotisJour:jm(c), montant, date:dateChoisie, heure,
+    note: note || `${nb} cotisation(s) — saisie ${session.role==='secretaire'?'secrétaire':session.role==='admin'?'admin':'commercial'}`,
+    nbCotis:nb, type:'mise', source:session.role==='secretaire'?'secretaire':session.role==='admin'?'admin':'commercial',
     saisiParId:session.userId, saisiParNom:session.nom,
     verrouille:true
   });
@@ -7882,7 +7901,7 @@ window.enregistrerMiseSaisie = async function(){
     commercialNom: com.nom,
     commercialId: c.commercialId,
     montant, nbCotis: nb, cotisJour: jm(c),
-    date: TODAY, heure,
+    date: dateChoisie, heure,
     note: note || `${nb} cotisation(s)`,
     saisiParNom: session.nom,
     totalPaye: sApres.totalPaye,
@@ -7894,6 +7913,10 @@ window.enregistrerMiseSaisie = async function(){
   document.getElementById('mise-total-calc').textContent = '-';
   document.getElementById('mise-saisie-note').value = '';
   document.getElementById('mise-saisie-warn').style.display = 'none';
+  if(session.role === 'admin'){
+    const dateAdminInput = document.getElementById('mise-date-admin');
+    if(dateAdminInput) dateAdminInput.value = TODAY;
+  }
   selectMiseClient(miseClientCtx);
 };
 
