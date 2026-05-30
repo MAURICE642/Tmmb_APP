@@ -1070,8 +1070,62 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
   <!-- ADMIN: STOCK -->
   <div id="page-stock" class="page">
     <div class="kpi-row kpi-4" id="stock-kpi"></div>
-    <div class="sec-hdr"><div class="sec-title">Mouvements de stock</div><button class="btn btn-primary btn-sm" onclick="openM('m-stock-mvt')">+ Mouvement</button></div>
-    <div class="tw"><table><thead><tr><th>Date</th><th>Article</th><th>Type</th><th>Qté</th><th>Stock après</th><th>Note</th></tr></thead><tbody id="tb-stock-mvt"></tbody></table></div>
+
+    <!-- ══ SECTION 1 : Mouvements de stock ══ -->
+    <div class="sec-hdr" style="cursor:pointer;" onclick="toggleStockMvt()">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span id="stock-mvt-chevron" style="font-size:16px;transition:transform 0.2s;display:inline-block;">▾</span>
+        <div class="sec-title">Mouvements de stock</div>
+        <span id="stock-mvt-count" style="font-size:11px;color:var(--muted);font-weight:400;"></span>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;" onclick="event.stopPropagation()">
+        <input type="text" id="stock-mvt-search" placeholder="🔍 Filtrer..."
+          style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:4px 10px;color:var(--text);font-size:11px;outline:none;width:130px;"
+          oninput="renderStockMvts()">
+        <select id="stock-mvt-filter-type"
+          style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:4px 8px;color:var(--text);font-size:11px;outline:none;"
+          onchange="renderStockMvts()">
+          <option value="">Tous</option>
+          <option value="entree">📥 Entrées</option>
+          <option value="sortie">📤 Sorties</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="openM('m-stock-mvt')">+ Mouvement</button>
+      </div>
+    </div>
+    <div id="stock-mvt-panel">
+      <div class="tw"><table><thead><tr><th>Date</th><th>Article</th><th>Type</th><th>Qté</th><th>Stock après</th><th>Destination / Motif</th><th>Note</th></tr></thead><tbody id="tb-stock-mvt"></tbody></table></div>
+    </div>
+
+    <!-- ══ SECTION 2 : Stock par agence ══ -->
+    <div class="sec-hdr" style="margin-top:28px;">
+      <div class="sec-title" style="color:var(--warn);">🏢 Stock par agence</div>
+      <select id="stock-agence-filter"
+        style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 11px;color:var(--text);font-size:12px;outline:none;"
+        onchange="renderStockParAgence()">
+        <option value="">Toutes les agences</option>
+      </select>
+    </div>
+    <div id="stock-par-agence-wrap"></div>
+
+    <!-- ══ SECTION 3 : Inventaire ══ -->
+    <div class="sec-hdr" style="margin-top:28px;">
+      <div class="sec-title" style="color:var(--accent2);">📋 Inventaire général</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input type="text" id="inv-search" placeholder="🔍 Rechercher article..."
+          style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 11px;color:var(--text);font-size:12px;outline:none;min-width:180px;"
+          oninput="renderInventaire()">
+        <select id="inv-filter-statut"
+          style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 10px;color:var(--text);font-size:12px;outline:none;"
+          onchange="renderInventaire()">
+          <option value="">Tous les statuts</option>
+          <option value="ok">✅ En stock</option>
+          <option value="bas">⚠️ Stock bas</option>
+          <option value="rupture">🔴 Rupture</option>
+        </select>
+      </div>
+    </div>
+    <div id="inv-kpi-row" class="kpi-row kpi-4" style="margin-bottom:14px;"></div>
+    <div class="tw"><table><thead><tr><th>Réf.</th><th>Désignation</th><th>Catégorie</th><th>Stock actuel</th><th>Stock min.</th><th>Unité</th><th>Statut</th></tr></thead><tbody id="tb-inventaire"></tbody></table></div>
   </div>
 
   <!-- ADMIN: LIVRAISONS -->
@@ -1800,12 +1854,49 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
   <div class="md">
     <div class="md-title">📊 Mouvement de stock</div>
     <div class="fg">
-      <div class="fr"><label>Article *</label><select id="mvt-art"><option value="">— Sélectionner —</option></select></div>
-      <div class="fr"><label>Type *</label><select id="mvt-type"><option value="entree">Entrée (réappro)</option><option value="sortie">Sortie (vente/perte)</option></select></div>
+      <!-- Recherche article par code ou nom -->
+      <div class="fr" style="position:relative;">
+        <label>Article * <span style="font-size:10px;color:var(--muted);font-weight:400;">(code réf. ou nom)</span></label>
+        <input type="text" id="mvt-art-search" placeholder="🔍 Tapez le code ou le nom de l'article..."
+          style="width:100%;background:var(--surface2);border:2px solid rgba(212,137,58,0.5);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;outline:none;"
+          oninput="mvtArtLiveSearch()" autocomplete="off">
+        <div id="mvt-art-results" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:200;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.4);max-height:220px;overflow-y:auto;margin-top:2px;"></div>
+        <!-- Article sélectionné -->
+        <div id="mvt-art-selected" style="display:none;margin-top:8px;padding:10px 12px;background:rgba(212,137,58,0.1);border:1px solid rgba(212,137,58,0.4);border-radius:8px;align-items:center;justify-content:space-between;">
+          <div>
+            <div id="mvt-art-sel-nom" style="font-weight:700;font-size:13px;color:var(--text);"></div>
+            <div id="mvt-art-sel-info" style="font-size:11px;color:var(--muted);margin-top:2px;"></div>
+          </div>
+          <button onclick="mvtClearArt()" style="background:rgba(224,92,82,0.15);border:1px solid rgba(224,92,82,0.3);border-radius:6px;color:var(--danger);padding:4px 8px;font-size:11px;cursor:pointer;">✕ Changer</button>
+        </div>
+        <input type="hidden" id="mvt-art">
+      </div>
+      <div class="fr">
+        <label>Type *</label>
+        <select id="mvt-type" onchange="mvtOnTypeChange()">
+          <option value="entree">📥 Entrée (réappro / livraison fournisseur)</option>
+          <option value="sortie">📤 Sortie (envoi vers agence / perte)</option>
+        </select>
+      </div>
+      <!-- Destination : visible uniquement pour les sorties -->
+      <div class="fr" id="mvt-destination-zone" style="display:none;">
+        <label>🏢 Destination * <span style="font-size:10px;color:var(--muted);font-weight:400;">(agence ou motif de sortie)</span></label>
+        <div style="display:flex;gap:8px;">
+          <select id="mvt-dest-agence"
+            style="flex:1;background:var(--surface2);border:2px solid rgba(224,92,82,0.4);border-radius:8px;padding:9px 12px;color:var(--text);font-size:13px;outline:none;"
+            onchange="mvtOnDestChange()">
+            <option value="">— Sélectionner une agence —</option>
+            <option value="__autre__">✏️ Autre motif (perte, casse, retour...)</option>
+          </select>
+        </div>
+        <!-- Champ texte libre si "Autre" -->
+        <input type="text" id="mvt-dest-libre" placeholder="Précisez le motif (perte, casse, retour fournisseur...)"
+          style="display:none;width:100%;margin-top:8px;background:var(--surface2);border:1px solid rgba(224,92,82,0.35);border-radius:8px;padding:9px 12px;color:var(--text);font-size:13px;outline:none;">
+      </div>
       <div class="fr"><label>Quantité *</label><input type="number" id="mvt-qty" placeholder="0"></div>
       <div class="fr"><label>Date</label><input type="date" id="mvt-date"></div>
     </div>
-    <div class="fr"><label>Note</label><input type="text" id="mvt-note" placeholder="Fournisseur, motif..."></div>
+    <div class="fr"><label>Note (optionnel)</label><input type="text" id="mvt-note" placeholder="Fournisseur, motif complémentaire..."></div>
     <div class="ma"><button class="btn btn-ghost" onclick="closeM('m-stock-mvt')">Annuler</button><button class="btn btn-primary" onclick="saveMvt()">Enregistrer</button></div>
   </div>
 </div>
@@ -4801,13 +4892,268 @@ function renderStock(){
     <div class="kpi-card kc-red"><div class="kpi-lbl">Ruptures</div><div class="kpi-val kv-red">${DB.articles.filter(a=>a.stock<=0).length}</div></div>
     <div class="kpi-card kc-yellow"><div class="kpi-lbl">Stock bas</div><div class="kpi-val kv-yellow">${DB.articles.filter(a=>a.stock>0&&a.stock<=a.stockMin).length}</div></div>
     <div class="kpi-card kc-green"><div class="kpi-lbl">Mouvements</div><div class="kpi-val kv-green">${DB.stockMvts.length}</div></div>`;
-  document.getElementById('tb-stock-mvt').innerHTML=[...DB.stockMvts].reverse().map(m=>{
-    const a=getArt(m.articleId);
-    return`<tr><td>${m.date}</td><td class="fw6">${a.nom}</td><td>${m.type==='entree'?sb('+ Entrée','sg'):sb('− Sortie','sr')}</td>
-    <td style="font-weight:700;color:${m.type==='entree'?'var(--accent2)':'var(--danger)'}">${m.type==='entree'?'+':'-'}${m.qty} ${a.unite}</td>
-    <td class="fw6">${m.stockApres} ${esc(a.unite)}</td><td class="tm" style="font-size:11px">${esc(m.note||'—')}</td></tr>`;
-  }).join('')||'<tr><td colspan="6" class="emp">Aucun mouvement</td></tr>';
+  renderStockMvts();
+  // Peupler le filtre agences (une seule fois)
+  const selAg = document.getElementById('stock-agence-filter');
+  if(selAg && selAg.options.length <= 1){
+    DB.agences.forEach(ag=>{
+      const o=document.createElement('option');
+      o.value=ag._id; o.textContent='🏢 '+ag.nom;
+      selAg.appendChild(o);
+    });
+    if(session.role==='gestionnaire_stock'){
+      const agId=sessionAgenceId();
+      if(agId) selAg.value=agId;
+    }
+  }
+  renderStockParAgence();
+  renderInventaire();
 }
+
+// ─── Rendu filtrable du tableau de mouvements ───
+window.renderStockMvts = function(){
+  const q = (document.getElementById('stock-mvt-search')?.value||'').toLowerCase().trim();
+  const filtType = document.getElementById('stock-mvt-filter-type')?.value||'';
+  let mvts = [...DB.stockMvts].reverse();
+  if(filtType) mvts = mvts.filter(m=>m.type===filtType);
+  if(q) mvts = mvts.filter(m=>{
+    const a=getArt(m.articleId);
+    return (a.nom||'').toLowerCase().includes(q)||
+      (m.note||'').toLowerCase().includes(q)||
+      (m.destinationNom||'').toLowerCase().includes(q)||
+      (m.destinationLibre||'').toLowerCase().includes(q);
+  });
+  const countEl = document.getElementById('stock-mvt-count');
+  if(countEl) countEl.textContent = `(${mvts.length} / ${DB.stockMvts.length})`;
+  document.getElementById('tb-stock-mvt').innerHTML=mvts.map(m=>{
+    const a=getArt(m.articleId);
+    const destLabel = m.type==='sortie'
+      ? (m.destinationNom ? `<span style="background:rgba(224,92,82,0.15);border:1px solid rgba(224,92,82,0.3);border-radius:5px;padding:2px 7px;font-size:10px;color:var(--danger);">🏢 ${esc(m.destinationNom)}</span>`
+        : m.destinationLibre ? `<span style="font-size:11px;color:var(--warn);">✏️ ${esc(m.destinationLibre)}</span>`
+        : '<span style="color:var(--muted);font-size:10px;">—</span>')
+      : '<span style="color:var(--muted);font-size:10px;">—</span>';
+    return`<tr>
+      <td>${m.date}</td>
+      <td class="fw6">${esc(a.nom)}</td>
+      <td>${m.type==='entree'?sb('📥 Entrée','sg'):sb('📤 Sortie','sr')}</td>
+      <td style="font-weight:700;color:${m.type==='entree'?'var(--accent2)':'var(--danger)'}">${m.type==='entree'?'+':'-'}${m.qty} ${esc(a.unite)}</td>
+      <td class="fw6">${m.stockApres} ${esc(a.unite)}</td>
+      <td>${destLabel}</td>
+      <td class="tm" style="font-size:11px">${esc(m.note||'—')}</td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="7" class="emp">Aucun mouvement</td></tr>';
+};
+
+// ─── Collapse/expand mouvements ───
+let _stockMvtCollapsed = false;
+window.toggleStockMvt = function(){
+  _stockMvtCollapsed = !_stockMvtCollapsed;
+  const panel = document.getElementById('stock-mvt-panel');
+  const chev  = document.getElementById('stock-mvt-chevron');
+  if(panel) panel.style.display = _stockMvtCollapsed ? 'none' : '';
+  if(chev)  chev.style.transform = _stockMvtCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)';
+};
+
+// ─── Affichage conditionnel destination selon type ───
+window.mvtOnTypeChange = function(){
+  const type = document.getElementById('mvt-type').value;
+  const zone = document.getElementById('mvt-destination-zone');
+  if(zone) zone.style.display = type==='sortie' ? '' : 'none';
+  if(type!=='sortie'){
+    const sel=document.getElementById('mvt-dest-agence'); if(sel) sel.value='';
+    const lib=document.getElementById('mvt-dest-libre'); if(lib){lib.value='';lib.style.display='none';}
+  }
+};
+
+// ─── Afficher champ libre si "Autre motif" ───
+window.mvtOnDestChange = function(){
+  const sel = document.getElementById('mvt-dest-agence');
+  const lib = document.getElementById('mvt-dest-libre');
+  if(!lib) return;
+  lib.style.display = sel.value==='__autre__' ? '' : 'none';
+  if(sel.value!=='__autre__') lib.value='';
+};
+
+// ═══ RECHERCHE ARTICLE DANS LE MODAL MOUVEMENT ═══
+window.mvtArtLiveSearch = function(){
+  const q = (document.getElementById('mvt-art-search').value||'').trim().toLowerCase();
+  const res = document.getElementById('mvt-art-results');
+  if(!q){ res.style.display='none'; return; }
+  const found = DB.articles.filter(a=>
+    (a.nom||'').toLowerCase().includes(q) ||
+    (a.ref||'').toLowerCase().includes(q) ||
+    (a.cat||'').toLowerCase().includes(q)
+  ).slice(0,8);
+  if(!found.length){
+    res.style.display='block';
+    res.innerHTML='<div style="padding:10px;font-size:12px;color:var(--muted);">Aucun article trouvé.</div>';
+    return;
+  }
+  res.style.display='block';
+  res.innerHTML=found.map(a=>{
+    const stockColor = a.stock<=0?'var(--danger)':a.stock<=(a.stockMin||0)?'var(--warn)':'var(--accent2)';
+    return `<div onclick="mvtSelectArt(${JSON.stringify({_id:a._id,nom:a.nom,ref:a.ref||'',stock:a.stock,unite:a.unite||'pcs',stockMin:a.stockMin||0}).replace(/"/g,'&quot;')})"
+      style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;transition:background 0.12s;"
+      onmouseover="this.style.background='rgba(212,137,58,0.1)'" onmouseout="this.style.background=''">
+      <div>
+        <div style="font-weight:700;font-size:13px;">${esc(a.nom)}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px;">${a.ref?`<span style="color:var(--accent);font-weight:600;">Réf: ${esc(a.ref)}</span> · `:''} ${esc(a.cat||'—')}</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:13px;font-weight:800;color:${stockColor};">${a.stock} ${esc(a.unite||'pcs')}</div>
+        <div style="font-size:10px;color:var(--muted);">en stock</div>
+      </div>
+    </div>`;
+  }).join('');
+};
+
+window.mvtSelectArt = function(art){
+  // art peut être un objet ou une string JSON
+  if(typeof art === 'string') art = JSON.parse(art);
+  document.getElementById('mvt-art').value = art._id;
+  document.getElementById('mvt-art-search').style.display='none';
+  document.getElementById('mvt-art-results').style.display='none';
+  const stockColor = art.stock<=0?'var(--danger)':art.stock<=(art.stockMin||0)?'var(--warn)':'var(--accent2)';
+  document.getElementById('mvt-art-sel-nom').textContent = art.nom;
+  document.getElementById('mvt-art-sel-info').innerHTML =
+    `${art.ref?`Réf: <strong style="color:var(--accent)">${esc(art.ref)}</strong> &nbsp;·&nbsp; `:''}Stock actuel : <strong style="color:${stockColor}">${art.stock} ${esc(art.unite||'pcs')}</strong>${art.stockMin>0?` &nbsp;·&nbsp; Min: ${art.stockMin}`:''}`;
+  document.getElementById('mvt-art-selected').style.display='flex';
+};
+
+window.mvtClearArt = function(){
+  document.getElementById('mvt-art').value='';
+  document.getElementById('mvt-art-search').value='';
+  document.getElementById('mvt-art-search').style.display='';
+  document.getElementById('mvt-art-results').style.display='none';
+  document.getElementById('mvt-art-selected').style.display='none';
+  document.getElementById('mvt-art-search').focus();
+};
+
+// ═══ STOCK PAR AGENCE ═══
+window.renderStockParAgence = function(){
+  const wrap = document.getElementById('stock-par-agence-wrap');
+  if(!wrap) return;
+  const filtAgId = document.getElementById('stock-agence-filter')?.value || '';
+  let agences = DB.agences.length ? [...DB.agences] : [];
+  if(filtAgId) agences = agences.filter(ag=>ag._id===filtAgId);
+  if(session.role==='gestionnaire_stock'){
+    const agId=sessionAgenceId();
+    if(agId) agences = agences.filter(ag=>ag._id===agId);
+  }
+  if(!agences.length){
+    wrap.innerHTML='<div style="padding:14px;color:var(--muted);font-size:13px;">Aucune agence disponible.</div>';
+    return;
+  }
+  wrap.innerHTML = agences.map(ag=>{
+    const comIds = DB.commerciaux.filter(c=>c.agenceId===ag._id).map(c=>c._id);
+    const clIds  = DB.clients.filter(c=>comIds.includes(c.commercialId)).map(c=>c._id);
+
+    // ── Sorties de stock vers cette agence (via mouvements manuels) ──
+    const sortiesVersAgence = DB.stockMvts.filter(m=>m.type==='sortie' && m.destinationId===ag._id);
+    const sortiesMap = {}; // articleId => qty envoyée
+    sortiesVersAgence.forEach(m=>{ sortiesMap[m.articleId]=(sortiesMap[m.articleId]||0)+m.qty; });
+
+    // ── Livraisons confirmées de cette agence ──
+    const livs = DB.livraisons.filter(l=>clIds.includes(l.clientId) && l.statut==='livre');
+    const livsMap = {}; // articleId => qty livrée
+    livs.forEach(l=>{ livsMap[l.articleId]=(livsMap[l.articleId]||0)+l.qty; });
+
+    // ── Fusionner : articles concernés par envoi OU livraison ──
+    const artIdsConcernes = new Set([...Object.keys(sortiesMap), ...Object.keys(livsMap)]);
+
+    const rows = [...artIdsConcernes].map(aid=>{
+      const a = DB.articles.find(x=>x._id===aid);
+      if(!a) return null;
+      const envoye  = sortiesMap[aid]||0;
+      const livre   = livsMap[aid]||0;
+      const restant = envoye - livre; // reste dans l'agence (pas encore livré au client)
+      const stockColor = a.stock<=0?'var(--danger)':a.stock<=(a.stockMin||0)?'var(--warn)':'var(--accent2)';
+      const restantColor = restant>0?'var(--accent)':restant===0?'var(--muted)':'var(--danger)';
+      return `<tr>
+        <td><span class="tag">${esc(a.ref||'—')}</span></td>
+        <td class="fw6">${esc(a.nom)}</td>
+        <td style="font-weight:700;color:var(--warn);">${envoye} ${esc(a.unite||'pcs')}</td>
+        <td style="font-weight:700;color:var(--accent2);">${livre} ${esc(a.unite||'pcs')}</td>
+        <td style="font-weight:800;color:${restantColor};">${restant} ${esc(a.unite||'pcs')}</td>
+        <td style="font-weight:700;color:${stockColor};">${a.stock} ${esc(a.unite||'pcs')}</td>
+      </tr>`;
+    }).filter(Boolean).join('');
+
+    const totalEnvoyes = Object.keys(sortiesMap).length;
+    const totalLivres  = Object.keys(livsMap).length;
+    return `<div style="background:var(--surface);border:1px solid rgba(212,137,58,0.2);border-radius:12px;padding:16px;margin-bottom:16px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+        <div style="width:38px;height:38px;border-radius:9px;background:rgba(212,137,58,0.15);border:1px solid rgba(212,137,58,0.3);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">🏢</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:700;font-size:14px;color:var(--text);">${esc(ag.nom)}</div>
+          <div style="font-size:11px;color:var(--muted);">${ag.ville||''} &nbsp;·&nbsp; ${comIds.length} commercial(aux) &nbsp;·&nbsp; ${clIds.length} client(s)</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <div style="background:rgba(212,137,58,0.1);border:1px solid rgba(212,137,58,0.3);border-radius:8px;padding:6px 14px;text-align:center;">
+            <div style="font-size:16px;font-weight:800;color:var(--warn);">${totalEnvoyes}</div>
+            <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">art. envoyés</div>
+          </div>
+          <div style="background:rgba(56,201,160,0.08);border:1px solid rgba(56,201,160,0.25);border-radius:8px;padding:6px 14px;text-align:center;">
+            <div style="font-size:16px;font-weight:800;color:var(--accent2);">${totalLivres}</div>
+            <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">art. livrés</div>
+          </div>
+        </div>
+      </div>
+      ${rows
+        ? `<div class="tw" style="margin:0;">
+             <table><thead><tr>
+               <th>Réf.</th><th>Article</th>
+               <th style="color:var(--warn);">📤 Envoyé</th>
+               <th style="color:var(--accent2);">✅ Livré clients</th>
+               <th style="color:var(--accent);">📦 Restant agence</th>
+               <th>Stock global</th>
+             </tr></thead><tbody>${rows}</tbody></table>
+           </div>`
+        : '<div style="font-size:12px;color:var(--muted);padding:8px 0;">Aucune sortie de stock ni livraison pour cette agence.</div>'}
+    </div>`;
+  }).join('');
+};
+
+// ═══ INVENTAIRE GÉNÉRAL ═══
+window.renderInventaire = function(){
+  const q = (document.getElementById('inv-search')?.value||'').toLowerCase().trim();
+  const filtStatut = document.getElementById('inv-filter-statut')?.value||'';
+  let arts = [...DB.articles];
+  if(q) arts = arts.filter(a=>(a.nom||'').toLowerCase().includes(q)||(a.ref||'').toLowerCase().includes(q)||(a.cat||'').toLowerCase().includes(q));
+  if(filtStatut==='ok') arts = arts.filter(a=>a.stock>0&&(a.stock>(a.stockMin||0)));
+  if(filtStatut==='bas') arts = arts.filter(a=>a.stock>0&&a.stock<=(a.stockMin||0));
+  if(filtStatut==='rupture') arts = arts.filter(a=>a.stock<=0);
+  // KPI inventaire
+  const total = DB.articles.length;
+  const enStock = DB.articles.filter(a=>a.stock>0&&a.stock>(a.stockMin||0)).length;
+  const bas = DB.articles.filter(a=>a.stock>0&&a.stock<=(a.stockMin||0)).length;
+  const rupture = DB.articles.filter(a=>a.stock<=0).length;
+  const invKpi = document.getElementById('inv-kpi-row');
+  if(invKpi) invKpi.innerHTML=`
+    <div class="kpi-card kc-blue"><div class="kpi-lbl">Total articles</div><div class="kpi-val kv-blue">${total}</div></div>
+    <div class="kpi-card kc-green"><div class="kpi-lbl">En stock</div><div class="kpi-val kv-green">${enStock}</div></div>
+    <div class="kpi-card kc-yellow"><div class="kpi-lbl">Stock bas</div><div class="kpi-val kv-yellow">${bas}</div></div>
+    <div class="kpi-card kc-red"><div class="kpi-lbl">Rupture</div><div class="kpi-val kv-red">${rupture}</div></div>`;
+  const tbody = document.getElementById('tb-inventaire');
+  if(!tbody) return;
+  tbody.innerHTML = arts.sort((a,b)=>(a.nom||'').localeCompare(b.nom||'')).map(a=>{
+    const stockColor = a.stock<=0?'var(--danger)':a.stock<=(a.stockMin||0)?'var(--warn)':'var(--accent2)';
+    const statut = a.stock<=0
+      ? `<span class="sb sr">🔴 Rupture</span>`
+      : a.stock<=(a.stockMin||0)
+        ? `<span class="sb sy">⚠️ Stock bas</span>`
+        : `<span class="sb sg">✅ OK</span>`;
+    return `<tr>
+      <td><span class="tag">${esc(a.ref||'—')}</span></td>
+      <td class="fw6">${esc(a.nom)}</td>
+      <td class="tm">${esc(a.cat||'—')}</td>
+      <td style="font-weight:800;font-size:14px;color:${stockColor};">${a.stock}</td>
+      <td style="color:var(--muted);">${a.stockMin||0}</td>
+      <td style="color:var(--muted);">${esc(a.unite||'pcs')}</td>
+      <td>${statut}</td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="7" class="emp">Aucun article trouvé.</td></tr>';
+};
 
 function renderLivraisons(){
   // Afficher le bouton "+ Livraison" uniquement pour admin et secrétaire
@@ -6370,13 +6716,44 @@ window.saveMvt = async function(){
   const art=DB.articles.find(a=>a._id===artId);
   if(!art){notify('Article introuvable','err');return;}
   if(type==='sortie'&&qty>art.stock){notify(`Stock insuffisant (${art.stock})','err`);return;}
+  // Destination pour les sorties
+  let destinationId='', destinationNom='', destinationLibre='';
+  if(type==='sortie'){
+    const selDest = document.getElementById('mvt-dest-agence');
+    const libDest = document.getElementById('mvt-dest-libre');
+    const destVal = selDest?.value||'';
+    if(destVal==='__autre__'){
+      destinationLibre = (libDest?.value||'').trim();
+      if(!destinationLibre){ notify('Précisez le motif de sortie','err'); return; }
+    } else if(destVal){
+      destinationId = destVal;
+      const ag = DB.agences.find(a=>a._id===destVal);
+      destinationNom = ag ? ag.nom : destVal;
+    } else {
+      notify('Précisez la destination de la sortie','err'); return;
+    }
+  }
   const newStock=art.stock+(type==='entree'?qty:-qty);
   await fbUpdate('articles',artId,{stock:newStock});
-  await fbAdd('stockMvts',{articleId:artId,type,qty,stockApres:newStock,date:document.getElementById('mvt-date').value||TODAY,note:document.getElementById('mvt-note').value});
+  const mvtData={articleId:artId,type,qty,stockApres:newStock,
+    date:document.getElementById('mvt-date').value||TODAY,
+    note:document.getElementById('mvt-note').value};
+  if(type==='sortie'){
+    if(destinationId) mvtData.destinationId=destinationId;
+    if(destinationNom) mvtData.destinationNom=destinationNom;
+    if(destinationLibre) mvtData.destinationLibre=destinationLibre;
+  }
+  await fbAdd('stockMvts',mvtData);
   closeM('m-stock-mvt');notify('Mouvement enregistré ✓');
 };
 
-window.openMvtFor = function(artId){ openM('m-stock-mvt'); setTimeout(()=>{ document.getElementById('mvt-art').value=artId; },150); };
+window.openMvtFor = function(artId){
+  openM('m-stock-mvt');
+  setTimeout(()=>{
+    const art = DB.articles.find(a=>a._id===artId);
+    if(art) mvtSelectArt(art);
+  }, 150);
+};
 
 window.saveLivraison = async function(){
   if(!['admin','secretaire','commercial'].includes(session?.role)){ notify('Accès refusé','err'); return; }
@@ -6811,8 +7188,28 @@ window.openM = function(id){
     document.getElementById('art-img-input').value='';
   }
   if(id==='m-stock-mvt'){
-    document.getElementById('mvt-art').innerHTML='<option value="">— Sélectionner —</option>'+DB.articles.map(a=>`<option value="${a._id}">${a.nom} (stock: ${a.stock})</option>`).join('');
-    document.getElementById('mvt-date').value=TODAY;['mvt-qty','mvt-note'].forEach(i=>document.getElementById(i).value='');
+    // Réinitialiser la recherche article
+    document.getElementById('mvt-art').value='';
+    document.getElementById('mvt-art-search').value='';
+    document.getElementById('mvt-art-results').style.display='none';
+    document.getElementById('mvt-art-selected').style.display='none';
+    document.getElementById('mvt-art-search').style.display='';
+    document.getElementById('mvt-type').value='entree';
+    document.getElementById('mvt-destination-zone').style.display='none';
+    document.getElementById('mvt-dest-libre').style.display='none';
+    document.getElementById('mvt-dest-libre').value='';
+    document.getElementById('mvt-date').value=TODAY;
+    ['mvt-qty','mvt-note'].forEach(i=>document.getElementById(i).value='');
+    // Peupler le select agences de destination (une seule fois)
+    const selDest = document.getElementById('mvt-dest-agence');
+    if(selDest && selDest.options.length <= 2){
+      DB.agences.forEach(ag=>{
+        const o=document.createElement('option');
+        o.value=ag._id; o.textContent='🏢 '+ag.nom+(ag.ville?' — '+ag.ville:'');
+        // Insérer avant l'option "Autre"
+        selDest.insertBefore(o, selDest.options[selDest.options.length-1]);
+      });
+    }
   }
   if(id==='m-livraison'){
     // Remplir la liste des commerciaux (filtre)
