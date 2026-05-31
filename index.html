@@ -207,6 +207,73 @@
 
 #page-fiche{background:radial-gradient(ellipse at 10% 20%,rgba(201,168,76,0.03) 0%,transparent 55%);}
 
+/* ── PAGE SUIVI DE PÉRIODE (Gestionnaire) ── */
+#page-gstock-periode{background:radial-gradient(ellipse at 10% 20%,rgba(212,137,58,0.05) 0%,transparent 55%);}
+#page-gstock-periode .sec-title{color:var(--warn) !important;}
+#page-gstock-periode .tw thead th{background:#191510 !important;}
+#page-gstock-periode .tw{border-color:rgba(212,137,58,0.18) !important;}
+
+.gperiode-date-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:18px;}
+.gperiode-date-bar label{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;}
+.gperiode-date-input{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:6px 11px;color:var(--text);font-size:12px;font-weight:600;outline:none;cursor:pointer;}
+.gperiode-date-input:focus{border-color:var(--warn);}
+.gperiode-shortcut{padding:5px 11px;border-radius:16px;font-size:10px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--muted);transition:all 0.15s;white-space:nowrap;}
+.gperiode-shortcut:hover{color:var(--text);border-color:rgba(212,137,58,0.4);}
+.gperiode-shortcut.active{background:rgba(212,137,58,0.15);border-color:var(--warn);color:var(--warn);}
+
+.gperiode-section{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px;}
+.gperiode-section-title{font-size:11px;font-weight:700;color:var(--warn);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;display:flex;align-items:center;gap:7px;}
+.gperiode-section-title::after{content:'';flex:1;height:1px;background:var(--border);}
+
+.gperiode-kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:12px;}
+.gperiode-kpi{background:var(--surface2);border:1px solid rgba(212,137,58,0.15);border-radius:9px;padding:11px 13px;}
+.gperiode-kpi .gk-lbl{font-size:10px;color:var(--muted);margin-bottom:3px;}
+.gperiode-kpi .gk-val{font-size:17px;font-weight:700;color:var(--warn);font-family:'Space Grotesk',sans-serif;}
+.gperiode-kpi.green .gk-val{color:var(--accent2);}
+.gperiode-kpi.red .gk-val{color:var(--danger);}
+.gperiode-kpi.muted .gk-val{color:var(--text);}
+.gperiode-chart-wrap{border-radius:9px;padding:12px;background:var(--surface2);margin-bottom:12px;}
+.gperiode-chart-wrap canvas{max-height:200px;}
+#page-rapport-activite{background:radial-gradient(ellipse at 10% 20%,rgba(201,168,76,0.05) 0%,transparent 55%);}
+#page-rapport-activite .sec-title{color:var(--accent) !important;}
+#page-rapport-activite .tw thead th{background:#161a26 !important;}
+#page-rapport-activite .tw{border-color:rgba(201,168,76,0.18) !important;}
+#page-rapport-activite .kpi-card{border-color:rgba(201,168,76,0.15) !important; background:#111520 !important;}
+
+.rapport-period-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px;}
+.rapport-tab{padding:6px 14px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--muted);transition:all 0.18s;letter-spacing:0.3px;}
+.rapport-tab:hover{color:var(--text);border-color:var(--accent-border);}
+.rapport-tab.active{background:rgba(201,168,76,0.15);border-color:var(--accent);color:var(--accent);}
+
+.rapport-section-title{font-size:12px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin:24px 0 12px;display:flex;align-items:center;gap:8px;}
+.rapport-section-title::after{content:'';flex:1;height:1px;background:var(--border);}
+
+.rapport-chart-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px;position:relative;}
+.rapport-chart-wrap canvas{max-height:220px;}
+.rapport-chart-label{font-size:10px;color:var(--muted);margin-bottom:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;}
+
+.rapport-kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:16px;}
+.rapport-kpi{background:var(--surface);border:1px solid rgba(201,168,76,0.15);border-radius:10px;padding:12px 14px;}
+.rapport-kpi .rk-label{font-size:10px;color:var(--muted);margin-bottom:4px;}
+.rapport-kpi .rk-val{font-size:18px;font-weight:700;color:var(--text);font-family:'Space Grotesk',sans-serif;}
+.rapport-kpi .rk-sub{font-size:10px;color:var(--subtle);margin-top:2px;}
+.rapport-kpi.accent .rk-val{color:var(--accent);}
+.rapport-kpi.green .rk-val{color:var(--accent2);}
+.rapport-kpi.warn .rk-val{color:var(--warn);}
+
+.rapport-loading{text-align:center;padding:40px;color:var(--muted);font-size:13px;}
+.rapport-export-btn{display:flex;align-items:center;gap:6px;padding:6px 14px;border-radius:8px;background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.3);color:var(--accent);font-size:11px;font-weight:600;cursor:pointer;transition:background 0.15s;}
+.rapport-export-btn:hover{background:rgba(201,168,76,0.2);}
+
+.rapport-periode-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:10px;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.2);font-size:10px;color:var(--accent);font-weight:600;margin-bottom:14px;}
+
+.com-rank-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;background:var(--surface2);margin-bottom:6px;font-size:12px;}
+.com-rank-pos{width:22px;height:22px;border-radius:50%;background:rgba(201,168,76,0.15);color:var(--accent);font-weight:700;font-size:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.com-rank-name{flex:1;color:var(--text);font-weight:600;}
+.com-rank-val{color:var(--accent);font-weight:700;}
+.com-rank-bar-wrap{width:80px;height:5px;background:var(--border);border-radius:3px;overflow:hidden;}
+.com-rank-bar{height:100%;background:var(--accent);border-radius:3px;transition:width 0.5s;}
+
 #page-com-clients{background:radial-gradient(ellipse at 10% 20%,rgba(56,201,160,0.04) 0%,transparent 55%);}
 #page-com-nouveau-client{background:radial-gradient(ellipse at 10% 20%,rgba(56,201,160,0.04) 0%,transparent 55%);}
 
@@ -1531,6 +1598,88 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
   </div>
 
   <!-- COMMERCIAL: FICHE -->
+  <!-- PAGE SUIVI DE PÉRIODE — Gestionnaire de stock -->
+  <div id="page-gstock-periode" class="page">
+    <div class="sec-hdr no-print">
+      <div class="sec-title">📅 Suivi de période</div>
+      <div style="display:flex;gap:7px;align-items:center;">
+        <button class="rapport-export-btn no-print" onclick="exportGstockCSV()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Exporter CSV
+        </button>
+        <button class="btn btn-print btn-sm no-print" onclick="window.print()">🖨️ Imprimer</button>
+      </div>
+    </div>
+
+    <!-- Barre de sélection de période -->
+    <div class="gperiode-date-bar">
+      <div style="display:flex;flex-direction:column;gap:3px;">
+        <label>Date début</label>
+        <input type="date" id="gp-date-debut" class="gperiode-date-input" onchange="renderGstockPeriode()">
+      </div>
+      <div style="color:var(--muted);font-size:16px;margin-top:14px;">→</div>
+      <div style="display:flex;flex-direction:column;gap:3px;">
+        <label>Date fin</label>
+        <input type="date" id="gp-date-fin" class="gperiode-date-input" onchange="renderGstockPeriode()">
+      </div>
+      <div style="margin-top:14px;width:1px;height:24px;background:var(--border);"></div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:14px;">
+        <div class="gperiode-shortcut" onclick="setGperiodeShortcut('semaine',this)">Cette semaine</div>
+        <div class="gperiode-shortcut" onclick="setGperiodeShortcut('mois',this)">Ce mois</div>
+        <div class="gperiode-shortcut" onclick="setGperiodeShortcut('trimestre',this)">Ce trimestre</div>
+        <div class="gperiode-shortcut" onclick="setGperiodeShortcut('semestre',this)">Ce semestre</div>
+        <div class="gperiode-shortcut" onclick="setGperiodeShortcut('annee',this)">Cette année</div>
+      </div>
+    </div>
+
+    <!-- Badge période sélectionnée -->
+    <div id="gp-periode-badge" style="display:none;margin-bottom:14px;" class="rapport-periode-badge">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <span id="gp-periode-txt">—</span>
+    </div>
+
+    <!-- Contenu dynamique -->
+    <div id="gp-body">
+      <div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">
+        📅 Sélectionnez une période pour afficher les données.
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGE RAPPORT D'ACTIVITÉ — Admin uniquement -->
+  <div id="page-rapport-activite" class="page">
+    <div class="sec-hdr no-print">
+      <div class="sec-title">📊 Rapport d'activité</div>
+      <div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap;">
+        <button class="rapport-export-btn no-print" onclick="exportRapportCSV()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Exporter CSV
+        </button>
+        <button class="btn btn-print btn-sm no-print" onclick="window.print()">🖨️ Imprimer</button>
+      </div>
+    </div>
+
+    <!-- Onglets de période -->
+    <div class="rapport-period-tabs" id="rapport-tabs">
+      <div class="rapport-tab active" onclick="setRapportPeriod('semaine')">Semaine</div>
+      <div class="rapport-tab" onclick="setRapportPeriod('mois')">Mois</div>
+      <div class="rapport-tab" onclick="setRapportPeriod('trimestre')">Trimestre</div>
+      <div class="rapport-tab" onclick="setRapportPeriod('semestre')">Semestre</div>
+      <div class="rapport-tab" onclick="setRapportPeriod('annee')">Année</div>
+    </div>
+
+    <!-- Badge période courante -->
+    <div class="rapport-periode-badge" id="rapport-periode-label">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <span id="rapport-periode-txt">—</span>
+    </div>
+
+    <!-- Contenu du rapport -->
+    <div id="rapport-body">
+      <div class="rapport-loading">⏳ Chargement du rapport…</div>
+    </div>
+  </div>
+
   <div id="page-fiche" class="page">
     <div class="sec-hdr no-print">
       <div class="sec-title" id="fiche-page-title">Fiche de recouvrement</div>
@@ -3852,7 +4001,8 @@ const ADMIN_NAV=`<div class="nav-sec">Principal</div>
 <div class="nav-item" id="nav-primes" onclick="ouvrirPrimes()" style="color:var(--accent);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>Primes commerciaux</div>
 <div class="nav-item" id="nav-saisie-mises" onclick="go('saisie-mises')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>Saisie de mises</div>
 <div class="nav-item" id="nav-saisie-adhesions" onclick="go('saisie-adhesions')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>Saisie des adhésions</div>
-<div class="nav-item" id="nav-fiche" onclick="go('fiche')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>Fiche du jour</div>`;
+<div class="nav-item" id="nav-fiche" onclick="go('fiche')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>Fiche du jour</div>
+<div class="nav-item" id="nav-rapport-activite" onclick="go('rapport-activite')" style="color:var(--accent);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Rapport d'activité</div>`;
 
 const COM_NAV=`<div class="nav-sec">Mon espace</div>
 <div class="nav-item" id="nav-com-clients" onclick="go('com-clients')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>Mes clients</div>
@@ -3888,7 +4038,8 @@ const GSTOCK_NAV=`<div class="nav-sec">Stock</div>
 <div class="nav-item" id="nav-articles" onclick="go('articles')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>Articles</div>
 <div class="nav-item" id="nav-catalogue" onclick="go('catalogue')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>Catalogue visuel</div>
 <div class="nav-item" id="nav-stock" onclick="go('stock')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>Stock</div>
-<div class="nav-item" id="nav-livraisons" onclick="go('livraisons')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>Livraisons</div>`;
+<div class="nav-item" id="nav-livraisons" onclick="go('livraisons')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>Livraisons</div>
+<div class="nav-item" id="nav-gstock-periode" onclick="go('gstock-periode')" style="color:var(--warn);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="8" y2="16"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="16" y1="14" x2="16" y2="16"/></svg>Suivi de période</div>`;
 
 function getRoleLabel(role){
   const labels={admin:'Administrateur',commercial:'Commercial',secretaire:'Secrétaire',controleur:'Contrôleur',gestionnaire_stock:'Gest. de stock'};
@@ -3925,7 +4076,7 @@ function setupUI(){
   if(btnReinit) btnReinit.style.display = (session.role === 'admin') ? '' : 'none';
 }
 
-const TITLES={'admin-dashboard':'Tableau de bord',registre:'Registre par date',historique:'Historique','tous-clients':'Clients',livraisons:'Livraisons',articles:'Articles',catalogue:'Catalogue visuel',stock:'Stock',commerciaux:'Utilisateurs',agences:'Agences',recouvrement:'Recouvrement du jour',fiche:'Fiche du jour','saisie-mises':'Saisie de mises','saisie-adhesions':'Saisie des adhésions','com-clients':'Mes clients','com-nouveau-client':'Nouveau client'};
+const TITLES={'admin-dashboard':'Tableau de bord',registre:'Registre par date',historique:'Historique','tous-clients':'Clients',livraisons:'Livraisons',articles:'Articles',catalogue:'Catalogue visuel',stock:'Stock',commerciaux:'Utilisateurs',agences:'Agences',recouvrement:'Recouvrement du jour',fiche:'Fiche du jour','saisie-mises':'Saisie de mises','saisie-adhesions':'Saisie des adhésions','com-clients':'Mes clients','com-nouveau-client':'Nouveau client','rapport-activite':"Rapport d'activité",'gstock-periode':'Suivi de période'};
 const BTN={'tous-clients':'+ Client',articles:'+ Article',livraisons:'+ Livraison',stock:'+ Mouvement',commerciaux:'+ Utilisateur'};
 const ACT={'tous-clients':()=>openM('m-client'),articles:()=>openM('m-article'),livraisons:()=>openM('m-livraison'),stock:()=>openM('m-stock-mvt'),commerciaux:()=>openM('m-com')};
 let curPg='';
@@ -4196,6 +4347,14 @@ function renderPg(id){
     const ct=document.getElementById('search-clients-count'); if(ct) ct.textContent='';
   },livraisons:renderLivraisons,articles:renderArticles,catalogue:renderCatalogue,stock:renderStock,commerciaux:renderComs,agences:renderAgences,recouvrement:renderRec,fiche:renderFiche,'saisie-mises':renderSaisieMises,'saisie-adhesions':renderSaisieAdhesions,'com-clients':renderComClients,'com-nouveau-client':renderComNouveauClient};
   if(m[id]) m[id]();
+  if(id==='rapport-activite'){
+    if(session?.role!=='admin'){ notify("Accès réservé à l'administrateur",'err'); go('admin-dashboard'); return; }
+    renderRapportActivite();
+  }
+  if(id==='gstock-periode'){
+    if(!['admin','gestionnaire_stock'].includes(session?.role)){ notify('Accès non autorisé','err'); return; }
+    initGstockPeriode();
+  }
 }
 
 // ========= RENDERS =========
@@ -9122,6 +9281,716 @@ function _buildEscPos(data, recuNum, emissionDate, emissionHeure, agenceLabel){
   let off=0; chunks.forEach(c=>{result.set(c,off);off+=c.length;});
   return result;
 }
+
+// ════════════════════════════════════════════════════
+// SUIVI DE PÉRIODE — Gestionnaire de stock
+// ════════════════════════════════════════════════════
+
+let _gpCharts = {};
+
+function _toISODate(d){ return d.toISOString().slice(0,10); }
+function _fmtDate(s){ if(!s) return '—'; const d=new Date(s); return d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'}); }
+
+window.setGperiodeShortcut = function(type, el){
+  document.querySelectorAll('.gperiode-shortcut').forEach(b=>b.classList.remove('active'));
+  if(el) el.classList.add('active');
+  const now = new Date();
+  let debut, fin = _toISODate(now);
+  if(type==='semaine'){
+    const day=now.getDay(), diff=(day===0?-6:1-day);
+    const d=new Date(now); d.setDate(now.getDate()+diff);
+    debut=_toISODate(d);
+  } else if(type==='mois'){
+    debut=_toISODate(new Date(now.getFullYear(),now.getMonth(),1));
+  } else if(type==='trimestre'){
+    debut=_toISODate(new Date(now.getFullYear(),Math.floor(now.getMonth()/3)*3,1));
+  } else if(type==='semestre'){
+    debut=_toISODate(new Date(now.getFullYear(),now.getMonth()<6?0:6,1));
+  } else {
+    debut=_toISODate(new Date(now.getFullYear(),0,1));
+  }
+  document.getElementById('gp-date-debut').value=debut;
+  document.getElementById('gp-date-fin').value=fin;
+  renderGstockPeriode();
+};
+
+function initGstockPeriode(){
+  // Pré-remplir avec le mois en cours si vide
+  const d=document.getElementById('gp-date-debut');
+  const f=document.getElementById('gp-date-fin');
+  if(!d.value){
+    const now=new Date();
+    d.value=_toISODate(new Date(now.getFullYear(),now.getMonth(),1));
+    f.value=_toISODate(now);
+    // Activer le raccourci "Ce mois"
+    const btns=document.querySelectorAll('.gperiode-shortcut');
+    if(btns[1]) btns[1].classList.add('active');
+  }
+  if(d.value) renderGstockPeriode();
+}
+
+window.renderGstockPeriode = function(){
+  const debut_str = document.getElementById('gp-date-debut')?.value;
+  const fin_str   = document.getElementById('gp-date-fin')?.value;
+  const body = document.getElementById('gp-body');
+
+  if(!debut_str||!fin_str){
+    body.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">📅 Sélectionnez une date de début et une date de fin.</div>';
+    return;
+  }
+  if(debut_str > fin_str){
+    body.innerHTML='<div style="text-align:center;padding:40px;color:var(--danger);font-size:13px;">⚠️ La date de début doit être antérieure à la date de fin.</div>';
+    return;
+  }
+
+  const debut = new Date(debut_str+'T00:00:00');
+  const fin   = new Date(fin_str+'T23:59:59');
+
+  // Badge
+  const badge = document.getElementById('gp-periode-badge');
+  const txt   = document.getElementById('gp-periode-txt');
+  if(badge){ badge.style.display=''; }
+  if(txt) txt.textContent = `${_fmtDate(debut_str)} → ${_fmtDate(fin_str)}`;
+
+  // Filtrer les données
+  const inP = (x) => {
+    const ds = x.date || x.createdAt;
+    if(!ds) return false;
+    const d = new Date(ds); return d>=debut && d<=fin;
+  };
+
+  const mvts      = (DB.stockMvts||[]).filter(inP);
+  const entrees   = mvts.filter(m=>m.type==='entree');
+  const sorties   = mvts.filter(m=>m.type==='sortie');
+  const livraisons= (DB.livraisons||[]).filter(inP);
+
+  // Mouvements par article
+  const parArticle = {};
+  mvts.forEach(m=>{
+    const a = (DB.articles||[]).find(x=>x._id===m.articleId);
+    const nom = a?a.nom:`Art. ${m.articleId?.slice(-4)||'?'}`;
+    if(!parArticle[m.articleId]) parArticle[m.articleId]={nom, entrees:0, sorties:0, qteEntree:0, qteSortie:0};
+    if(m.type==='entree'){ parArticle[m.articleId].entrees++; parArticle[m.articleId].qteEntree+=(Number(m.qty)||0); }
+    else                 { parArticle[m.articleId].sorties++; parArticle[m.articleId].qteSortie+=(Number(m.qty)||0); }
+  });
+  const artList = Object.values(parArticle).sort((a,b)=>(b.qteEntree+b.qteSortie)-(a.qteEntree+a.qteSortie));
+
+  // Évolution journalière des mouvements
+  const jours = {};
+  mvts.forEach(m=>{
+    const ds=(m.date||m.createdAt||'').slice(0,10);
+    if(!ds) return;
+    if(!jours[ds]) jours[ds]={e:0,s:0};
+    if(m.type==='entree') jours[ds].e+=(Number(m.qty)||0);
+    else jours[ds].s+=(Number(m.qty)||0);
+  });
+  const joursLabels=Object.keys(jours).sort();
+
+  // Destinations des sorties
+  const destMap = {};
+  sorties.forEach(m=>{
+    const k = m.destinationNom||m.destinationLibre||'Non spécifié';
+    destMap[k]=(destMap[k]||0)+(Number(m.qty)||0);
+  });
+
+  // Livraisons par statut
+  const livStatuts = {};
+  livraisons.forEach(l=>{ const s=l.statut||'inconnu'; livStatuts[s]=(livStatuts[s]||0)+1; });
+
+  // Détruire anciens charts
+  Object.values(_gpCharts).forEach(c=>{try{c.destroy();}catch(e){}});
+  _gpCharts={};
+
+  body.innerHTML = `
+    <!-- KPI GLOBAUX -->
+    <div class="gperiode-section">
+      <div class="gperiode-section-title">📊 Vue d'ensemble</div>
+      <div class="gperiode-kpi-grid">
+        <div class="gperiode-kpi green">
+          <div class="gk-lbl">Entrées de stock</div>
+          <div class="gk-val">${entrees.length} <span style="font-size:12px;font-weight:400;">mvt(s)</span></div>
+        </div>
+        <div class="gperiode-kpi red">
+          <div class="gk-lbl">Sorties de stock</div>
+          <div class="gk-val">${sorties.length} <span style="font-size:12px;font-weight:400;">mvt(s)</span></div>
+        </div>
+        <div class="gperiode-kpi">
+          <div class="gk-lbl">Qté totale entrée</div>
+          <div class="gk-val">${entrees.reduce((s,m)=>s+(Number(m.qty)||0),0)}</div>
+        </div>
+        <div class="gperiode-kpi red">
+          <div class="gk-lbl">Qté totale sortie</div>
+          <div class="gk-val">${sorties.reduce((s,m)=>s+(Number(m.qty)||0),0)}</div>
+        </div>
+        <div class="gperiode-kpi muted">
+          <div class="gk-lbl">Articles concernés</div>
+          <div class="gk-val">${artList.length}</div>
+        </div>
+        <div class="gperiode-kpi muted">
+          <div class="gk-lbl">Livraisons</div>
+          <div class="gk-val">${livraisons.length}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- GRAPHIQUE ÉVOLUTION -->
+    <div class="gperiode-section">
+      <div class="gperiode-section-title">📈 Évolution journalière (quantités)</div>
+      ${joursLabels.length===0?'<div style="color:var(--muted);font-size:12px;padding:8px;">Aucun mouvement sur cette période.</div>':
+        '<div class="gperiode-chart-wrap"><canvas id="gp-chart-evolution"></canvas></div>'}
+    </div>
+
+    <!-- MOUVEMENTS PAR ARTICLE -->
+    <div class="gperiode-section">
+      <div class="gperiode-section-title">📦 Mouvements par article</div>
+      ${artList.length===0
+        ? '<div style="color:var(--muted);font-size:12px;padding:8px;">Aucun mouvement sur cette période.</div>'
+        : `<div class="tw"><table>
+            <thead><tr><th>Article</th><th>Entrées (qté)</th><th>Sorties (qté)</th><th>Solde net</th></tr></thead>
+            <tbody>${artList.map(a=>{
+              const net = a.qteEntree - a.qteSortie;
+              return `<tr>
+                <td class="fw6">${esc(a.nom)}</td>
+                <td style="color:var(--accent2);font-weight:700;">+${a.qteEntree} <span style="color:var(--muted);font-weight:400;font-size:10px;">(${a.entrees} mvt)</span></td>
+                <td style="color:var(--danger);font-weight:700;">-${a.qteSortie} <span style="color:var(--muted);font-weight:400;font-size:10px;">(${a.sorties} mvt)</span></td>
+                <td style="font-weight:700;color:${net>=0?'var(--accent2)':'var(--danger)'};">${net>=0?'+':''}${net}</td>
+              </tr>`;
+            }).join('')}</tbody>
+          </table></div>`}
+    </div>
+
+    <!-- DESTINATIONS DES SORTIES -->
+    <div class="gperiode-section">
+      <div class="gperiode-section-title">📤 Destinations des sorties</div>
+      ${Object.keys(destMap).length===0
+        ? '<div style="color:var(--muted);font-size:12px;padding:8px;">Aucune sortie enregistrée sur cette période.</div>'
+        : `<div class="gperiode-chart-wrap"><canvas id="gp-chart-dest"></canvas></div>
+           <div class="tw" style="margin-top:10px;"><table>
+             <thead><tr><th>Destination</th><th>Quantité sortie</th></tr></thead>
+             <tbody>${Object.entries(destMap).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${esc(k)}</td><td style="font-weight:700;color:var(--warn);">${v}</td></tr>`).join('')}</tbody>
+           </table></div>`}
+    </div>
+
+    <!-- LISTE DÉTAILLÉE DES MOUVEMENTS -->
+    <div class="gperiode-section">
+      <div class="gperiode-section-title" style="margin-bottom:8px;">📋 Détail des mouvements</div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+        <input type="text" id="gp-search" placeholder="🔍 Filtrer article, note..."
+          style="background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:5px 10px;color:var(--text);font-size:11px;outline:none;flex:1;min-width:150px;"
+          oninput="filterGpMvts()">
+        <select id="gp-type-filter"
+          style="background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:5px 10px;color:var(--text);font-size:11px;outline:none;"
+          onchange="filterGpMvts()">
+          <option value="">Tous les types</option>
+          <option value="entree">📥 Entrées seulement</option>
+          <option value="sortie">📤 Sorties seulement</option>
+        </select>
+      </div>
+      <div id="gp-mvts-table">
+        ${_buildGpMvtsTable(mvts)}
+      </div>
+    </div>
+
+    <!-- LIVRAISONS SUR LA PÉRIODE -->
+    <div class="gperiode-section">
+      <div class="gperiode-section-title">🚚 Livraisons sur la période</div>
+      ${livraisons.length===0
+        ? '<div style="color:var(--muted);font-size:12px;padding:8px;">Aucune livraison sur cette période.</div>'
+        : `<div class="gperiode-kpi-grid" style="margin-bottom:10px;">
+            ${Object.entries(livStatuts).map(([s,n])=>`<div class="gperiode-kpi muted"><div class="gk-lbl">${s}</div><div class="gk-val">${n}</div></div>`).join('')}
+           </div>
+           <div class="tw"><table>
+             <thead><tr><th>Date</th><th>Client</th><th>Statut</th><th>Note</th></tr></thead>
+             <tbody>${livraisons.slice().reverse().map(l=>{
+               const cl=(DB.clients||[]).find(c=>c._id===l.clientId);
+               return `<tr><td>${l.date||'—'}</td><td class="fw6">${cl?esc(cl.nom):'—'}</td><td>${l.statut||'—'}</td><td class="tm">${esc(l.note||'—')}</td></tr>`;
+             }).join('')}</tbody>
+           </table></div>`}
+    </div>
+  `;
+
+  // Stocker mvts pour le filtre
+  window._gpAllMvts = mvts;
+
+  // Dessiner graphiques
+  requestAnimationFrame(()=>{
+    const warn='rgba(212,137,58,0.85)', green='rgba(56,201,160,0.85)', danger='rgba(224,92,82,0.85)';
+    const gridColor='rgba(255,255,255,0.06)', tickColor='rgba(255,255,255,0.35)';
+
+    // Graphique évolution
+    const c1=document.getElementById('gp-chart-evolution');
+    if(c1 && joursLabels.length){
+      _gpCharts.evol=new Chart(c1.getContext('2d'),{
+        type:'bar',
+        data:{
+          labels:joursLabels,
+          datasets:[
+            {label:'Entrées',data:joursLabels.map(j=>jours[j].e),backgroundColor:green,borderRadius:4,stack:'s'},
+            {label:'Sorties',data:joursLabels.map(j=>jours[j].s),backgroundColor:danger,borderRadius:4,stack:'s2'}
+          ]
+        },
+        options:{
+          responsive:true,maintainAspectRatio:true,
+          plugins:{legend:{labels:{color:tickColor,font:{size:10}}}},
+          scales:{
+            x:{ticks:{color:tickColor,font:{size:9},maxRotation:45},grid:{color:gridColor}},
+            y:{ticks:{color:tickColor,font:{size:9}},grid:{color:gridColor}}
+          }
+        }
+      });
+    }
+
+    // Graphique destinations
+    const c2=document.getElementById('gp-chart-dest');
+    if(c2 && Object.keys(destMap).length){
+      const dkeys=Object.keys(destMap);
+      const colors=[warn,'rgba(201,168,76,0.8)',danger,'rgba(100,130,200,0.8)','rgba(150,100,200,0.8)'];
+      _gpCharts.dest=new Chart(c2.getContext('2d'),{
+        type:'doughnut',
+        data:{labels:dkeys,datasets:[{data:dkeys.map(k=>destMap[k]),backgroundColor:dkeys.map((_,i)=>colors[i%colors.length]),borderWidth:0}]},
+        options:{responsive:true,plugins:{legend:{labels:{color:tickColor,font:{size:10}}}}}
+      });
+    }
+  });
+};
+
+function _buildGpMvtsTable(mvts){
+  if(!mvts.length) return '<div style="color:var(--muted);font-size:12px;padding:8px;">Aucun mouvement.</div>';
+  return `<div class="tw"><table>
+    <thead><tr><th>Date</th><th>Article</th><th>Type</th><th>Quantité</th><th>Stock après</th><th>Destination / Motif</th><th>Note</th></tr></thead>
+    <tbody>${[...mvts].reverse().map(m=>{
+      const a=(DB.articles||[]).find(x=>x._id===m.articleId)||{};
+      const dest = m.type==='sortie'?(m.destinationNom||m.destinationLibre||'—'):'—';
+      return `<tr>
+        <td>${m.date||'—'}</td>
+        <td class="fw6">${esc(a.nom||'?')}</td>
+        <td>${m.type==='entree'?'<span style="background:rgba(56,201,160,0.15);color:var(--accent2);border-radius:5px;padding:2px 7px;font-size:10px;">📥 Entrée</span>':'<span style="background:rgba(224,92,82,0.15);color:var(--danger);border-radius:5px;padding:2px 7px;font-size:10px;">📤 Sortie</span>'}</td>
+        <td style="font-weight:700;color:${m.type==='entree'?'var(--accent2)':'var(--danger)'};">${m.type==='entree'?'+':'-'}${m.qty} ${esc(a.unite||'')}</td>
+        <td>${m.stockApres!=null?m.stockApres+' '+esc(a.unite||''):'—'}</td>
+        <td style="font-size:11px;color:var(--subtle);">${esc(dest)}</td>
+        <td class="tm" style="font-size:11px;">${esc(m.note||'—')}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table></div>`;
+}
+
+window.filterGpMvts = function(){
+  const q=(document.getElementById('gp-search')?.value||'').toLowerCase().trim();
+  const typ=document.getElementById('gp-type-filter')?.value||'';
+  let mvts=window._gpAllMvts||[];
+  if(typ) mvts=mvts.filter(m=>m.type===typ);
+  if(q) mvts=mvts.filter(m=>{
+    const a=(DB.articles||[]).find(x=>x._id===m.articleId)||{};
+    return (a.nom||'').toLowerCase().includes(q)||(m.note||'').toLowerCase().includes(q)||(m.destinationNom||'').toLowerCase().includes(q)||(m.destinationLibre||'').toLowerCase().includes(q);
+  });
+  const wrap=document.getElementById('gp-mvts-table');
+  if(wrap) wrap.innerHTML=_buildGpMvtsTable(mvts);
+};
+
+window.exportGstockCSV = function(){
+  const debut_str=document.getElementById('gp-date-debut')?.value;
+  const fin_str=document.getElementById('gp-date-fin')?.value;
+  if(!debut_str||!fin_str){ notify('Sélectionnez une période d\'abord','err'); return; }
+  const debut=new Date(debut_str+'T00:00:00'), fin=new Date(fin_str+'T23:59:59');
+  const inP=(x)=>{ const ds=x.date||x.createdAt; if(!ds) return false; const d=new Date(ds); return d>=debut&&d<=fin; };
+  const mvts=(DB.stockMvts||[]).filter(inP);
+  const livraisons=(DB.livraisons||[]).filter(inP);
+
+  let csv=`Suivi de période — ${_fmtDate(debut_str)} au ${_fmtDate(fin_str)}\n\n`;
+  csv+=`MOUVEMENTS DE STOCK\nDate;Article;Type;Quantité;Stock après;Destination;Note\n`;
+  mvts.forEach(m=>{
+    const a=(DB.articles||[]).find(x=>x._id===m.articleId)||{};
+    csv+=`${m.date||''};${a.nom||''};${m.type};${m.qty};${m.stockApres!=null?m.stockApres:''};${m.destinationNom||m.destinationLibre||''};${m.note||''}\n`;
+  });
+  csv+=`\nLIVRAISONS\nDate;Client;Statut;Note\n`;
+  livraisons.forEach(l=>{
+    const cl=(DB.clients||[]).find(c=>c._id===l.clientId);
+    csv+=`${l.date||''};${cl?cl.nom:''};${l.statut||''};${l.note||''}\n`;
+  });
+
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=`suivi_stock_${debut_str}_${fin_str}.csv`;
+  a.click();
+  notify('✅ Export CSV téléchargé','ok');
+};
+
+// ════════════════════════════════════════════════════
+// RAPPORT D'ACTIVITÉ — Admin uniquement
+// ════════════════════════════════════════════════════
+
+let _rapportPeriod = 'semaine';
+let _rapportCharts = {};
+
+window.setRapportPeriod = function(p){
+  _rapportPeriod = p;
+  document.querySelectorAll('.rapport-tab').forEach(t=>{
+    t.classList.toggle('active', t.textContent.toLowerCase().includes(
+      p==='semaine'?'semaine':p==='mois'?'mois':p==='trimestre'?'trimestre':p==='semestre'?'semestre':'ann'
+    ));
+  });
+  renderRapportActivite();
+};
+
+function _getPeriodeBornes(p){
+  const now = new Date();
+  let debut, fin = new Date(now);
+  fin.setHours(23,59,59,999);
+  if(p==='semaine'){
+    const day = now.getDay();
+    const diff = (day===0?-6:1-day);
+    debut = new Date(now); debut.setDate(now.getDate()+diff); debut.setHours(0,0,0,0);
+  } else if(p==='mois'){
+    debut = new Date(now.getFullYear(), now.getMonth(), 1);
+  } else if(p==='trimestre'){
+    const qStart = Math.floor(now.getMonth()/3)*3;
+    debut = new Date(now.getFullYear(), qStart, 1);
+  } else if(p==='semestre'){
+    const sStart = now.getMonth()<6 ? 0 : 6;
+    debut = new Date(now.getFullYear(), sStart, 1);
+  } else { // annee
+    debut = new Date(now.getFullYear(), 0, 1);
+  }
+  return {debut, fin};
+}
+
+function _periodeLabel(p){
+  const now = new Date();
+  const mois = ['Janv','Févr','Mars','Avr','Mai','Juin','Juil','Août','Sept','Oct','Nov','Déc'];
+  if(p==='semaine'){
+    const {debut,fin}=_getPeriodeBornes(p);
+    return `Sem. du ${debut.getDate()} ${mois[debut.getMonth()]} au ${fin.getDate()} ${mois[fin.getMonth()]} ${fin.getFullYear()}`;
+  }
+  if(p==='mois') return `${mois[now.getMonth()]} ${now.getFullYear()}`;
+  if(p==='trimestre'){const q=Math.floor(now.getMonth()/3)+1;return `T${q} ${now.getFullYear()}`;}
+  if(p==='semestre'){return (now.getMonth()<6?'1er':'2e')+` semestre ${now.getFullYear()}`;}
+  return `Année ${now.getFullYear()}`;
+}
+
+function _inPeriod(dateStr, debut, fin){
+  if(!dateStr) return false;
+  const d = new Date(dateStr);
+  return d>=debut && d<=fin;
+}
+
+function _fmtMoney(v){ return Number(v||0).toLocaleString('fr-FR')+ ' FCFA'; }
+function _fmtNum(v){ return Number(v||0).toLocaleString('fr-FR'); }
+
+function _destroyRapportCharts(){
+  Object.values(_rapportCharts).forEach(c=>{ try{c.destroy();}catch(e){} });
+  _rapportCharts = {};
+}
+
+function renderRapportActivite(){
+  if(session?.role !== 'admin'){ return; }
+  const p = _rapportPeriod;
+  const {debut, fin} = _getPeriodeBornes(p);
+
+  // Mettre à jour le badge période
+  document.getElementById('rapport-periode-txt').textContent = _periodeLabel(p);
+
+  const body = document.getElementById('rapport-body');
+  body.innerHTML = '<div class="rapport-loading">⏳ Calcul du rapport…</div>';
+
+  // Détruire les anciens charts
+  _destroyRapportCharts();
+
+  // Filtrer les données
+  const paiements = (DB.paiements||[]).filter(x=>_inPeriod(x.date||x.createdAt, debut, fin));
+  const adhesions = (DB.adhesionPays||[]).filter(x=>_inPeriod(x.date||x.createdAt, debut, fin));
+  const livraisons = (DB.livraisons||[]).filter(x=>_inPeriod(x.date||x.createdAt, debut, fin));
+  const mises = (DB.mises||[]).filter(x=>_inPeriod(x.date||x.createdAt, debut, fin));
+  const stockMvts = (DB.stockMvts||[]).filter(x=>_inPeriod(x.date||x.createdAt, debut, fin));
+  const clients = (DB.clients||[]).filter(x=>_inPeriod(x.dateAdhesion||x.createdAt, debut, fin));
+  const agences = DB.agences||[];
+  const coms = (DB.commerciaux||[]).filter(c=>c.role!=='admin');
+  const primes = DB.primesPaliers||[];
+
+  // ── KPI financiers ──
+  const totalPaiements = paiements.reduce((s,x)=>s+(Number(x.montant)||0),0);
+  const totalCotisations = adhesions.reduce((s,x)=>s+(Number(x.montant)||0),0);
+
+  // CA par agence
+  const caParAgence = {};
+  agences.forEach(a=>{ caParAgence[a._id]={nom:a.nom, total:0}; });
+  paiements.forEach(p=>{
+    const cl = (DB.clients||[]).find(c=>c._id===p.clientId);
+    if(cl){ const ag=cl.agenceId||'inconnue'; if(!caParAgence[ag]) caParAgence[ag]={nom:ag,total:0}; caParAgence[ag].total+=(Number(p.montant)||0); }
+  });
+
+  // Primes atteintes — chercher commerciaux ayant atteint un palier sur la période
+  const primesAtteintes = [];
+  coms.forEach(com=>{
+    const totalCom = paiements.filter(p=>{
+      const cl=(DB.clients||[]).find(c=>c._id===p.clientId);
+      return cl && cl.commercialId===com._id;
+    }).reduce((s,x)=>s+(Number(x.montant)||0),0);
+    const palier = [...primes].sort((a,b)=>b.seuil-a.seuil).find(pr=>totalCom>=(Number(pr.seuil)||0));
+    if(palier) primesAtteintes.push({com:com.nom, palier:palier.nom||`Palier ${palier.seuil}`, montant:palier.prime||0, ca:totalCom});
+  });
+
+  // Performance par commercial
+  const perfCom = coms.map(com=>{
+    const paysCom = paiements.filter(p=>{ const cl=(DB.clients||[]).find(c=>c._id===p.clientId); return cl&&cl.commercialId===com._id; });
+    const clientsCom = clients.filter(c=>c.commercialId===com._id);
+    return { nom:com.nom, ca:paysCom.reduce((s,x)=>s+(Number(x.montant)||0),0), nbClients:clientsCom.length, nbPay:paysCom.length };
+  }).sort((a,b)=>b.ca-a.ca);
+
+  const maxCa = perfCom.length ? perfCom[0].ca : 1;
+
+  // ── Données pour graphiques par période (jours/semaines/mois selon la période) ──
+  function _buildTimeSeries(liste, champDate, champVal){
+    const buckets = {};
+    const fmt = (d) => {
+      if(p==='semaine'||p==='mois') return d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'});
+      if(p==='trimestre') return `Sem.${_weekNum(d)}`;
+      if(p==='semestre'||p==='annee') return d.toLocaleDateString('fr-FR',{month:'short',year:'2-digit'});
+      return d.toISOString().slice(0,7);
+    };
+    liste.forEach(x=>{
+      const d=new Date(x[champDate]||x.createdAt||x.date);
+      if(!d||isNaN(d)) return;
+      const k=fmt(d);
+      if(!buckets[k]) buckets[k]=0;
+      buckets[k]+=(Number(x[champVal])||0);
+    });
+    return buckets;
+  }
+  function _weekNum(d){ const s=new Date(d.getFullYear(),0,1); return Math.ceil(((d-s)/86400000+s.getDay()+1)/7); }
+
+  const tsPaiements = _buildTimeSeries(paiements,'date','montant');
+  const tsAdhesions = _buildTimeSeries(adhesions,'date','montant');
+  const labels = [...new Set([...Object.keys(tsPaiements),...Object.keys(tsAdhesions)])].sort();
+
+  // Livraisons par statut
+  const livrStatuts = {};
+  livraisons.forEach(l=>{ const s=l.statut||'inconnu'; livrStatuts[s]=(livrStatuts[s]||0)+1; });
+
+  // Mouvements stock par type
+  const stockEntrees = stockMvts.filter(m=>m.type==='entree').length;
+  const stockSorties = stockMvts.filter(m=>m.type==='sortie').length;
+
+  // ── Construire le HTML ──
+  body.innerHTML = `
+    <!-- ░░ KPI FINANCIERS ░░ -->
+    <div class="rapport-section-title">💰 Données financières</div>
+    <div class="rapport-kpi-grid">
+      <div class="rapport-kpi accent">
+        <div class="rk-label">Total encaissements</div>
+        <div class="rk-val">${_fmtMoney(totalPaiements)}</div>
+        <div class="rk-sub">${paiements.length} paiement(s)</div>
+      </div>
+      <div class="rapport-kpi green">
+        <div class="rk-label">Cotisations collectées</div>
+        <div class="rk-val">${_fmtMoney(totalCotisations)}</div>
+        <div class="rk-sub">${adhesions.length} adhésion(s)</div>
+      </div>
+      <div class="rapport-kpi">
+        <div class="rk-label">Nouveaux clients</div>
+        <div class="rk-val">${clients.length}</div>
+        <div class="rk-sub">sur la période</div>
+      </div>
+      <div class="rapport-kpi warn">
+        <div class="rk-label">Livraisons</div>
+        <div class="rk-val">${livraisons.length}</div>
+        <div class="rk-sub">${livrStatuts['livre']||0} livrée(s)</div>
+      </div>
+    </div>
+
+    <!-- ░░ GRAPHIQUE ENCAISSEMENTS ░░ -->
+    <div class="rapport-chart-wrap">
+      <div class="rapport-chart-label">Évolution des encaissements vs cotisations</div>
+      <canvas id="chart-rapport-encaiss"></canvas>
+    </div>
+
+    <!-- ░░ CA PAR AGENCE ░░ -->
+    <div class="rapport-section-title">🏢 Chiffre d'affaires par agence</div>
+    <div class="rapport-kpi-grid">
+      ${Object.values(caParAgence).sort((a,b)=>b.total-a.total).map(ag=>`
+        <div class="rapport-kpi">
+          <div class="rk-label">${ag.nom||'—'}</div>
+          <div class="rk-val" style="font-size:14px;">${_fmtMoney(ag.total)}</div>
+        </div>
+      `).join('')||'<div style="color:var(--muted);font-size:12px;padding:8px;">Aucune donnée agence</div>'}
+    </div>
+    <div class="rapport-chart-wrap">
+      <div class="rapport-chart-label">CA par agence (FCFA)</div>
+      <canvas id="chart-rapport-agences" style="max-height:180px;"></canvas>
+    </div>
+
+    <!-- ░░ PERFORMANCE COMMERCIAUX ░░ -->
+    <div class="rapport-section-title">👤 Performance par commercial</div>
+    ${perfCom.length===0?'<div style="color:var(--muted);font-size:12px;padding:8px;">Aucun commercial trouvé</div>':
+      perfCom.map((c,i)=>`
+        <div class="com-rank-row">
+          <div class="com-rank-pos">${i+1}</div>
+          <div class="com-rank-name">${c.nom}</div>
+          <div class="com-rank-bar-wrap"><div class="com-rank-bar" style="width:${maxCa>0?Math.round(c.ca/maxCa*100):0}%"></div></div>
+          <div class="com-rank-val">${_fmtMoney(c.ca)}</div>
+          <div style="font-size:10px;color:var(--muted);margin-left:6px;">${c.nbClients} client(s)</div>
+        </div>
+      `).join('')}
+    <div class="rapport-chart-wrap" style="margin-top:12px;">
+      <div class="rapport-chart-label">Encaissements par commercial</div>
+      <canvas id="chart-rapport-coms" style="max-height:200px;"></canvas>
+    </div>
+
+    <!-- ░░ PRIMES ET PALIERS ░░ -->
+    <div class="rapport-section-title">🏆 Primes et paliers atteints</div>
+    ${primesAtteintes.length===0
+      ? '<div style="color:var(--muted);font-size:12px;padding:8px;">Aucun palier atteint sur cette période.</div>'
+      : `<div class="tw"><table><thead><tr><th>Commercial</th><th>Palier atteint</th><th>CA généré</th><th>Prime</th></tr></thead><tbody>
+          ${primesAtteintes.map(p=>`<tr><td>${p.com}</td><td>${p.palier}</td><td>${_fmtMoney(p.ca)}</td><td style="color:var(--accent);font-weight:700;">${_fmtMoney(p.montant)}</td></tr>`).join('')}
+        </tbody></table></div>`}
+
+    <!-- ░░ LIVRAISONS ░░ -->
+    <div class="rapport-section-title">🚚 Livraisons effectuées</div>
+    <div class="rapport-kpi-grid">
+      ${Object.entries(livrStatuts).map(([s,n])=>`<div class="rapport-kpi"><div class="rk-label">${s}</div><div class="rk-val">${n}</div></div>`).join('') || '<div style="color:var(--muted);font-size:12px;padding:8px;">Aucune livraison sur cette période.</div>'}
+    </div>
+    <div class="rapport-chart-wrap">
+      <div class="rapport-chart-label">Livraisons par statut</div>
+      <canvas id="chart-rapport-livr" style="max-height:180px;"></canvas>
+    </div>
+
+    <!-- ░░ STOCK ░░ -->
+    <div class="rapport-section-title">📦 Mouvements de stock</div>
+    <div class="rapport-kpi-grid">
+      <div class="rapport-kpi green">
+        <div class="rk-label">Entrées de stock</div>
+        <div class="rk-val">${stockEntrees}</div>
+        <div class="rk-sub">mouvements</div>
+      </div>
+      <div class="rapport-kpi warn">
+        <div class="rk-label">Sorties de stock</div>
+        <div class="rk-val">${stockSorties}</div>
+        <div class="rk-sub">mouvements</div>
+      </div>
+      <div class="rapport-kpi">
+        <div class="rk-label">Total mouvements</div>
+        <div class="rk-val">${stockMvts.length}</div>
+        <div class="rk-sub">sur la période</div>
+      </div>
+    </div>
+    <div class="rapport-chart-wrap">
+      <div class="rapport-chart-label">Entrées vs Sorties de stock</div>
+      <canvas id="chart-rapport-stock" style="max-height:160px;"></canvas>
+    </div>
+  `;
+
+  // ── Dessiner les graphiques ──
+  requestAnimationFrame(()=>{
+    const gold='rgba(201,168,76,0.85)', goldFill='rgba(201,168,76,0.15)';
+    const green='rgba(56,201,160,0.85)', greenFill='rgba(56,201,160,0.15)';
+    const warn='rgba(212,137,58,0.85)', warnFill='rgba(212,137,58,0.15)';
+    const gridColor='rgba(255,255,255,0.06)', tickColor='rgba(255,255,255,0.35)';
+
+    const baseOpts = (yLabel)=>({
+      responsive:true, maintainAspectRatio:true,
+      plugins:{legend:{labels:{color:tickColor,font:{size:10}}},tooltip:{callbacks:{label:c=>' '+Number(c.parsed.y).toLocaleString('fr-FR')+' FCFA'}}},
+      scales:{
+        x:{ticks:{color:tickColor,font:{size:9}},grid:{color:gridColor}},
+        y:{ticks:{color:tickColor,font:{size:9},callback:v=>Number(v).toLocaleString('fr-FR')},grid:{color:gridColor},title:{display:!!yLabel,text:yLabel,color:tickColor,font:{size:9}}}
+      }
+    });
+
+    // 1. Encaissements vs cotisations
+    const c1=document.getElementById('chart-rapport-encaiss');
+    if(c1){
+      _rapportCharts.encaiss=new Chart(c1.getContext('2d'),{
+        type:'line',
+        data:{
+          labels,
+          datasets:[
+            {label:'Encaissements',data:labels.map(l=>tsPaiements[l]||0),borderColor:gold,backgroundColor:goldFill,tension:0.4,fill:true,pointRadius:3},
+            {label:'Cotisations',data:labels.map(l=>tsAdhesions[l]||0),borderColor:green,backgroundColor:greenFill,tension:0.4,fill:true,pointRadius:3}
+          ]
+        },
+        options:baseOpts()
+      });
+    }
+
+    // 2. CA par agence — barre horizontale
+    const c2=document.getElementById('chart-rapport-agences');
+    if(c2){
+      const agData=Object.values(caParAgence).sort((a,b)=>b.total-a.total);
+      _rapportCharts.agences=new Chart(c2.getContext('2d'),{
+        type:'bar',
+        data:{
+          labels:agData.map(a=>a.nom),
+          datasets:[{label:'CA (FCFA)',data:agData.map(a=>a.total),backgroundColor:gold,borderRadius:6}]
+        },
+        options:{...baseOpts(),...{indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+Number(c.parsed.x).toLocaleString('fr-FR')+' FCFA'}}}}}
+      });
+    }
+
+    // 3. Performance commerciaux
+    const c3=document.getElementById('chart-rapport-coms');
+    if(c3){
+      _rapportCharts.coms=new Chart(c3.getContext('2d'),{
+        type:'bar',
+        data:{
+          labels:perfCom.map(c=>c.nom),
+          datasets:[{label:'Encaissements',data:perfCom.map(c=>c.ca),backgroundColor:green,borderRadius:6}]
+        },
+        options:{...baseOpts(),...{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+Number(c.parsed.y).toLocaleString('fr-FR')+' FCFA'}}}}}
+      });
+    }
+
+    // 4. Livraisons par statut — doughnut
+    const c4=document.getElementById('chart-rapport-livr');
+    if(c4){
+      const livrKeys=Object.keys(livrStatuts);
+      _rapportCharts.livr=new Chart(c4.getContext('2d'),{
+        type:'doughnut',
+        data:{
+          labels:livrKeys,
+          datasets:[{data:livrKeys.map(k=>livrStatuts[k]),backgroundColor:[gold,green,warn,'rgba(224,92,82,0.8)'],borderWidth:0}]
+        },
+        options:{responsive:true,plugins:{legend:{labels:{color:tickColor,font:{size:10}}}}}
+      });
+    }
+
+    // 5. Stock entrées/sorties
+    const c5=document.getElementById('chart-rapport-stock');
+    if(c5){
+      _rapportCharts.stock=new Chart(c5.getContext('2d'),{
+        type:'bar',
+        data:{
+          labels:['Entrées','Sorties'],
+          datasets:[{data:[stockEntrees,stockSorties],backgroundColor:[green,warn],borderRadius:8}]
+        },
+        options:{...baseOpts(),...{plugins:{legend:{display:false}},scales:{x:{ticks:{color:tickColor,font:{size:11}},grid:{color:gridColor}},y:{ticks:{color:tickColor,font:{size:9}},grid:{color:gridColor}}}}}
+      });
+    }
+  });
+}
+
+window.exportRapportCSV = function(){
+  if(session?.role!=='admin'){ notify("Accès réservé à l'administrateur",'err'); return; }
+  const p=_rapportPeriod;
+  const {debut,fin}=_getPeriodeBornes(p);
+  const paiements=(DB.paiements||[]).filter(x=>_inPeriod(x.date||x.createdAt,debut,fin));
+  const adhesions=(DB.adhesionPays||[]).filter(x=>_inPeriod(x.date||x.createdAt,debut,fin));
+  const livraisons=(DB.livraisons||[]).filter(x=>_inPeriod(x.date||x.createdAt,debut,fin));
+  const stockMvts=(DB.stockMvts||[]).filter(x=>_inPeriod(x.date||x.createdAt,debut,fin));
+  const clients=(DB.clients||[]).filter(x=>_inPeriod(x.dateAdhesion||x.createdAt,debut,fin));
+
+  let csv=`Rapport d'activité — ${_periodeLabel(p)}\n\n`;
+  csv+=`FINANCIER\nTotal encaissements;${paiements.reduce((s,x)=>s+(Number(x.montant)||0),0)} FCFA\nCotisations collectées;${adhesions.reduce((s,x)=>s+(Number(x.montant)||0),0)} FCFA\nNouveaux clients;${clients.length}\n\n`;
+  csv+=`PAIEMENTS\nDate;Client;Montant;Note\n`;
+  paiements.forEach(x=>{ const cl=(DB.clients||[]).find(c=>c._id===x.clientId); csv+=`${x.date||''};${cl?cl.nom:'—'};${x.montant||0};${x.note||''}\n`; });
+  csv+=`\nLIVRAISONS\nDate;Client;Statut\n`;
+  livraisons.forEach(x=>{ const cl=(DB.clients||[]).find(c=>c._id===x.clientId); csv+=`${x.date||''};${cl?cl.nom:'—'};${x.statut||''}\n`; });
+  csv+=`\nSTOCK\nDate;Article;Type;Quantité\n`;
+  stockMvts.forEach(x=>{ csv+=`${x.date||''};${x.articleNom||x.articleId||''};${x.type||''};${x.qte||0}\n`; });
+
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=`rapport_${p}_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  notify('✅ Export CSV téléchargé','ok');
+};
 
 // ── État connexion Bluetooth ──
 let _btDevice=null, _btChar=null;
