@@ -36,7 +36,7 @@
          match /clients/{d}       { allow read: if isAuth(); allow write: if isOneOf(['admin','commercial','secretaire']); allow delete: if isAdmin(); }
          match /paiements/{d}     { allow read: if isAuth(); allow create: if isOneOf(['admin','commercial','secretaire']); allow update,delete: if isAdmin(); }
          match /articles/{d}      { allow read: if isAuth(); allow write: if isOneOf(['admin','gestionnaire_stock']); }
-         match /produits/{d}      { allow read: if isAuth(); allow write: if isAdmin(); }
+         match /produits/{d}      { allow read: if isAuth(); allow write: if isOneOf(['admin','gestionnaire_stock']); }
          match /stockMvts/{d}     { allow read: if isAuth(); allow write: if isOneOf(['admin','gestionnaire_stock']); }
          match /livraisons/{d}    { allow read: if isAuth(); allow create,update: if isOneOf(['admin','commercial','secretaire']); allow delete: if isAdmin(); }
          match /adhesionPays/{d}  { allow read: if isAuth(); allow create: if isOneOf(['admin','commercial','secretaire']); allow update,delete: if isAdmin(); }
@@ -290,76 +290,56 @@
 
 #page-catalogue{background:linear-gradient(135deg,rgba(180,120,20,0.06) 0%,rgba(10,13,20,0) 60%);}
 
-/* ── PAGE NOS PRODUITS ── */
-#page-nos-produits{background:linear-gradient(135deg,rgba(201,168,76,0.06) 0%,rgba(56,201,160,0.03) 50%,rgba(10,13,20,0) 80%);}
-#page-nos-produits .sec-title{color:var(--accent) !important;}
+/* ── PAGE PRODUITS ── */
+#page-produits{background:radial-gradient(ellipse at 10% 20%,rgba(56,201,160,0.04) 0%,transparent 55%);}
+#page-produits .sec-title{color:var(--accent2) !important;}
+.prod-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;transition:transform 0.18s,border-color 0.18s,box-shadow 0.18s;cursor:pointer;}
+.prod-card:hover{transform:translateY(-4px);border-color:var(--accent2);box-shadow:0 8px 28px rgba(0,0,0,0.35);}
+.prod-card-img{width:100%;height:200px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:56px;overflow:hidden;position:relative;}
+.prod-card-img img{width:100%;height:100%;object-fit:cover;}
+.prod-card-body{padding:14px;}
+.prod-card-cat{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;}
+.prod-card-nom{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:800;margin-bottom:6px;line-height:1.3;}
+.prod-card-desc{font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.6;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.prod-card-footer{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);padding-top:8px;margin-top:4px;}
+.prod-card-prix{font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:800;color:var(--accent);}
+.prod-card-compo{font-size:10px;color:var(--muted);display:flex;align-items:center;gap:4px;}
+.prod-filter-chip{padding:4px 12px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--muted);transition:all 0.15s;white-space:nowrap;}
+.prod-filter-chip:hover{color:var(--text);border-color:rgba(56,201,160,0.4);}
+.prod-filter-chip.active{background:rgba(56,201,160,0.12);border-color:var(--accent2);color:var(--accent2);}
 
-.np-hero{
-  background:linear-gradient(135deg,rgba(201,168,76,0.1) 0%,rgba(56,201,160,0.05) 100%);
-  border:1px solid rgba(201,168,76,0.18);
-  border-radius:16px;
-  padding:28px 32px;
-  margin-bottom:22px;
-  display:flex;
-  align-items:center;
-  gap:20px;
-  flex-wrap:wrap;
-}
-.np-hero-icon{font-size:48px;flex-shrink:0;}
-.np-hero-text .np-hero-title{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:800;color:var(--accent);margin-bottom:4px;}
-.np-hero-text .np-hero-sub{font-size:13px;color:var(--subtle);line-height:1.6;}
-
-.np-search-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px;}
-.np-search-input{flex:1;min-width:200px;max-width:420px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:9px 16px;color:var(--text);font-size:13px;outline:none;transition:border-color 0.15s;}
-.np-search-input:focus{border-color:var(--accent);}
-
-.np-cat-bar{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:18px;align-items:center;}
-.np-cat-chip{padding:5px 14px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--muted);transition:all 0.15s;white-space:nowrap;}
-.np-cat-chip:hover{color:var(--text);border-color:var(--accent-border);}
-.np-cat-chip.active{background:rgba(201,168,76,0.15);border-color:var(--accent);color:var(--accent);}
-
-.np-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:20px;}
-
-.np-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;cursor:pointer;transition:transform 0.2s,border-color 0.2s,box-shadow 0.2s;display:flex;flex-direction:column;}
-.np-card:hover{transform:translateY(-5px);border-color:var(--accent);box-shadow:0 10px 32px rgba(0,0,0,0.4);}
-.np-card-img{width:100%;height:210px;object-fit:cover;display:block;transition:transform 0.3s;}
-.np-card:hover .np-card-img{transform:scale(1.04);}
-.np-card-img-wrap{position:relative;width:100%;height:210px;background:var(--surface2);overflow:hidden;flex-shrink:0;}
-.np-card-no-img{width:100%;height:210px;display:flex;align-items:center;justify-content:center;background:var(--surface2);font-size:64px;}
-.np-card-badge-stock{position:absolute;top:10px;right:10px;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;}
-.np-card-badge-new{position:absolute;top:10px;left:10px;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;background:rgba(201,168,76,0.9);color:#fff;}
-.np-card-body{padding:16px;flex:1;display:flex;flex-direction:column;}
-.np-card-cat{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;}
-.np-card-nom{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:800;color:var(--text);margin-bottom:6px;line-height:1.3;}
-.np-card-desc{font-size:11px;color:var(--subtle);line-height:1.6;flex:1;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:10px;}
-.np-card-footer{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);padding-top:10px;}
-.np-card-prix{font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;color:var(--accent);}
-.np-card-ref{font-size:10px;color:var(--muted);font-weight:600;}
-
-.np-kpi-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:20px;}
-.np-kpi{background:var(--surface);border:1px solid rgba(201,168,76,0.15);border-radius:10px;padding:13px 15px;}
-.np-kpi-lbl{font-size:10px;color:var(--muted);margin-bottom:3px;text-transform:uppercase;letter-spacing:0.5px;}
-.np-kpi-val{font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:700;color:var(--accent);}
-.np-kpi.green .np-kpi-val{color:var(--accent2);}
-.np-kpi.warn .np-kpi-val{color:var(--warn);}
-.np-kpi.red .np-kpi-val{color:var(--danger);}
-
-/* Modal détail produit */
-#m-np-detail .modal-box{max-width:520px;}
-.np-detail-img{width:100%;height:260px;object-fit:cover;border-radius:12px;margin-bottom:14px;}
-.np-detail-no-img{width:100%;height:200px;display:flex;align-items:center;justify-content:center;font-size:72px;border-radius:12px;background:var(--surface2);margin-bottom:14px;}
-.np-detail-prix{font-family:'Space Grotesk',sans-serif;font-size:28px;font-weight:800;color:var(--accent);margin-bottom:6px;}
-.np-detail-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;}
-.np-detail-badge{padding:4px 12px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid var(--border);color:var(--muted);background:var(--surface2);}
-
-.np-card-masque{opacity:0.65;border-style:dashed;}
-
-@media(max-width:768px){
-  .np-hero{padding:18px 16px;}
-  .np-hero-text .np-hero-title{font-size:17px;}
-  .np-grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;}
-  .np-kpi-row{grid-template-columns:repeat(2,1fr);}
-}
+/* ══ PAGE PRODUITS ══ */
+#page-produits{background:radial-gradient(ellipse at 10% 20%,rgba(56,201,160,0.05) 0%,transparent 55%);}
+#page-produits .sec-title{color:var(--accent2) !important;}
+.prod-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px;}
+.prod-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;transition:transform 0.18s,border-color 0.18s,box-shadow 0.18s;cursor:pointer;display:flex;flex-direction:column;}
+.prod-card:hover{transform:translateY(-4px);border-color:var(--accent2);box-shadow:0 8px 32px rgba(0,0,0,0.4);}
+.prod-card-img{width:100%;height:180px;object-fit:cover;display:block;}
+.prod-card-noimg{width:100%;height:180px;background:linear-gradient(135deg,var(--surface2),rgba(56,201,160,0.06));display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;}
+.prod-card-noimg-icon{font-size:52px;opacity:0.7;}
+.prod-card-body{padding:14px 16px;flex:1;display:flex;flex-direction:column;gap:6px;}
+.prod-card-cat{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:1.2px;font-weight:700;}
+.prod-card-nom{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:800;color:var(--text);line-height:1.3;}
+.prod-card-desc{font-size:11px;color:var(--muted);line-height:1.6;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;flex:1;}
+.prod-card-footer{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);padding:10px 16px;margin-top:auto;}
+.prod-card-prix{font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:800;color:var(--accent);}
+.prod-card-stock{font-size:11px;font-weight:600;}
+.prod-card-articles{display:flex;flex-wrap:wrap;gap:4px;padding:0 16px 12px;}
+.prod-art-chip{display:inline-flex;align-items:center;gap:4px;background:rgba(56,201,160,0.1);border:1px solid rgba(56,201,160,0.25);border-radius:5px;padding:2px 7px;font-size:10px;color:var(--accent2);font-weight:600;white-space:nowrap;}
+.prod-art-chip.rupture{background:rgba(224,92,82,0.1);border-color:rgba(224,92,82,0.25);color:var(--danger);}
+.prod-art-chip.bas{background:rgba(212,137,58,0.1);border-color:rgba(212,137,58,0.25);color:var(--warn);}
+/* Modal produit */
+.prod-comp-row{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--border);}
+.prod-comp-row:last-child{border-bottom:none;}
+.prod-comp-nom{flex:1;font-size:13px;font-weight:600;color:var(--text);}
+.prod-comp-ref{font-size:10px;color:var(--muted);}
+.prod-comp-qty{width:52px;padding:4px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--accent);font-weight:700;font-size:13px;text-align:center;outline:none;}
+.prod-comp-qty:focus{border-color:var(--accent2);}
+/* Zoom produit */
+.prod-zoom-articles{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+.prod-zoom-chip{display:inline-flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;}
+.prod-zoom-chip-qty{background:rgba(201,168,76,0.18);border-radius:4px;padding:1px 7px;font-size:11px;color:var(--accent);font-weight:800;}
+.prod-zoom-chip-stock{font-size:10px;font-weight:600;}
 .cat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:18px;}
 .cat-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;transition:transform 0.18s,border-color 0.18s,box-shadow 0.18s;}
 .cat-card:hover{transform:translateY(-4px);border-color:var(--accent);box-shadow:0 8px 28px rgba(0,0,0,0.35);}
@@ -1096,7 +1076,6 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         <select id="filter-com" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 10px;color:var(--text);font-size:11px;outline:none;" onchange="onClFilterChange()"><option value="">— Sélectionner un commercial —</option></select>
         <button class="btn btn-ghost btn-sm" onclick="printClients()">🖨️ Imprimer</button>
         <label class="btn btn-ghost btn-sm" style="cursor:pointer;margin:0;">📥 Importer Excel/CSV<input type="file" id="import-file" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleImport(event)"></label>
-        <button class="btn btn-ghost btn-sm" onclick="downloadClientTemplate()" title="Télécharger le modèle Excel avec toutes les colonnes supportées">📋 Modèle</button>
         <button class="btn btn-ghost btn-sm" onclick="openM('m-import-guide')">❓ Guide Access</button>
         <button class="btn btn-primary btn-sm" onclick="openM('m-client')">+ Nouveau client</button>
       </div>
@@ -1183,6 +1162,44 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
   </div>
 
   <!-- ADMIN: CATALOGUE VISUEL -->
+  <!-- ══════════════════════════════════════════════════════════
+       PAGE PRODUITS
+  ══════════════════════════════════════════════════════════ -->
+  <div id="page-produits" class="page">
+    <div class="sec-hdr no-print" id="produits-hdr">
+      <div class="sec-title">Produits</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <input type="text" id="prod-search" placeholder="🔍 Rechercher un produit..."
+          style="flex:1;min-width:180px;max-width:340px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 14px;color:var(--text);font-size:13px;outline:none;"
+          oninput="renderProduits()">
+        <select id="prod-sort" onchange="renderProduits()"
+          style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:6px 11px;color:var(--text);font-size:12px;outline:none;">
+          <option value="nom">🔤 Nom (A→Z)</option>
+          <option value="prix-asc">💰 Prix (croissant)</option>
+          <option value="prix-desc">💰 Prix (décroissant)</option>
+          <option value="cat">📂 Catégorie</option>
+        </select>
+        <div id="prod-admin-btns" style="display:none;gap:6px;">
+          <label class="btn btn-ghost btn-sm" style="cursor:pointer;margin:0;">📥 Importer Excel/CSV<input type="file" id="prod-import-file" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleImportProduits(event)"></label>
+          <button class="btn btn-ghost btn-sm" onclick="downloadProduitTemplate()" title="Télécharger le modèle Excel">📋 Modèle</button>
+          <button class="btn btn-primary btn-sm" onclick="ouvrirModalProduit()">+ Nouveau produit</button>
+        </div>
+      </div>
+    </div>
+    <!-- Filtre catégories -->
+    <div id="prod-filter-bar" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;align-items:center;">
+      <span style="font-size:11px;color:var(--muted);font-weight:600;margin-right:2px;">Catégorie :</span>
+    </div>
+    <!-- Grille produits -->
+    <div id="prod-grid" class="cat-grid"></div>
+    <!-- État vide -->
+    <div id="prod-empty" style="display:none;text-align:center;padding:60px 20px;color:var(--muted);">
+      <div style="font-size:56px;margin-bottom:14px;">📦</div>
+      <div style="font-size:15px;font-weight:600;margin-bottom:6px;">Aucun produit</div>
+      <div style="font-size:12px;" id="prod-empty-msg">Créez votre premier produit avec le bouton ci-dessus.</div>
+    </div>
+  </div>
+
   <div id="page-catalogue" class="page">
     <!-- Barre recherche + filtre statut stock -->
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
@@ -1206,49 +1223,6 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
       <button class="cat-filter-chip active" onclick="filtrerCatalogue('',this)">Tous</button>
     </div>
     <div class="cat-grid" id="cat-grid"></div>
-  </div>
-
-
-  <!-- NOS PRODUITS — vitrine interne -->
-  <div id="page-nos-produits" class="page">
-    <!-- En-tête avec boutons admin -->
-    <div class="sec-hdr" style="margin-bottom:16px;">
-      <div>
-        <div style="font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:800;color:var(--accent);">&#128717; Nos Produits</div>
-        <div style="font-size:12px;color:var(--subtle);margin-top:2px;">Vitrine commerciale &mdash; entit&eacute; distincte du stock articles</div>
-      </div>
-      <div id="np-admin-btns" style="display:none;flex-wrap:wrap;gap:7px;align-items:center;">
-        <label class="btn btn-ghost btn-sm" style="cursor:pointer;margin:0;">
-          &#128229; Importer produits
-          <input type="file" id="import-produits-file" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleImportProduits(event)">
-        </label>
-        <button class="btn btn-ghost btn-sm" onclick="downloadProduitTemplate()" title="T&eacute;l&eacute;charger le mod&egrave;le Excel">&#128203; Mod&egrave;le</button>
-        <button class="btn btn-primary btn-sm" onclick="editerProduit(null)">+ Nouveau produit</button>
-      </div>
-    </div>
-    <!-- KPI rapides -->
-    <div class="np-kpi-row" id="np-kpi-row"></div>
-    <!-- Note distinction produit/article (admin seulement) -->
-    <div id="np-distinction-note" style="display:none;background:rgba(201,168,76,0.07);border:1px solid rgba(201,168,76,0.22);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--subtle);line-height:1.7;">
-      &#128161; <strong style="color:var(--accent);">Produit &ne; Article</strong> &mdash; Un <strong>produit</strong> est une fiche commerciale (nom, slogan, prix public, images, promo). Un <strong>article</strong> est un &eacute;l&eacute;ment de stock interne (prix d'achat, quantit&eacute;, mouvements).
-    </div>
-    <!-- Barre recherche -->
-    <div class="np-search-bar">
-      <input type="text" id="np-search" class="np-search-input" placeholder="&#128269;  Rechercher un produit..." oninput="renderNosProduits()">
-      <select id="np-sort" style="background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:8px 12px;color:var(--text);font-size:12px;outline:none;" onchange="renderNosProduits()">
-        <option value="nom">A &rarr; Z</option>
-        <option value="prix_asc">Prix &uarr;</option>
-        <option value="prix_desc">Prix &darr;</option>
-        <option value="cat">Cat&eacute;gorie</option>
-      </select>
-    </div>
-    <!-- Filtres cat&eacute;gorie -->
-    <div class="np-cat-bar" id="np-cat-bar">
-      <span style="font-size:11px;color:var(--muted);font-weight:600;flex-shrink:0;">Cat&eacute;gorie :</span>
-      <button class="np-cat-chip active" onclick="filtrerNosProduits('',this)">Tous</button>
-    </div>
-    <!-- Grille produits -->
-    <div class="np-grid" id="np-grid"><div class="emp" style="grid-column:1/-1;padding:60px;">Chargement des produits...</div></div>
   </div>
 
   <!-- ADMIN: STOCK -->
@@ -2634,16 +2608,10 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
   <div class="md md-lg">
     <div class="md-title">📥 Aperçu de l'importation</div>
     <div id="import-preview-info" class="ib ib-green" style="margin-bottom:10px;"></div>
-    <div style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.25);border-radius:8px;padding:9px 13px;margin-bottom:12px;font-size:11px;color:var(--subtle);line-height:1.7;">
-      💡 <strong style="color:var(--accent);">Nouvelles colonnes supportées :</strong>
-      <strong>cotisation_statut</strong> (paye / non_paye) — statut du paiement d'adhésion &nbsp;·&nbsp;
-      <strong>mises</strong> — montant total des versements déjà effectués (un enregistrement de mise sera créé automatiquement) &nbsp;·&nbsp;
-      <strong>date_mise</strong> — date de la mise historique (optionnel)
-    </div>
     <div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Assigner à un commercial</div>
     <div class="fr" style="margin-bottom:12px;"><label>Commercial responsable de ces clients</label><select id="import-com" style="height:29px;"><option value="">— Sélectionner —</option></select></div>
     <div class="tw" style="max-height:280px;overflow-y:auto;margin-bottom:10px;">
-      <table><thead><tr><th>#</th><th>Nom</th><th>Téléphone</th><th>Ville</th><th>Contrat</th><th>Montant</th><th>Cotisation</th><th>Mises</th><th>Code client</th><th>Statut</th></tr></thead>
+      <table><thead><tr><th>#</th><th>Nom</th><th>Téléphone</th><th>Ville</th><th>Contrat</th><th>Montant</th><th>Code client</th><th>Statut</th></tr></thead>
       <tbody id="import-preview-body"></tbody></table>
     </div>
     <div id="import-errors" class="ib ib-red" style="display:none;"></div>
@@ -2654,6 +2622,157 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
   </div>
 </div>
 
+
+<!-- MODAL PRODUIT -->
+<div class="mo" id="m-produit">
+  <div class="md md-lg">
+    <div class="md-title" id="m-produit-title">📦 Nouveau produit</div>
+
+    <!-- Infos générales -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:2px;">
+      <div class="fr" style="margin:0;">
+        <label>Nom du produit *</label>
+        <input type="text" id="prod-nom" placeholder="Ex : Kit Cuisine Complet" autocomplete="off">
+      </div>
+      <div class="fr" style="margin:0;">
+        <label>Catégorie</label>
+        <input type="text" id="prod-cat" placeholder="Ex : Électroménager" list="prod-cat-list" autocomplete="off">
+        <datalist id="prod-cat-list"></datalist>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:2px;">
+      <div class="fr" style="margin:0;">
+        <label>Prix de vente (FCFA) *</label>
+        <input type="number" id="prod-prix" placeholder="0" min="0" oninput="prodCalcInfo()">
+      </div>
+      <div class="fr" style="margin:0;">
+        <label>Référence / Code</label>
+        <input type="text" id="prod-ref" placeholder="Ex : PROD-001" autocomplete="off">
+      </div>
+    </div>
+    <div class="fr">
+      <label>Description</label>
+      <textarea id="prod-desc" rows="2" placeholder="Description du produit..." style="resize:vertical;min-height:52px;"></textarea>
+    </div>
+
+    <!-- Image -->
+    <div class="fr">
+      <label>Image du produit</label>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div id="prod-img-preview-wrap" style="display:none;position:relative;">
+          <img id="prod-img-preview" style="width:72px;height:72px;object-fit:cover;border-radius:9px;border:1px solid var(--border);">
+          <button onclick="prodSupprimerImage()" style="position:absolute;top:-6px;right:-6px;background:var(--danger);border:none;border-radius:50%;width:18px;height:18px;color:#fff;font-size:11px;cursor:pointer;line-height:18px;text-align:center;">✕</button>
+        </div>
+        <label style="cursor:pointer;padding:7px 14px;border:1px dashed var(--border);border-radius:8px;font-size:12px;color:var(--muted);transition:all 0.15s;"
+          onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
+          onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">
+          📷 Choisir une image
+          <input type="file" id="prod-img-input" accept="image/*" style="display:none" onchange="prodChargerImage(this)">
+        </label>
+      </div>
+    </div>
+
+    <!-- Composition : articles -->
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;display:flex;align-items:center;gap:8px;">
+        🔧 Composition (articles inclus)
+        <span style="font-weight:400;color:var(--muted);text-transform:none;letter-spacing:0;font-size:11px;">— Un article peut appartenir à plusieurs produits</span>
+      </div>
+      <!-- Recherche article -->
+      <div style="display:flex;gap:7px;margin-bottom:10px;">
+        <input type="text" id="prod-art-search" placeholder="🔍 Rechercher un article à ajouter..." autocomplete="off"
+          style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:6px 11px;color:var(--text);font-size:12px;outline:none;"
+          oninput="prodArtSearch()">
+        <input type="number" id="prod-art-qty" value="1" min="1"
+          style="width:64px;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:6px 9px;color:var(--text);font-size:12px;outline:none;text-align:center;">
+        <button onclick="prodArtAdd()" style="padding:6px 14px;border-radius:7px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.4);color:var(--accent);font-size:12px;font-weight:700;cursor:pointer;">+ Ajouter</button>
+      </div>
+      <!-- Résultats recherche -->
+      <div id="prod-art-results" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;max-height:160px;overflow-y:auto;"></div>
+      <!-- Article sélectionné pour ajout -->
+      <div id="prod-art-selected" style="display:none;font-size:11px;color:var(--accent2);padding:4px 0;margin-bottom:6px;"></div>
+      <!-- Liste des articles ajoutés -->
+      <div id="prod-comp-list">
+        <div id="prod-comp-vide" style="font-size:12px;color:var(--muted);padding:8px 0;text-align:center;">Aucun article ajouté. Recherchez et ajoutez des articles ci-dessus.</div>
+      </div>
+      <!-- Info stock théorique -->
+      <div id="prod-stock-info" style="display:none;margin-top:10px;padding:8px 12px;background:var(--surface);border-radius:7px;border:1px solid var(--border);font-size:12px;"></div>
+      <!-- Info prix calculé -->
+      <div id="prod-prix-info" style="display:none;margin-top:8px;font-size:11px;color:var(--muted);"></div>
+    </div>
+
+    <input type="hidden" id="prod-edit-id">
+
+    <div class="ma">
+      <button class="btn btn-ghost" onclick="closeM('m-produit')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveProduit()">✓ Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL ZOOM PRODUIT -->
+<div class="mo" id="m-prod-zoom">
+  <div class="md md-lg" style="padding:0;overflow:hidden;border-radius:16px;">
+    <!-- Image -->
+    <div id="pz-img-wrap" style="width:100%;height:220px;background:var(--surface2);display:flex;align-items:center;justify-content:center;position:relative;flex-shrink:0;">
+      <img id="pz-img" style="width:100%;height:100%;object-fit:cover;display:none;">
+      <div id="pz-noimg" style="font-size:72px;">📦</div>
+      <button onclick="closeM('m-prod-zoom')" style="position:absolute;top:10px;right:12px;background:rgba(0,0,0,0.55);border:none;border-radius:50%;width:30px;height:30px;color:#fff;font-size:16px;cursor:pointer;line-height:30px;text-align:center;">✕</button>
+    </div>
+    <div style="padding:18px 20px 20px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
+        <div>
+          <div id="pz-nom" style="font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:800;line-height:1.2;"></div>
+          <div id="pz-cat" style="font-size:11px;color:var(--muted);margin-top:3px;"></div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;margin-left:12px;">
+          <div id="pz-prix" style="font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:800;color:var(--accent);"></div>
+          <div id="pz-ref" style="font-size:10px;color:var(--muted);margin-top:2px;"></div>
+        </div>
+      </div>
+      <div id="pz-desc" style="font-size:13px;color:var(--subtle);margin-bottom:14px;line-height:1.6;"></div>
+      <!-- Stock théorique -->
+      <div id="pz-stock-wrap" style="display:none;margin-bottom:14px;padding:8px 12px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);">
+        <div style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Stock disponible théorique</div>
+        <div id="pz-stock" style="font-size:18px;font-weight:800;font-family:'Space Grotesk',sans-serif;"></div>
+      </div>
+      <!-- Composition -->
+      <div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">🔧 Composition</div>
+      <div id="pz-comp-list" style="display:flex;flex-direction:column;gap:5px;margin-bottom:16px;"></div>
+      <!-- Boutons admin -->
+      <div id="pz-admin-btns" style="display:none;display:flex;gap:8px;">
+        <button id="pz-edit-btn" class="btn btn-ghost" style="flex:1;" onclick="">✏️ Modifier</button>
+        <button id="pz-del-btn" class="btn btn-xs btn-warn" onclick="">🗑 Supprimer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL IMPORT PRODUITS PREVIEW -->
+<div class="mo" id="m-import-prod-preview">
+  <div class="md md-lg">
+    <div class="md-title">📥 Aperçu import produits</div>
+    <div id="import-prod-info" class="ib ib-green" style="margin-bottom:10px;"></div>
+    <div style="background:rgba(56,201,160,0.06);border:1px solid rgba(56,201,160,0.2);border-radius:8px;padding:9px 13px;margin-bottom:12px;font-size:11px;color:var(--subtle);line-height:1.7;">
+      💡 <strong style="color:var(--accent2);">Format composition :</strong>
+      Colonne <code style="background:var(--surface2);padding:1px 5px;border-radius:3px;">composition</code> → ex :
+      <code style="background:var(--surface2);padding:1px 5px;border-radius:3px;">Chauffe-eau×2, Tuyau PVC×1, Robinet×3</code>
+      — séparateur : virgule &nbsp;·&nbsp; quantité après <code style="background:var(--surface2);padding:1px 5px;border-radius:3px;">×</code> ou <code style="background:var(--surface2);padding:1px 5px;border-radius:3px;">x</code> (optionnel, 1 par défaut)
+    </div>
+    <!-- Alertes articles introuvables -->
+    <div id="import-prod-warnings" style="display:none;background:rgba(247,97,79,0.06);border:1px solid rgba(247,97,79,0.2);border-radius:8px;padding:9px 13px;margin-bottom:12px;font-size:11px;color:var(--danger);"></div>
+    <div class="tw" style="max-height:320px;overflow-y:auto;margin-bottom:10px;">
+      <table>
+        <thead><tr><th>#</th><th>Nom produit</th><th>Catégorie</th><th>Prix</th><th>Composition (articles résolus)</th><th>Statut</th></tr></thead>
+        <tbody id="import-prod-body"></tbody>
+      </table>
+    </div>
+    <div class="ma">
+      <button class="btn btn-ghost" onclick="closeM('m-import-prod-preview');importProdData=[];">Annuler</button>
+      <button class="btn btn-primary" id="import-prod-confirm-btn" onclick="confirmImportProduits()">✓ Importer <span id="import-prod-count"></span> produits</button>
+    </div>
+  </div>
+</div>
 
 <!-- CHANGER MON PIN (admin) -->
 <div class="mo" id="m-changer-pin">
@@ -2745,137 +2864,6 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
 </div>
 
 
-<!-- MODAL : Détail Produit (Nos Produits) -->
-<div class="mo" id="m-np-detail">
-  <div class="md" style="max-width:520px;">
-    <div class="md-title">🛍️ Détail du produit</div>
-    <div id="np-detail-content" style="padding:4px 0 12px;"></div>
-    <div style="display:flex;justify-content:flex-end;margin-top:8px;">
-      <button class="btn btn-ghost" onclick="closeM('m-np-detail')">Fermer</button>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL : Formulaire Produit (créer/éditer) -->
-<div class="mo" id="m-produit">
-  <div class="md md-lg" style="max-width:680px;max-height:92vh;overflow-y:auto;">
-    <div class="md-title" id="prod-modal-title">&#10133; Nouveau produit</div>
-    <input type="hidden" id="prod-edit-id">
-
-    <!-- Aperçu image -->
-    <div id="prod-img-preview-wrap" style="display:none;position:relative;border-radius:12px;overflow:hidden;margin-bottom:14px;max-height:220px;">
-      <img id="prod-img-preview" src="" alt="" style="width:100%;max-height:220px;object-fit:cover;display:block;">
-      <div id="prod-img-thumb-bar" style="display:flex;gap:6px;padding:6px 8px;background:var(--surface2);overflow-x:auto;"></div>
-    </div>
-
-    <div class="fg">
-      <!-- Identité -->
-      <div class="fr g2">
-        <div><label>Nom du produit *</label><input type="text" id="prod-nom" placeholder="Ex : Savon Doux Karité" style="width:100%"></div>
-        <div><label>Référence / SKU</label><input type="text" id="prod-ref" placeholder="Ex : SAV-001" style="width:100%"></div>
-      </div>
-      <div class="fr g2">
-        <div>
-          <label>Catégorie</label>
-          <input type="text" id="prod-cat" placeholder="Ex : Hygiène" style="width:100%" list="prod-cat-list">
-          <datalist id="prod-cat-list"></datalist>
-        </div>
-        <div><label>Unité / Conditionnement</label><input type="text" id="prod-unite" placeholder="pièce / kg / boîte" style="width:100%"></div>
-      </div>
-      <div class="fr">
-        <label>Slogan <span style="font-size:10px;color:var(--muted);font-weight:400;">(accroche courte, max 80 car.)</span></label>
-        <input type="text" id="prod-slogan" placeholder="Ex : La douceur naturelle" maxlength="80" style="width:100%">
-      </div>
-      <div class="fr">
-        <label>Description</label>
-        <textarea id="prod-desc" placeholder="Description détaillée du produit..." style="width:100%;min-height:80px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:13px;outline:none;resize:vertical;font-family:'Outfit',sans-serif;"></textarea>
-      </div>
-
-      <!-- Prix -->
-      <div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-top:4px;">Tarification</div>
-      <div class="fr g2">
-        <div><label>Prix de vente public (FCFA) *</label><input type="number" id="prod-pv" min="0" placeholder="1500" style="width:100%" oninput="prodPreviewPrix()"></div>
-        <div><label>Prix promo <span style="font-size:10px;color:var(--muted);font-weight:400;">(0 = pas de promo)</span></label><input type="number" id="prod-pv-promo" min="0" placeholder="0" style="width:100%" oninput="prodPreviewPrix()"></div>
-      </div>
-      <div id="prod-prix-preview" style="display:none;font-size:12px;padding:6px 10px;background:rgba(201,168,76,0.07);border-radius:8px;border:1px solid rgba(201,168,76,0.2);"></div>
-
-      <!-- Images -->
-      <div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-top:4px;">Images</div>
-
-      <!-- Upload fichier (base64 — comme catalogue) -->
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        <label class="btn btn-ghost btn-sm" style="cursor:pointer;margin:0;">
-          &#128247; Téléverser une image
-          <input type="file" id="prod-img-upload" accept="image/*" style="display:none" onchange="prodHandleImageUpload(event)">
-        </label>
-        <span style="font-size:11px;color:var(--muted);">ou coller une URL ci-dessous</span>
-      </div>
-
-      <!-- URLs (une par ligne) -->
-      <div class="fr" style="margin-top:6px;">
-        <label>URLs d'images <span style="font-size:10px;color:var(--muted);font-weight:400;">(une URL par ligne — complète les images téléversées)</span></label>
-        <textarea id="prod-images-urls" placeholder="https://example.com/image1.jpg&#10;https://example.com/image2.jpg" style="width:100%;min-height:60px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:12px;outline:none;resize:vertical;font-family:monospace;" oninput="prodPreviewImages()"></textarea>
-      </div>
-
-      <!-- Lier à un article de stock (optionnel) -->
-      <div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-top:4px;">Liaison stock <span style="font-size:10px;color:var(--muted);font-weight:400;text-transform:none;">(optionnel)</span></div>
-      <div class="fr">
-        <label>Article de stock associé <span style="font-size:10px;color:var(--muted);font-weight:400;">(pour afficher la disponibilité)</span></label>
-        <select id="prod-article-lie" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px;outline:none;width:100%;">
-          <option value="">— Aucun lien —</option>
-        </select>
-      </div>
-
-      <!-- Flags -->
-      <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap;margin-top:6px;">
-        <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;">
-          <input type="checkbox" id="prod-nouveau" style="width:15px;height:15px;accent-color:var(--accent2);">
-          ✨ Nouveau
-        </label>
-        <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;">
-          <input type="checkbox" id="prod-visible" checked style="width:15px;height:15px;accent-color:var(--accent);">
-          👁 Visible dans "Nos Produits"
-        </label>
-      </div>
-
-      <div style="background:rgba(201,168,76,0.07);border:1px solid rgba(201,168,76,0.2);border-radius:8px;padding:9px 13px;font-size:11px;color:var(--subtle);margin-top:10px;line-height:1.7;">
-        &#128161; <strong style="color:var(--accent);">Schéma produit</strong> — Les champs <em>pv, ref, cat, nom, desc, unite, images, image</em> sont identiques au catalogue visuel. <em>slogan</em>, <em>prixPromo</em>, <em>nouveau</em>, <em>visible</em> et <em>articleId</em> sont propres aux produits.
-      </div>
-    </div>
-    <div class="ma">
-      <button class="btn btn-ghost" onclick="closeM('m-produit')">Annuler</button>
-      <button class="btn btn-primary" id="prod-save-btn" onclick="saveProduit()">Enregistrer</button>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL : Aperçu import produits -->
-<div class="mo" id="m-import-produits">
-  <div class="md md-lg" style="max-width:900px;">
-    <div class="md-title">&#128229; Aperçu — Import produits</div>
-    <div style="background:rgba(201,168,76,0.07);border:1px solid rgba(201,168,76,0.2);border-radius:8px;padding:8px 13px;font-size:11px;color:var(--subtle);margin-bottom:12px;">
-      &#128161; Les <strong style="color:var(--accent)">produits</strong> sont distincts des articles de stock. Ce fichier alimente uniquement la vitrine commerciale "Nos Produits".
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;" id="import-prod-kpi"></div>
-    <div id="import-prod-info" class="ib ib-green" style="margin-bottom:10px;"></div>
-    <div id="import-prod-errors" class="ib ib-red" style="display:none;margin-bottom:10px;"></div>
-    <div id="import-prod-doublons" class="ib" style="display:none;margin-bottom:10px;background:rgba(247,201,79,0.12);border:1px solid rgba(247,201,79,0.4);color:var(--warn);"></div>
-    <div class="tw" style="max-height:340px;overflow-y:auto;margin-bottom:10px;">
-      <table><thead><tr>
-        <th>#</th><th>Réf.</th><th>Nom</th><th>Catégorie</th>
-        <th>Prix</th><th>Promo</th><th>Slogan</th><th>Image</th><th>Visible</th><th>Statut</th>
-      </tr></thead>
-      <tbody id="import-prod-body"></tbody></table>
-    </div>
-    <div class="ma">
-      <button class="btn btn-ghost" onclick="closeM('m-import-produits');importProduitsData=[];">Annuler</button>
-      <button class="btn btn-primary" id="import-prod-confirm-btn" onclick="confirmImportProduits()">
-        ✓ Importer <span id="import-prod-count"></span> produit(s)
-      </button>
-    </div>
-  </div>
-</div>
-
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getFirestore, collection, doc, setDoc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
@@ -2898,14 +2886,14 @@ let DB = {
   clients: [],
   paiements: [],
   articles: [],
+  produits: [],
   stockMvts: [],
   livraisons: [],
   adhesionPays: [],
   mises: [],
   primesPaliers: [],
   pointsJour: [],
-  versements: [],
-  produits: []
+  versements: []
 };
 
 // ========= SETUP & CONFIG =========
@@ -3013,7 +3001,7 @@ async function initFB(cfg) {
 
 // ========= FIREBASE DATA =========
 async function loadFirebaseData() {
-  const cols = ['agences','commerciaux','clients','paiements','articles','stockMvts','livraisons','adhesionPays','mises','primesPaliers','pointsJour','versements','produits'];
+  const cols = ['agences','commerciaux','clients','paiements','articles','produits','stockMvts','livraisons','adhesionPays','mises','primesPaliers','pointsJour','versements'];
   for (const col of cols) {
     const snap = await getDocs(collection(db_fs, col));
     DB[col] = snap.docs.map(d => ({...d.data(), _id: d.id}));
@@ -3026,6 +3014,7 @@ const _PAGE_DEPS = {
   'admin-dashboard':    ['clients','paiements','mises','adhesionPays','commerciaux','agences','primesPaliers','pointsJour','versements'],
   'tous-clients':       ['clients','paiements','commerciaux'],
   'articles':           ['articles'],
+  'produits':           ['produits','articles'],
   'catalogue':          ['articles'],
   'stock':              ['articles','stockMvts'],
   'livraisons':         ['livraisons','clients','commerciaux'],
@@ -3039,7 +3028,6 @@ const _PAGE_DEPS = {
   'saisie-adhesions':   ['adhesionPays','clients','commerciaux'],
   'com-clients':        ['clients','paiements','commerciaux'],
   'com-nouveau-client': ['commerciaux','agences'],
-  'nos-produits':       ['produits'],
 };
 
 // Debounce : évite les re-renders en rafale (plusieurs collections modifiées simultanément)
@@ -3053,7 +3041,7 @@ function _debouncedRenderPg(id) {
 }
 
 function setupRealtimeListeners() {
-  const cols = ['agences','commerciaux','clients','paiements','articles','stockMvts','livraisons','adhesionPays','mises','primesPaliers','pointsJour','versements','produits'];
+  const cols = ['agences','commerciaux','clients','paiements','articles','produits','stockMvts','livraisons','adhesionPays','mises','primesPaliers','pointsJour','versements'];
   let _firstLoad = {};
   cols.forEach(col => { _firstLoad[col] = true; });
 
@@ -3094,6 +3082,7 @@ const _WRITE_ROLES = {
   agences:       ['admin','secretaire'],
   commerciaux:   ['admin','secretaire'],
   articles:      ['admin','gestionnaire_stock','secretaire'],
+  produits:      ['admin','gestionnaire_stock'],
   stockMvts:     ['admin','gestionnaire_stock','secretaire'],
   clients:       ['admin','commercial','secretaire'],
   paiements:     ['admin','commercial','secretaire'],
@@ -3103,7 +3092,6 @@ const _WRITE_ROLES = {
   primesPaliers: ['admin','secretaire'],
   pointsJour:    ['admin','commercial','secretaire'],
   versements:    ['admin','secretaire'],
-  produits:      ['admin'],
 };
 function _checkWriteRole(col) {
   if (!session) { notify('Accès refusé — non connecté', 'err'); throw new Error('NOT_AUTHENTICATED'); }
@@ -3131,14 +3119,6 @@ async function fbUpdate(col, id, data) {
   setSyncStatus(true);
 }
 
-async function fbSet(col, id, data) {
-  _checkWriteRole(col);
-  if (!isOnline) { localUpdate(col, id, data); return; }
-  setSyncStatus(false);
-  await updateDoc(doc(db_fs, col, id), {...data, _ts: serverTimestamp()});
-  setSyncStatus(true);
-}
-
 async function fbDelete(col, id) {
   _checkWriteRole(col);
   if (!isOnline) { localDelete(col, id); return; }
@@ -3150,7 +3130,7 @@ async function fbDelete(col, id) {
 // ========= RÉINITIALISATION TOTALE =========
 // Le code de réinitialisation est défini par l'admin et stocké hashé dans localStorage.
 // Il n'est JAMAIS écrit en clair dans le code source.
-const RESET_COLLECTIONS = ['clients','paiements','articles','stockMvts','livraisons','adhesionPays','mises','primesPaliers','agences','commerciaux','produits'];
+const RESET_COLLECTIONS = ['clients','paiements','articles','produits','stockMvts','livraisons','adhesionPays','mises','primesPaliers','agences','commerciaux'];
 
 async function getResetCodeHash(){ return localStorage.getItem('gestcom_reset_hash') || null; }
 async function setResetCodeHash(code){ localStorage.setItem('gestcom_reset_hash', await hashPin(code)); }
@@ -3176,7 +3156,6 @@ window.ouvrirModalReinit = function(){
     👥 ${DB.clients.length} client(s) &nbsp;·&nbsp;
     💰 ${DB.paiements.length} paiement(s) &nbsp;·&nbsp;
     📦 ${DB.articles.length} article(s)<br>
-    🛍️ ${(DB.produits||[]).length} produit(s)<br>
     🚚 ${DB.livraisons.length} livraison(s) &nbsp;·&nbsp;
     👔 ${DB.commerciaux.length} utilisateur(s) &nbsp;·&nbsp;
     🏢 ${DB.agences.length} agence(s)<br>
@@ -3282,6 +3261,7 @@ function loadLocalData() {
   if (!DB.mises) DB.mises = [];
   if (!DB.agences) DB.agences = [];
   if (!DB.primesPaliers) DB.primesPaliers = [];
+  if (!DB.produits) DB.produits = [];
   if (DB.commerciaux.length === 0) initDemoLocal();
 }
 function saveLocal() { try { localStorage.setItem('gestcom_local', JSON.stringify(DB)); } catch(e){} }
@@ -4259,8 +4239,7 @@ const ADMIN_NAV=`<div class="nav-sec">Principal</div>
 <div class="nav-item" id="nav-tous-clients" onclick="go('tous-clients')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Clients</div>
 <div class="nav-item" id="nav-livraisons" onclick="go('livraisons')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>Livraisons</div>
 <div class="nav-item" id="nav-articles" onclick="go('articles')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>Articles</div>
-<div class="nav-item" id="nav-catalogue" onclick="go('catalogue')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>Catalogue visuel</div>
-<div class="nav-item" id="nav-nos-produits" onclick="go('nos-produits')" style="color:var(--accent2);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>Nos Produits</div>
+<div class="nav-item" id="nav-produits" onclick="go('produits')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>Produits</div>
 <div class="nav-item" id="nav-stock" onclick="go('stock')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>Stock</div>
 <div class="nav-item" id="nav-commerciaux" onclick="go('commerciaux')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>Utilisateurs</div>
 <div class="nav-item" id="nav-agences" onclick="go('agences')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>Agences</div>
@@ -4275,8 +4254,7 @@ const COM_NAV=`<div class="nav-sec">Mon espace</div>
 <div class="nav-item" id="nav-com-nouveau-client" onclick="go('com-nouveau-client')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>Nouveau client</div>
 <div class="nav-item" id="nav-saisie-mises" onclick="go('saisie-mises')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>Saisie de mises</div>
 <div class="nav-item" id="nav-saisie-adhesions" onclick="go('saisie-adhesions')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>Saisie des adhésions</div>
-<div class="nav-item" id="nav-catalogue" onclick="go('catalogue')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>Catalogue visuel</div>
-<div class="nav-item" id="nav-nos-produits" onclick="go('nos-produits')" style="color:var(--accent2);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>Nos Produits</div>
+<div class="nav-item" id="nav-produits" onclick="go('produits')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>Produits</div>
 <div class="nav-item" id="nav-fiche" onclick="go('fiche')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>Fiche du jour</div>`;
 
 const SECRETAIRE_NAV=`<div class="nav-sec">Principal</div>
@@ -4288,8 +4266,7 @@ const SECRETAIRE_NAV=`<div class="nav-sec">Principal</div>
 <div class="nav-item" id="nav-livraisons" onclick="go('livraisons')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>Livraisons</div>
 <div class="nav-item" id="nav-saisie-adhesions" onclick="go('saisie-adhesions')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>Saisie des adhésions</div>
 <div class="nav-item" id="nav-articles" onclick="go('articles')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>Articles</div>
-<div class="nav-item" id="nav-catalogue" onclick="go('catalogue')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>Catalogue visuel</div>
-<div class="nav-item" id="nav-nos-produits" onclick="go('nos-produits')" style="color:var(--accent2);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>Nos Produits</div>`;
+<div class="nav-item" id="nav-produits" onclick="go('produits')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>Produits</div>`;
 
 const CONTROLEUR_NAV=`<div class="nav-sec">Consultation</div>
 <div class="nav-item" id="nav-registre" onclick="go('registre')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Registre</div>
@@ -4298,15 +4275,13 @@ const CONTROLEUR_NAV=`<div class="nav-sec">Consultation</div>
 <div class="nav-item" id="nav-tous-clients" onclick="go('tous-clients')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Clients</div>
 <div class="nav-item" id="nav-livraisons" onclick="go('livraisons')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>Livraisons</div>
 <div class="nav-item" id="nav-articles" onclick="go('articles')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>Articles</div>
-<div class="nav-item" id="nav-catalogue" onclick="go('catalogue')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>Catalogue</div>
-<div class="nav-item" id="nav-nos-produits" onclick="go('nos-produits')" style="color:var(--accent2);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>Nos Produits</div>
+<div class="nav-item" id="nav-produits" onclick="go('produits')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>Produits</div>
 <div class="nav-item" id="nav-stock" onclick="go('stock')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>Stock</div>
 <div class="nav-item" id="nav-commerciaux" onclick="go('commerciaux')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>Utilisateurs</div>`;
 
 const GSTOCK_NAV=`<div class="nav-sec">Stock</div>
 <div class="nav-item" id="nav-articles" onclick="go('articles')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>Articles</div>
-<div class="nav-item" id="nav-catalogue" onclick="go('catalogue')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>Catalogue visuel</div>
-<div class="nav-item" id="nav-nos-produits" onclick="go('nos-produits')" style="color:var(--accent2);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>Nos Produits</div>
+<div class="nav-item" id="nav-produits" onclick="go('produits')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>Produits</div>
 <div class="nav-item" id="nav-stock" onclick="go('stock')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>Stock</div>
 <div class="nav-item" id="nav-livraisons" onclick="go('livraisons')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>Livraisons</div>
 <div class="nav-item" id="nav-gstock-periode" onclick="go('gstock-periode')" style="color:var(--warn);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="8" y2="16"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="16" y1="14" x2="16" y2="16"/></svg>Suivi de période</div>`;
@@ -4346,9 +4321,9 @@ function setupUI(){
   if(btnReinit) btnReinit.style.display = (session.role === 'admin') ? '' : 'none';
 }
 
-const TITLES={'admin-dashboard':'Tableau de bord',registre:'Registre par date',historique:'Historique','tous-clients':'Clients',livraisons:'Livraisons',articles:'Articles',catalogue:'Catalogue visuel','nos-produits':'Nos Produits',stock:'Stock',commerciaux:'Utilisateurs',agences:'Agences',recouvrement:'Recouvrement du jour',fiche:'Fiche du jour','saisie-mises':'Saisie de mises','saisie-adhesions':'Saisie des adhésions','com-clients':'Mes clients','com-nouveau-client':'Nouveau client','rapport-activite':"Rapport d'activité",'gstock-periode':'Suivi de période'};
-const BTN={'tous-clients':'+ Client',articles:'+ Article',livraisons:'+ Livraison',stock:'+ Mouvement',commerciaux:'+ Utilisateur'};
-const ACT={'tous-clients':()=>openM('m-client'),articles:()=>openM('m-article'),livraisons:()=>openM('m-livraison'),stock:()=>openM('m-stock-mvt'),commerciaux:()=>openM('m-com')};
+const TITLES={'admin-dashboard':'Tableau de bord',registre:'Registre par date',historique:'Historique','tous-clients':'Clients',livraisons:'Livraisons',articles:'Articles',produits:'Produits',catalogue:'Catalogue visuel',stock:'Stock',commerciaux:'Utilisateurs',agences:'Agences',recouvrement:'Recouvrement du jour',fiche:'Fiche du jour','saisie-mises':'Saisie de mises','saisie-adhesions':'Saisie des adhésions','com-clients':'Mes clients','com-nouveau-client':'Nouveau client','rapport-activite':"Rapport d'activité",'gstock-periode':'Suivi de période'};
+const BTN={'tous-clients':'+ Client',articles:'+ Article',produits:'+ Produit',livraisons:'+ Livraison',stock:'+ Mouvement',commerciaux:'+ Utilisateur'};
+const ACT={'tous-clients':()=>openM('m-client'),articles:()=>openM('m-article'),produits:()=>ouvrirModalProduit(),livraisons:()=>openM('m-livraison'),stock:()=>openM('m-stock-mvt'),commerciaux:()=>openM('m-com')};
 let curPg='';
 
 
@@ -4370,8 +4345,7 @@ const BN_CONFIG = {
       {id:'fiche',        icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>', label:'Fiche du jour'},
       {id:'livraisons',   icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>', label:'Livraisons'},
       {id:'articles',     icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>', label:'Articles'},
-      {id:'catalogue',    icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>', label:'Catalogue'},
-      {id:'nos-produits', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V8z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>', label:'Nos Produits'},
+      {id:'produits',    icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>', label:'Produits'},
       {id:'stock',        icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>', label:'Stock'},
       {id:'commerciaux',  icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>', label:'Utilisateurs'},
       {id:'agences',      icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>', label:'Agences'},
@@ -4387,8 +4361,7 @@ const BN_CONFIG = {
       {id:'fiche',               icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>', label:'Fiche'},
     ],
     drawer: [
-      {id:'catalogue', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>', label:'Catalogue visuel'},
-      {id:'nos-produits', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V8z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>', label:'Nos Produits'},
+      {id:'produits', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>', label:'Produits'},
       {id:'saisie-adhesions', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>', label:'Adhésions'},
       {id:'__bt_printer__', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5"/></svg>', label:'Imprimante BT', special:'bt'},
       {id:'__logout__', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>', label:'Déconnexion', special:'logout'},
@@ -4425,8 +4398,7 @@ const BN_CONFIG = {
       {id:'stock',      icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>', label:'Stock'},
       {id:'articles',   icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>', label:'Articles'},
       {id:'livraisons', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>', label:'Livraisons'},
-      {id:'catalogue',  icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>', label:'Catalogue'},
-      {id:'nos-produits', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V8z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>', label:'Nos Produits'},
+      {id:'produits',  icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>', label:'Produits'},
     ],
     drawer: [
       {id:'__bt_printer__', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5"/></svg>', label:'Imprimante BT', special:'bt'},
@@ -4591,6 +4563,7 @@ window.go = function(id){
     if(id === 'livraisons') showBtn = canLiv;
     else if(id === 'stock') showBtn = ['admin','gestionnaire_stock'].includes(role);
     else if(id === 'articles') showBtn = ['admin','secretaire'].includes(role);
+    else if(id === 'produits') showBtn = ['admin','gestionnaire_stock'].includes(role);
     else if(id === 'tous-clients') showBtn = ['admin','secretaire'].includes(role);
     else if(id === 'commerciaux') showBtn = role === 'admin';
     else if(id === 'agences') showBtn = role === 'admin';
@@ -4618,7 +4591,7 @@ function renderPg(id){
     const pr=document.getElementById('cl-prompt'); if(pr) pr.style.display='flex';
     const tw=document.getElementById('tw-clients'); if(tw) tw.style.display='none';
     const ct=document.getElementById('search-clients-count'); if(ct) ct.textContent='';
-  },'nos-produits':renderNosProduits,livraisons:renderLivraisons,articles:renderArticles,catalogue:renderCatalogue,stock:renderStock,commerciaux:renderComs,agences:renderAgences,recouvrement:renderRec,fiche:renderFiche,'saisie-mises':renderSaisieMises,'saisie-adhesions':renderSaisieAdhesions,'com-clients':renderComClients,'com-nouveau-client':renderComNouveauClient};
+  },livraisons:renderLivraisons,articles:renderArticles,produits:renderProduits,catalogue:renderCatalogue,stock:renderStock,commerciaux:renderComs,agences:renderAgences,recouvrement:renderRec,fiche:renderFiche,'saisie-mises':renderSaisieMises,'saisie-adhesions':renderSaisieAdhesions,'com-clients':renderComClients,'com-nouveau-client':renderComNouveauClient};
   if(m[id]) m[id]();
   if(id==='rapport-activite'){
     if(session?.role!=='admin'){ notify("Accès réservé à l'administrateur",'err'); go('admin-dashboard'); return; }
@@ -5045,6 +5018,640 @@ function renderAdminDash(){
   setTimeout(dessinerGraphiques, 80);
 }
 
+// ========= PRODUITS =========
+let prodFiltreActif = '';
+let prodSelArtId = null; // article sélectionné dans la recherche
+let prodComposition = []; // [{articleId, nom, qte, unite}]
+
+// Calcule le stock théorique du produit = min(stock_art / qte_requise) pour chaque composant
+function prodStockTheorique(composition) {
+  if (!composition || composition.length === 0) return null;
+  let min = Infinity;
+  for (const c of composition) {
+    const art = DB.articles.find(a => a._id === c.articleId);
+    if (!art) continue;
+    const dispo = Math.floor((art.stock || 0) / (c.qte || 1));
+    if (dispo < min) min = dispo;
+  }
+  return min === Infinity ? null : min;
+}
+
+function prodStockBadge(stock) {
+  if (stock === null || stock === undefined) return '';
+  if (stock <= 0) return `<span style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(247,97,79,0.12);color:var(--danger);border:1px solid rgba(247,97,79,0.3);font-weight:700;">Rupture</span>`;
+  if (stock <= 2) return `<span style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(247,201,79,0.12);color:var(--accent);border:1px solid rgba(247,201,79,0.3);font-weight:700;">Stock bas (${stock})</span>`;
+  return `<span style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(34,212,160,0.1);color:var(--accent2);border:1px solid rgba(34,212,160,0.25);font-weight:700;">En stock (${stock})</span>`;
+}
+
+function renderProduits() {
+  const canEdit = session && ['admin','gestionnaire_stock'].includes(session.role);
+  const adminBtns = document.getElementById('prod-admin-btns');
+  if (adminBtns) adminBtns.style.display = canEdit ? 'flex' : 'none';
+
+  const search = (document.getElementById('prod-search')?.value || '').toLowerCase().trim();
+  const sort   = document.getElementById('prod-sort')?.value || 'nom';
+
+  // Catégories
+  const cats = [...new Set(DB.produits.map(p => p.cat || '').filter(Boolean))].sort();
+  const filterBar = document.getElementById('prod-filter-bar');
+  if (filterBar) {
+    filterBar.innerHTML =
+      `<span style="font-size:11px;color:var(--muted);font-weight:600;margin-right:2px;">Catégorie :</span>` +
+      `<button class="prod-filter-chip${prodFiltreActif===''?' active':''}" onclick="filtrerProduits('',this)">Tous (${DB.produits.length})</button>` +
+      cats.map(c => {
+        const n = DB.produits.filter(p => (p.cat||'') === c).length;
+        return `<button class="prod-filter-chip${prodFiltreActif===c?' active':''}" onclick="filtrerProduits('${c.replace(/'/g,"\\'")}',this)">${c} (${n})</button>`;
+      }).join('');
+  }
+
+  let prods = DB.produits.slice();
+  if (prodFiltreActif) prods = prods.filter(p => (p.cat||'') === prodFiltreActif);
+  if (search) prods = prods.filter(p =>
+    (p.nom||'').toLowerCase().includes(search) ||
+    (p.cat||'').toLowerCase().includes(search) ||
+    (p.desc||'').toLowerCase().includes(search) ||
+    (p.ref||'').toLowerCase().includes(search)
+  );
+
+  if (sort === 'nom') prods.sort((a,b) => (a.nom||'').localeCompare(b.nom||''));
+  else if (sort === 'prix-asc') prods.sort((a,b) => (a.prix||0) - (b.prix||0));
+  else if (sort === 'prix-desc') prods.sort((a,b) => (b.prix||0) - (a.prix||0));
+  else if (sort === 'cat') prods.sort((a,b) => (a.cat||'').localeCompare(b.cat||''));
+
+  const grid = document.getElementById('prod-grid');
+  const empty = document.getElementById('prod-empty');
+  const emptyMsg = document.getElementById('prod-empty-msg');
+  if (!grid) return;
+
+  if (prods.length === 0) {
+    grid.innerHTML = '';
+    if (empty) { empty.style.display = 'block'; }
+    if (emptyMsg) {
+      emptyMsg.textContent = search || prodFiltreActif
+        ? 'Aucun produit ne correspond à votre recherche.'
+        : canEdit ? 'Créez votre premier produit avec le bouton ci-dessus.' : 'Aucun produit disponible.';
+    }
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+
+  grid.innerHTML = prods.map(p => {
+    const comp = p.composition || [];
+    const stock = prodStockTheorique(comp);
+    const stockBadge = prodStockBadge(stock);
+    const imgHtml = p.imageUrl
+      ? `<img src="${p.imageUrl}" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-size:56px;">📦</div>`
+      : `<div style="font-size:56px;">📦</div>`;
+    const nbArts = comp.length;
+    return `<div class="prod-card" onclick="ouvrirZoomProduit('${p._id}')">
+      <div class="prod-card-img">${imgHtml}</div>
+      <div class="prod-card-body">
+        ${p.cat ? `<div class="prod-card-cat">${p.cat}</div>` : ''}
+        <div class="prod-card-nom">${p.nom||'—'}</div>
+        ${p.desc ? `<div class="prod-card-desc">${p.desc}</div>` : ''}
+        <div class="prod-card-footer">
+          <div class="prod-card-prix">${p.prix > 0 ? fmt(p.prix) + ' F' : '—'}</div>
+          <div class="prod-card-compo">🔧 ${nbArts} article${nbArts>1?'s':''}</div>
+        </div>
+        ${stockBadge ? `<div style="margin-top:7px;">${stockBadge}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.filtrerProduits = function(cat, btn) {
+  prodFiltreActif = cat;
+  document.querySelectorAll('.prod-filter-chip').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderProduits();
+};
+
+// ─── Modal création/édition produit ───
+window.ouvrirModalProduit = function(id) {
+  const p = id ? DB.produits.find(x => x._id === id) : null;
+  document.getElementById('m-produit-title').textContent = p ? '✏️ Modifier le produit' : '📦 Nouveau produit';
+  document.getElementById('prod-nom').value = p?.nom || '';
+  document.getElementById('prod-cat').value = p?.cat || '';
+  document.getElementById('prod-prix').value = p?.prix || '';
+  document.getElementById('prod-ref').value = p?.ref || '';
+  document.getElementById('prod-desc').value = p?.desc || '';
+  document.getElementById('prod-edit-id').value = p?._id || '';
+  // Image
+  const prevWrap = document.getElementById('prod-img-preview-wrap');
+  const prevImg  = document.getElementById('prod-img-preview');
+  if (p?.imageUrl) {
+    prevImg.src = p.imageUrl;
+    prevWrap.style.display = 'block';
+  } else {
+    prevWrap.style.display = 'none';
+    prevImg.src = '';
+  }
+  window._prodImageUrl = p?.imageUrl || '';
+  // Datalist catégories
+  const dl = document.getElementById('prod-cat-list');
+  if (dl) dl.innerHTML = [...new Set(DB.produits.map(x=>x.cat||'').filter(Boolean))].map(c=>`<option value="${c}">`).join('');
+  // Composition
+  prodComposition = (p?.composition || []).map(c => ({...c}));
+  prodSelArtId = null;
+  document.getElementById('prod-art-search').value = '';
+  document.getElementById('prod-art-results').style.display = 'none';
+  document.getElementById('prod-art-selected').style.display = 'none';
+  document.getElementById('prod-art-qty').value = 1;
+  renderProdCompositionList();
+  openM('m-produit');
+};
+
+window.prodChargerImage = function(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    window._prodImageUrl = e.target.result;
+    const prevImg  = document.getElementById('prod-img-preview');
+    const prevWrap = document.getElementById('prod-img-preview-wrap');
+    prevImg.src = e.target.result;
+    prevWrap.style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+};
+
+window.prodSupprimerImage = function() {
+  window._prodImageUrl = '';
+  document.getElementById('prod-img-preview').src = '';
+  document.getElementById('prod-img-preview-wrap').style.display = 'none';
+  document.getElementById('prod-img-input').value = '';
+};
+
+// Recherche d'article dans le modal
+window.prodArtSearch = function() {
+  const q = (document.getElementById('prod-art-search')?.value || '').toLowerCase().trim();
+  const res = document.getElementById('prod-art-results');
+  if (!q) { res.style.display = 'none'; return; }
+  const matches = DB.articles.filter(a => (a.nom||'').toLowerCase().includes(q)).slice(0, 8);
+  if (matches.length === 0) {
+    res.innerHTML = `<div style="padding:8px 12px;font-size:12px;color:var(--muted);">Aucun article trouvé</div>`;
+    res.style.display = 'block';
+    return;
+  }
+  res.innerHTML = matches.map(a => {
+    const dejaAjoute = prodComposition.some(c => c.articleId === a._id);
+    return `<div onclick="prodSelectionnerArt('${a._id}')" style="padding:8px 12px;font-size:12px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);transition:background 0.1s;"
+      onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''"
+    >
+      <span style="${dejaAjoute?'color:var(--accent2);':''}">
+        ${dejaAjoute?'✓ ':''}${a.nom||'—'}
+        <span style="font-size:10px;color:var(--muted);margin-left:5px;">${a.unite||'pcs'}</span>
+      </span>
+      <span style="font-size:11px;color:var(--muted);">Stock: ${a.stock||0}</span>
+    </div>`;
+  }).join('');
+  res.style.display = 'block';
+};
+
+window.prodSelectionnerArt = function(artId) {
+  const art = DB.articles.find(a => a._id === artId);
+  if (!art) return;
+  prodSelArtId = artId;
+  document.getElementById('prod-art-search').value = art.nom;
+  document.getElementById('prod-art-results').style.display = 'none';
+  const selEl = document.getElementById('prod-art-selected');
+  selEl.textContent = `✓ Sélectionné : ${art.nom} (stock : ${art.stock||0} ${art.unite||'pcs'})`;
+  selEl.style.display = 'block';
+};
+
+window.prodArtAdd = function() {
+  if (!prodSelArtId) { notify('Sélectionnez d\'abord un article dans la liste','warn'); return; }
+  const qte = parseInt(document.getElementById('prod-art-qty')?.value) || 1;
+  const art = DB.articles.find(a => a._id === prodSelArtId);
+  if (!art) return;
+  const existing = prodComposition.findIndex(c => c.articleId === prodSelArtId);
+  if (existing >= 0) {
+    prodComposition[existing].qte += qte;
+    notify(`Quantité mise à jour : ${prodComposition[existing].qte} ${art.unite||'pcs'}`,'ok');
+  } else {
+    prodComposition.push({ articleId: prodSelArtId, nom: art.nom, qte, unite: art.unite||'pcs' });
+  }
+  prodSelArtId = null;
+  document.getElementById('prod-art-search').value = '';
+  document.getElementById('prod-art-selected').style.display = 'none';
+  document.getElementById('prod-art-qty').value = 1;
+  renderProdCompositionList();
+  prodCalcInfo();
+};
+
+function renderProdCompositionList() {
+  const el = document.getElementById('prod-comp-list');
+  const vide = document.getElementById('prod-comp-vide');
+  const stockInfo = document.getElementById('prod-stock-info');
+  if (!el) return;
+  if (prodComposition.length === 0) {
+    el.innerHTML = '';
+    if (vide) vide.style.display = 'block';
+    if (stockInfo) stockInfo.style.display = 'none';
+    return;
+  }
+  if (vide) vide.style.display = 'none';
+  el.innerHTML = prodComposition.map((c, i) => {
+    const art = DB.articles.find(a => a._id === c.articleId);
+    const stock = art?.stock || 0;
+    const dispo = Math.floor(stock / c.qte);
+    const stockColor = dispo <= 0 ? 'var(--danger)' : dispo <= 2 ? 'var(--accent)' : 'var(--accent2)';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--surface);border-radius:7px;border:1px solid var(--border);">
+      <span style="flex:1;font-size:12px;font-weight:600;">${c.nom}</span>
+      <span style="font-size:11px;color:var(--muted);">×</span>
+      <input type="number" value="${c.qte}" min="1"
+        style="width:52px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:3px 6px;color:var(--text);font-size:12px;text-align:center;outline:none;"
+        onchange="prodUpdateQte(${i},this.value)">
+      <span style="font-size:11px;color:var(--muted);">${c.unite}</span>
+      <span style="font-size:11px;color:${stockColor};" title="Disponible avec ce stock">≈${dispo}</span>
+      <button onclick="prodRetirerArt(${i})" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:14px;padding:0 2px;line-height:1;">✕</button>
+    </div>`;
+  }).join('');
+  // Stock théorique global
+  const stockTheo = prodStockTheorique(prodComposition);
+  if (stockInfo) {
+    stockInfo.style.display = 'block';
+    stockInfo.innerHTML = `📦 Stock produit théorique : <strong style="color:${stockTheo===null?'var(--muted)':stockTheo<=0?'var(--danger)':stockTheo<=2?'var(--accent)':'var(--accent2)'};">${stockTheo===null?'—':stockTheo+' unité(s)'}</strong>`;
+  }
+}
+
+window.prodUpdateQte = function(idx, val) {
+  const q = parseInt(val) || 1;
+  if (prodComposition[idx]) { prodComposition[idx].qte = Math.max(1, q); }
+  renderProdCompositionList();
+  prodCalcInfo();
+};
+
+window.prodRetirerArt = function(idx) {
+  prodComposition.splice(idx, 1);
+  renderProdCompositionList();
+  prodCalcInfo();
+};
+
+window.prodCalcInfo = function() {
+  const prixSaisi = parseFloat(document.getElementById('prod-prix')?.value) || 0;
+  const totalArt = prodComposition.reduce((s, c) => {
+    const art = DB.articles.find(a => a._id === c.articleId);
+    return s + (art?.prixVente || art?.prix || 0) * c.qte;
+  }, 0);
+  const infoEl = document.getElementById('prod-prix-info');
+  if (infoEl) {
+    if (totalArt > 0) {
+      const diff = prixSaisi - totalArt;
+      const diffStr = diff >= 0
+        ? `<span style="color:var(--accent2);">+${fmt(diff)} F de marge</span>`
+        : `<span style="color:var(--danger);">${fmt(Math.abs(diff))} F en dessous du coût articles</span>`;
+      infoEl.innerHTML = `Coût articles : ${fmt(totalArt)} F — ${diffStr}`;
+      infoEl.style.display = 'block';
+    } else {
+      infoEl.style.display = 'none';
+    }
+  }
+};
+
+window.saveProduit = async function() {
+  const nom  = document.getElementById('prod-nom')?.value.trim();
+  const prix = parseFloat(document.getElementById('prod-prix')?.value) || 0;
+  if (!nom) { notify('Le nom du produit est obligatoire','warn'); return; }
+  const data = {
+    nom,
+    cat:  document.getElementById('prod-cat')?.value.trim() || '',
+    prix,
+    ref:  document.getElementById('prod-ref')?.value.trim() || '',
+    desc: document.getElementById('prod-desc')?.value.trim() || '',
+    imageUrl: window._prodImageUrl || '',
+    composition: prodComposition.map(c => ({ articleId: c.articleId, nom: c.nom, qte: c.qte, unite: c.unite })),
+    updatedAt: TODAY,
+  };
+  const editId = document.getElementById('prod-edit-id')?.value;
+  if (editId) {
+    await fbUpdate('produits', editId, data);
+    notify('Produit mis à jour ✓');
+  } else {
+    data.createdAt = TODAY;
+    await fbAdd('produits', data);
+    notify('Produit créé ✓');
+  }
+  closeM('m-produit');
+  renderProduits();
+};
+
+// ─── Zoom produit ───
+let _prodZoomId = null;
+window.ouvrirZoomProduit = function(id) {
+  const p = DB.produits.find(x => x._id === id);
+  if (!p) return;
+  _prodZoomId = id;
+  const canEdit = session && ['admin','gestionnaire_stock'].includes(session.role);
+
+  document.getElementById('pz-nom').textContent = p.nom || '—';
+  document.getElementById('pz-cat').textContent = p.cat || '';
+  document.getElementById('pz-prix').textContent = p.prix > 0 ? fmt(p.prix) + ' F' : '—';
+  document.getElementById('pz-ref').textContent = p.ref ? `Réf : ${p.ref}` : '';
+  document.getElementById('pz-desc').textContent = p.desc || '';
+
+  // Image
+  const img = document.getElementById('pz-img');
+  const noimg = document.getElementById('pz-noimg');
+  if (p.imageUrl) {
+    img.src = p.imageUrl;
+    img.style.display = 'block';
+    noimg.style.display = 'none';
+  } else {
+    img.style.display = 'none';
+    noimg.style.display = 'flex';
+  }
+
+  // Stock théorique
+  const comp = p.composition || [];
+  const stock = prodStockTheorique(comp);
+  const stockWrap = document.getElementById('pz-stock-wrap');
+  const stockEl   = document.getElementById('pz-stock');
+  if (stock !== null && canEdit) {
+    stockWrap.style.display = 'block';
+    stockEl.textContent = stock <= 0 ? '0 — Rupture' : `${stock} unité(s) disponible(s)`;
+    stockEl.style.color = stock <= 0 ? 'var(--danger)' : stock <= 2 ? 'var(--accent)' : 'var(--accent2)';
+  } else {
+    stockWrap.style.display = 'none';
+  }
+
+  // Composition
+  const compList = document.getElementById('pz-comp-list');
+  if (comp.length === 0) {
+    compList.innerHTML = `<div style="font-size:12px;color:var(--muted);">Aucun article composant.</div>`;
+  } else {
+    compList.innerHTML = comp.map(c => {
+      const art = DB.articles.find(a => a._id === c.articleId);
+      const artNom = art?.nom || c.nom || '—';
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--surface2);border-radius:7px;font-size:12px;">
+        <span style="font-weight:600;">${artNom}</span>
+        <span style="color:var(--muted);">× ${c.qte} ${c.unite||'pcs'}</span>
+      </div>`;
+    }).join('');
+  }
+
+  // Boutons admin
+  const adminBtns = document.getElementById('pz-admin-btns');
+  if (adminBtns) {
+    adminBtns.style.display = canEdit ? 'flex' : 'none';
+    document.getElementById('pz-edit-btn').onclick = () => { closeM('m-prod-zoom'); ouvrirModalProduit(id); };
+    document.getElementById('pz-del-btn').onclick = () => supprimerProduit(id);
+  }
+  openM('m-prod-zoom');
+};
+
+window.supprimerProduit = async function(id) {
+  const p = DB.produits.find(x => x._id === id);
+  if (!p) return;
+  if (!confirm(`Supprimer le produit "${p.nom}" ? Cette action est irréversible.`)) return;
+  await fbDelete('produits', id);
+  closeM('m-prod-zoom');
+  renderProduits();
+  notify('Produit supprimé');
+};
+
+// ══════════════════════════════════════════
+//  IMPORT PRODUITS — Excel / CSV
+// ══════════════════════════════════════════
+
+let importProdData = []; // [{nom, cat, prix, ref, desc, composition:[{nomArt,qte}], _resolved:[{articleId,nom,qte,unite,found}]}]
+
+/**
+ * Parse la colonne "composition" :
+ * "Chauffe-eau×2, Tuyau x1, Robinet" → [{nomArt:'Chauffe-eau',qte:2}, ...]
+ */
+function parseCompositionStr(str) {
+  if (!str || !str.toString().trim()) return [];
+  return str.toString().split(',').map(s => s.trim()).filter(Boolean).map(part => {
+    // Séparateurs : × (U+00D7), x, X suivi d'un chiffre, ou chiffre seul à la fin
+    const m = part.match(/^(.+?)[\s]*[×xX][\s]*(\d+)[\s]*$/) || part.match(/^(.+?)[\s]+(\d+)[\s]*$/);
+    if (m) return { nomArt: m[1].trim(), qte: parseInt(m[2]) || 1 };
+    return { nomArt: part.trim(), qte: 1 };
+  }).filter(c => c.nomArt);
+}
+
+/**
+ * Résout les noms d'articles → articleId (insensible à la casse, trim)
+ */
+function resolveComposition(compParsed) {
+  return compParsed.map(c => {
+    const art = DB.articles.find(a =>
+      (a.nom || '').trim().toLowerCase() === c.nomArt.trim().toLowerCase()
+    );
+    return {
+      nomArt:    c.nomArt,
+      qte:       c.qte,
+      articleId: art ? art._id : null,
+      nom:       art ? art.nom : c.nomArt,
+      unite:     art ? (art.unite || 'pcs') : 'pcs',
+      found:     !!art,
+    };
+  });
+}
+
+window.handleImportProduits = async function(e) {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  e.target.value = '';
+
+  // Charger SheetJS si besoin
+  if (!window.XLSX) {
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+  }
+
+  const buf = await file.arrayBuffer();
+  const wb  = XLSX.read(buf, { type: 'array' });
+  const ws  = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+  if (!rows.length) { notify('Fichier vide ou non reconnu', 'warn'); return; }
+
+  const get = (row, ...keys) => {
+    for (const k of keys) {
+      const v = row[k];
+      if (v !== undefined && v !== '') return v;
+    }
+    return '';
+  };
+
+  importProdData = rows.map(row => {
+    const nom   = (get(row, 'nom','name','produit','designation','désignation') || '').toString().trim();
+    const cat   = (get(row, 'categorie','catégorie','cat','famille') || '').toString().trim();
+    const prix  = parseFloat(get(row, 'prix','price','prix_vente','prix vente','montant')) || 0;
+    const ref   = (get(row, 'ref','reference','référence','code','code_produit') || '').toString().trim();
+    const desc  = (get(row, 'description','desc','detail','détail') || '').toString().trim();
+    const compStr = get(row, 'composition','articles','composants','composition_articles');
+    const compParsed  = parseCompositionStr(compStr);
+    const compResolved = resolveComposition(compParsed);
+    return { nom, cat, prix, ref, desc, _compStr: compStr, composition: compResolved };
+  }).filter(r => r.nom); // ignorer lignes sans nom
+
+  if (!importProdData.length) { notify('Aucune ligne valide (colonne "nom" absente ou vide)', 'warn'); return; }
+
+  prepareProdImportPreview();
+};
+
+function prepareProdImportPreview() {
+  const total = importProdData.length;
+  const totalArts = importProdData.reduce((s, r) => s + r.composition.length, 0);
+  const nonTrouves = importProdData.reduce((s, r) => s + r.composition.filter(c => !c.found).length, 0);
+
+  document.getElementById('import-prod-info').innerHTML =
+    `<strong>${total}</strong> produit(s) détecté(s) · <strong>${totalArts}</strong> lien(s) article(s) ·
+     ${nonTrouves > 0
+       ? `<span style="color:var(--danger);">⚠️ ${nonTrouves} article(s) introuvable(s) en base</span>`
+       : `<span style="color:var(--accent2);">✓ Tous les articles ont été résolus</span>`}`;
+
+  document.getElementById('import-prod-count').textContent = total;
+
+  // Avertissements articles introuvables
+  const warningEl = document.getElementById('import-prod-warnings');
+  if (nonTrouves > 0) {
+    const noms = [...new Set(
+      importProdData.flatMap(r => r.composition.filter(c => !c.found).map(c => `"${c.nomArt}"`))
+    )];
+    warningEl.style.display = 'block';
+    warningEl.innerHTML = `⚠️ Articles introuvables (seront ignorés dans la composition) : ${noms.join(', ')}<br>
+      <span style="color:var(--muted);">Vérifiez l'orthographe exacte dans la base Articles ou ajoutez-les d'abord.</span>`;
+  } else {
+    warningEl.style.display = 'none';
+  }
+
+  // Tableau aperçu
+  document.getElementById('import-prod-body').innerHTML = importProdData.map((r, i) => {
+    const compHtml = r.composition.length === 0
+      ? `<span style="color:var(--muted);font-size:10px;">—</span>`
+      : r.composition.map(c => {
+          const color = c.found ? 'var(--accent2)' : 'var(--danger)';
+          const icon  = c.found ? '✓' : '✗';
+          return `<span style="font-size:10px;color:${color};margin-right:5px;">${icon} ${c.nomArt}×${c.qte}</span>`;
+        }).join('');
+    const hasWarn = r.composition.some(c => !c.found);
+    const statut = hasWarn
+      ? `<span style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(247,201,79,0.12);color:var(--accent);border:1px solid rgba(247,201,79,0.3);font-weight:700;">⚠️ Partiel</span>`
+      : `<span style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(34,212,160,0.1);color:var(--accent2);border:1px solid rgba(34,212,160,0.25);font-weight:700;">✓ OK</span>`;
+    return `<tr>
+      <td class="tm">${i + 1}</td>
+      <td class="fw6">${r.nom}</td>
+      <td>${r.cat || '—'}</td>
+      <td>${r.prix > 0 ? fmt(r.prix) + ' F' : '—'}</td>
+      <td style="max-width:260px;line-height:1.8;">${compHtml}</td>
+      <td>${statut}</td>
+    </tr>`;
+  }).join('');
+
+  openM('m-import-prod-preview');
+}
+
+window.confirmImportProduits = async function() {
+  if (!importProdData.length) return;
+  document.getElementById('import-prod-confirm-btn').disabled = true;
+  let count = 0;
+  for (const r of importProdData) {
+    // Ne garder que les composants résolus (found === true)
+    const composition = r.composition
+      .filter(c => c.found)
+      .map(c => ({ articleId: c.articleId, nom: c.nom, qte: c.qte, unite: c.unite }));
+    await fbAdd('produits', {
+      nom:         r.nom,
+      cat:         r.cat,
+      prix:        r.prix,
+      ref:         r.ref,
+      desc:        r.desc,
+      imageUrl:    '',
+      composition,
+      createdAt:   TODAY,
+      origine:     'import',
+    });
+    count++;
+  }
+  document.getElementById('import-prod-confirm-btn').disabled = false;
+  closeM('m-import-prod-preview');
+  importProdData = [];
+  renderProduits();
+  notify(`${count} produit(s) importé(s) avec succès ✓`);
+};
+
+// ══════════════════════════════════════════
+//  MODÈLE EXCEL PRODUITS
+// ══════════════════════════════════════════
+window.downloadProduitTemplate = async function() {
+  if (!window.XLSX) {
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+  }
+
+  // Récupérer les noms d'articles existants pour l'exemple
+  const artExemples = DB.articles.slice(0, 3).map(a => a.nom);
+  while (artExemples.length < 3) artExemples.push(`Article ${artExemples.length + 1}`);
+
+  const cols = ['nom','categorie','prix','ref','description','composition'];
+  const exemples = [
+    [
+      'Kit Cuisine Complète',
+      'Électroménager',
+      85000,
+      'PROD-001',
+      'Pack complet pour équipement cuisine',
+      `${artExemples[0]}×1, ${artExemples[1]}×2`,
+    ],
+    [
+      'Forfait Climatisation Standard',
+      'Climatisation',
+      120000,
+      'PROD-002',
+      'Installation + matériel',
+      `${artExemples[2]}×1`,
+    ],
+    [
+      'Pack Plomberie Basique',
+      'Plomberie',
+      45000,
+      '',
+      '',
+      `${artExemples[0]}×2, ${artExemples[2]}×3`,
+    ],
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet([cols, ...exemples]);
+  ws['!cols'] = [22, 18, 10, 12, 30, 45].map(w => ({ wch: w }));
+
+  // Onglet guide
+  const articlesBase = DB.articles.slice(0, 15).map(a => [a.nom, a.unite || 'pcs', a.stock || 0]);
+  const guideData = [
+    ['Colonne', 'Obligatoire ?', 'Description', 'Exemple'],
+    ['nom',         'OUI ✅', 'Nom du produit',                              'Kit Cuisine Complète'],
+    ['categorie',   'Non',    'Catégorie du produit',                        'Électroménager'],
+    ['prix',        'Non',    'Prix de vente en FCFA',                       '85000'],
+    ['ref',         'Non',    'Référence / code produit',                    'PROD-001'],
+    ['description', 'Non',    'Description courte',                         'Pack complet...'],
+    ['composition', 'Non',    'Articles composants : NomArticle×Qté séparés par virgule. La quantité après × ou x est optionnelle (1 par défaut). Le nom doit correspondre EXACTEMENT à un article en base.', `${artExemples[0]}×2, ${artExemples[1]}×1`],
+    ['', '', '', ''],
+    ['⚠️ Correspondance articles', '', 'La correspondance se fait par nom EXACT (insensible à la casse). Les articles introuvables seront ignorés mais le produit sera quand même créé.', ''],
+    ['', '', '', ''],
+    ['── Articles disponibles en base ──', '', '', ''],
+    ['Nom article', 'Unité', 'Stock actuel', ''],
+    ...articlesBase,
+    ...(DB.articles.length === 0 ? [['(Aucun article en base)', '', '', '']] : []),
+  ];
+  const wsGuide = XLSX.utils.aoa_to_sheet(guideData);
+  wsGuide['!cols'] = [{ wch: 22 }, { wch: 14 }, { wch: 65 }, { wch: 35 }];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Produits');
+  XLSX.utils.book_append_sheet(wb, wsGuide, 'Guide + Articles base');
+  XLSX.writeFile(wb, 'modele_import_produits.xlsx');
+  notify('📥 Modèle produits téléchargé ✓');
+};
+
 // ========= CATALOGUE VISUEL =========
 let catFiltreActif = '';
 let catFiltreStock = ''; // '' | 'ok' | 'bas' | 'rupture'
@@ -5142,541 +5749,6 @@ window.filtrerCatalogueStock = function(val){
   catFiltreStock = val;
   renderCatalogue();
 };
-
-// ═══════════════════════════════════════════════════
-//  NOS PRODUITS — Section vitrine interne
-// ═══════════════════════════════════════════════════
-let npCatFiltre = '';
-
-// ═══════════════════════════════════════════════════════════════
-//  NOS PRODUITS — Fonctions (collection Firestore : "produits")
-//  ⚠️ PRODUIT ≠ ARTICLE : les produits sont une entité distincte
-//     avec ses propres champs (slogan, image_url, visible, etc.)
-// ═══════════════════════════════════════════════════════════════
-let npCatFiltre = '';
-let importProduitsData = [], importProduitsRaw = [];
-
-// ── Helper : images d'un produit (champ images[] ou imageUrl) ──
-function prodImages(p){
-  // Identique à artImages() — supporté: images[], image, imageUrl
-  if(Array.isArray(p.images) && p.images.length) return p.images.filter(Boolean);
-  if(p.image)    return [p.image];
-  if(p.imageUrl) return [p.imageUrl];
-  return [];
-}
-
-// ── Emoji par catégorie produit ──
-function prodEmoji(cat){
-  // Superset de catEmoji() + catégories supplémentaires produit
-  const c = (cat||'').toLowerCase();
-  if(c.includes('mob')||c.includes('cana')||c.includes('chais')||c.includes('meubl')) return '🛋️';
-  if(c.includes('télé')||c.includes('tele')||c.includes('tv'))    return '📺';
-  if(c.includes('frigo')||c.includes('réfri')||c.includes('cong')) return '🧊';
-  if(c.includes('cuisi')||c.includes('four')||c.includes('gaz'))  return '🍳';
-  if(c.includes('info')||c.includes('ordi')||c.includes('pc'))    return '💻';
-  if(c.includes('phone')||c.includes('télé')||c.includes('mobi')) return '📱';
-  if(c.includes('linge')||c.includes('mach')||c.includes('lav'))  return '🫧';
-  if(c.includes('clim')||c.includes('air')||c.includes('ventil')) return '❄️';
-  if(c.includes('élec')||c.includes('elec')||c.includes('câble')) return '🔌';
-  if(c.includes('alim')||c.includes('nourr')||c.includes('épic')) return '🍽️';
-  if(c.includes('bois')||c.includes('eau')||c.includes('jus'))    return '🥤';
-  if(c.includes('cosm')||c.includes('maqui')||c.includes('soin')) return '💄';
-  if(c.includes('hygi')||c.includes('savon')||c.includes('parf')) return '🧴';
-  if(c.includes('text')||c.includes('vête')||c.includes('habit')) return '👕';
-  if(c.includes('joue')||c.includes('enfant'))                    return '🧸';
-  if(c.includes('jard')||c.includes('agri')||c.includes('plant')) return '🌿';
-  if(c.includes('auto')||c.includes('voitu')||c.includes('moto')) return '🚗';
-  if(c.includes('outil')||c.includes('brico')||c.includes('fer')) return '🔧';
-  if(c.includes('mater')||c.includes('const')||c.includes('bton'))return '🧱';
-  return '📦';
-}
-
-function renderNosProduits(){
-  const produits = (DB.produits || []).filter(p => p.visible !== false);
-  const isAdmin  = session?.role === 'admin';
-  const allProds = isAdmin ? (DB.produits || []) : produits; // admin voit tout
-
-  // Afficher/cacher les boutons admin
-  const adminBtns = document.getElementById('np-admin-btns');
-  const noteEl    = document.getElementById('np-distinction-note');
-  if(adminBtns) adminBtns.style.display = isAdmin ? 'flex' : 'none';
-  if(noteEl)    noteEl.style.display    = isAdmin ? ''     : 'none';
-
-  // Remplir la datalist des catégories pour le formulaire
-  const dl = document.getElementById('prod-cat-list');
-  if(dl){
-    const allCatsForm = [...new Set((DB.produits||[]).map(p=>p.cat||'').filter(Boolean))].sort();
-    dl.innerHTML = allCatsForm.map(c=>`<option value="${c}">`).join('');
-  }
-
-  // KPI
-  const total   = allProds.length;
-  const visibles = (DB.produits||[]).filter(p=>p.visible!==false).length;
-  const caches   = (DB.produits||[]).filter(p=>p.visible===false).length;
-  const cats     = [...new Set(allProds.map(a=>a.cat||'').filter(Boolean))].length;
-  const kpiEl = document.getElementById('np-kpi-row');
-  if(kpiEl){
-    kpiEl.innerHTML = `
-      <div class="np-kpi"><div class="np-kpi-lbl">Total produits</div><div class="np-kpi-val">${total}</div></div>
-      <div class="np-kpi green"><div class="np-kpi-lbl">Visibles</div><div class="np-kpi-val">${visibles}</div></div>
-      ${isAdmin?`<div class="np-kpi warn"><div class="np-kpi-lbl">Masqués</div><div class="np-kpi-val">${caches}</div></div>`:''}
-      <div class="np-kpi"><div class="np-kpi-lbl">Catégories</div><div class="np-kpi-val">${cats}</div></div>
-    `;
-  }
-
-  // Chips catégories
-  const catBar = document.getElementById('np-cat-bar');
-  if(catBar){
-    const allCats = [...new Set(allProds.map(a=>a.cat||'').filter(Boolean))].sort();
-    catBar.innerHTML = `<span style="font-size:11px;color:var(--muted);font-weight:600;flex-shrink:0;">Catégorie :</span>
-      <button class="np-cat-chip${npCatFiltre===''?' active':''}" onclick="filtrerNosProduits('',this)">Tous (${allProds.length})</button>`+
-      allCats.map(c=>{
-        const n=allProds.filter(a=>a.cat===c).length;
-        return `<button class="np-cat-chip${npCatFiltre===c?' active':''}" onclick="filtrerNosProduits('${c}',this)">${c} (${n})</button>`;
-      }).join('');
-  }
-
-  // Filtrage
-  const q   = (document.getElementById('np-search')?.value||'').toLowerCase().trim();
-  const tri = document.getElementById('np-sort')?.value || 'nom';
-  let liste = allProds.slice();
-  if(npCatFiltre) liste = liste.filter(a=>a.cat===npCatFiltre);
-  if(q) liste = liste.filter(a=>
-    (a.nom||'').toLowerCase().includes(q)||
-    (a.ref||'').toLowerCase().includes(q)||
-    (a.desc||'').toLowerCase().includes(q)||
-    (a.slogan||'').toLowerCase().includes(q)||
-    (a.cat||'').toLowerCase().includes(q)
-  );
-  if(tri==='nom')       liste.sort((a,b)=>(a.nom||'').localeCompare(b.nom||''));
-  if(tri==='prix_asc')  liste.sort((a,b)=>(a.prix||0)-(b.prix||0));
-  if(tri==='prix_desc') liste.sort((a,b)=>(b.prix||0)-(a.prix||0));
-  if(tri==='cat')       liste.sort((a,b)=>(a.cat||'').localeCompare(b.cat||'')||(a.nom||'').localeCompare(b.nom||''));
-
-  const grid = document.getElementById('np-grid');
-  if(!grid) return;
-  if(!liste.length){
-    grid.innerHTML=`<div class="emp" style="grid-column:1/-1;padding:60px;">
-      <div style="font-size:48px;margin-bottom:12px;">🛍️</div>
-      <div>Aucun produit trouvé.</div>
-      ${isAdmin?`<button class="btn btn-primary btn-sm" style="margin-top:14px;" onclick="openM('m-produit')">+ Ajouter un produit</button>`:''}
-    </div>`;
-    return;
-  }
-
-  grid.innerHTML = liste.map(p=>{
-    const imgs  = prodImages(p);
-    const masque = p.visible === false;
-    const masqueBadge = masque ? `<span style="position:absolute;top:8px;left:8px;background:rgba(224,92,82,0.85);color:#fff;font-size:9px;font-weight:800;padding:2px 7px;border-radius:10px;">🙈 Masqué</span>` : '';
-    const newBadge = p.nouveau ? `<span class="np-card-badge-new">✨ Nouveau</span>` : '';
-    const promoHtml = p.prixPromo > 0 && p.prixPromo < (p.pv||p.prix||0)
-      ? `<span style="font-size:12px;color:var(--muted);text-decoration:line-through;margin-right:6px;">${fmt(p.pv||p.prix||0)}</span><span style="color:var(--danger);font-weight:700;">${fmt(p.prixPromo)}</span>`
-      : `<div class="np-card-prix">${fmt(p.pv||p.prix||0)}</div>`;
-
-    const imgSection = imgs.length > 0
-      ? `<div class="np-card-img-wrap" style="${masque?'opacity:0.6;':''}">
-           <img src="${imgs[0]}" alt="${esc(p.nom)}" class="np-card-img">
-           ${masqueBadge}${newBadge}
-           ${imgs.length>1?`<div style="position:absolute;bottom:8px;right:10px;background:rgba(0,0,0,0.55);color:#fff;font-size:10px;border-radius:12px;padding:2px 8px;">📷 ${imgs.length}</div>`:''}
-         </div>`
-      : `<div class="np-card-img-wrap" style="${masque?'opacity:0.6;':''}">
-           <div class="np-card-no-img">${prodEmoji(p.cat)}</div>
-           ${masqueBadge}${newBadge}
-         </div>`;
-
-    return `<div class="np-card${masque?' np-card-masque':''}" onclick="ouvrirDetailProduit('${p._id}')">
-      ${imgSection}
-      <div class="np-card-body">
-        <div class="np-card-cat">${p.cat||'—'}</div>
-        <div class="np-card-nom">${p.nom}</div>
-        ${p.slogan?`<div class="np-card-desc" style="color:var(--accent);font-style:italic;">${p.slogan}</div>`
-          : p.desc?`<div class="np-card-desc">${p.desc}</div>`
-          : '<div style="height:14px;"></div>'}
-        <div class="np-card-footer">
-          <div>${promoHtml}</div>
-          ${isAdmin?`<div style="display:flex;gap:5px;">
-            <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation();editerProduit('${p._id}')" title="Modifier">✏️</button>
-            <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation();toggleVisibleProduit('${p._id}',${!masque})" title="${masque?'Afficher':'Masquer'}">${masque?'👁':'🙈'}</button>
-          </div>`:
-          `<div class="np-card-ref">${p.ref||''}</div>`}
-        </div>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-window.filtrerNosProduits = function(cat, btn){
-  npCatFiltre = cat;
-  document.querySelectorAll('.np-cat-chip').forEach(c=>c.classList.remove('active'));
-  if(btn) btn.classList.add('active');
-  renderNosProduits();
-};
-
-window.ouvrirDetailProduit = function(prodId){
-  const p = DB.produits.find(x=>x._id===prodId);
-  if(!p) return;
-  const imgs = prodImages(p);
-  const isAdmin = session?.role==='admin';
-
-  // Galerie images
-  let galHtml = '';
-  if(imgs.length>0){
-    galHtml = `<div style="position:relative;border-radius:12px;overflow:hidden;margin-bottom:14px;">
-      <img id="np-det-main-img" src="${imgs[0]}" alt="${esc(p.nom)}" class="np-detail-img" style="margin-bottom:0;">
-      ${imgs.length>1?`<div style="display:flex;gap:6px;padding:8px;background:var(--surface2);">
-        ${imgs.map((url,i)=>`<img src="${url}" onclick="document.getElementById('np-det-main-img').src='${url}'" style="width:48px;height:48px;object-fit:cover;border-radius:6px;cursor:pointer;border:2px solid ${i===0?'var(--accent)':'transparent'};transition:border 0.15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='${i===0?'var(--accent)':'transparent'}';">`).join('')}
-      </div>`:''}
-    </div>`;
-  } else {
-    galHtml = `<div class="np-detail-no-img">${prodEmoji(p.cat)}</div>`;
-  }
-
-  const prixHtml = p.prixPromo > 0 && p.prixPromo < (p.pv||p.prix||0)
-    ? `<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px;">
-        <span class="np-detail-prix" style="color:var(--danger);">${fmt(p.prixPromo)}</span>
-        <span style="font-size:15px;color:var(--muted);text-decoration:line-through;">${fmt(p.pv||p.prix||0)}</span>
-        <span style="font-size:11px;font-weight:700;background:rgba(224,92,82,0.15);color:var(--danger);border-radius:20px;padding:2px 10px;">PROMO</span>
-      </div>`
-    : `<div class="np-detail-prix">${fmt(p.pv||p.prix||0)}</div>`;
-
-  const content = document.getElementById('np-detail-content');
-  if(content){
-    content.innerHTML = `
-      ${galHtml}
-      ${prixHtml}
-      <div style="font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:800;color:var(--text);margin-bottom:4px;">${p.nom}</div>
-      ${p.slogan?`<div style="font-size:13px;color:var(--accent);font-style:italic;margin-bottom:10px;">"${p.slogan}"</div>`:''}
-      <div class="np-detail-row">
-        ${p.cat?`<span class="np-detail-badge">📂 ${p.cat}</span>`:''}
-        ${p.ref?`<span class="np-detail-badge">🏷️ Réf: ${p.ref}</span>`:''}
-        ${p.unite?`<span class="np-detail-badge">📦 ${p.unite}</span>`:''}
-        ${p.nouveau?`<span class="np-detail-badge" style="color:var(--accent2);border-color:var(--accent2);">✨ Nouveau</span>`:''}
-        ${p.visible===false?`<span class="np-detail-badge" style="color:var(--danger);border-color:var(--danger);">🙈 Masqué</span>`:''}
-      </div>
-      ${p.desc?`<p style="font-size:13px;color:var(--subtle);line-height:1.8;margin-bottom:12px;white-space:pre-line;">${p.desc}</p>`:''}
-      ${(()=>{
-        // Afficher disponibilité si lié à un article de stock
-        const artLie = p.articleId ? DB.articles.find(a=>a._id===p.articleId) : null;
-        if(artLie){
-          const dispo = packStockDispo(artLie);
-          const sc = dispo<=0?'var(--danger)':dispo<=(artLie.stockMin||0)?'var(--warn)':'var(--accent2)';
-          const sl = dispo<=0?'Rupture de stock':dispo<=(artLie.stockMin||0)?'Stock bas':'En stock';
-          return `<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--surface2);border-radius:9px;margin-top:10px;font-size:12px;">
-            <span style="font-weight:700;color:${sc};">● ${sl}</span>
-            <span style="color:var(--muted);">${dispo} ${artLie.unite||'pcs'} disponibles</span>
-            <span style="color:var(--muted);font-size:10px;">(article lié : ${artLie.ref||artLie.nom})</span>
-          </div>`;
-        }
-        return '';
-      })()}
-      ${isAdmin?`<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
-        <button class="btn btn-ghost btn-sm" onclick="closeM('m-np-detail');editerProduit('${p._id}')">✏️ Modifier</button>
-        <button class="btn btn-ghost btn-sm" onclick="toggleVisibleProduit('${p._id}',${p.visible!==false?false:true})">${p.visible===false?'👁 Rendre visible':'🙈 Masquer'}</button>
-        <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="if(confirm('Supprimer ce produit ?')){closeM('m-np-detail');supprimerProduit('${p._id}');}">🗑 Supprimer</button>
-      </div>`:''}
-    `;
-  }
-  openM('m-np-detail');
-};
-
-// ── CRUD produit ──
-// Images en cours d'édition (base64 téléversées)
-let prodEditImagesB64 = [];
-
-window.prodHandleImageUpload = async function(event){
-  const file = event.target.files[0];
-  if(!file) return;
-  const b64 = await fileToBase64(file);
-  if(!b64){ notify('Image trop grande (max 2 Mo)','err'); return; }
-  prodEditImagesB64.push(b64);
-  prodPreviewImages();
-  event.target.value='';
-};
-
-window.prodPreviewImages = function(){
-  // Combine base64 + URLs
-  const urlLines = (document.getElementById('prod-images-urls')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
-  const all = [...prodEditImagesB64, ...urlLines];
-  const wrap = document.getElementById('prod-img-preview-wrap');
-  const main = document.getElementById('prod-img-preview');
-  const bar  = document.getElementById('prod-img-thumb-bar');
-  if(!wrap) return;
-  if(!all.length){ wrap.style.display='none'; return; }
-  wrap.style.display='';
-  main.src = all[0];
-  bar.style.display = all.length>1?'flex':'none';
-  bar.innerHTML = all.map((src,i)=>`<img src="${src}" onclick="document.getElementById('prod-img-preview').src='${src}'" style="width:44px;height:44px;object-fit:cover;border-radius:6px;cursor:pointer;border:2px solid ${i===0?'var(--accent)':'transparent'};flex-shrink:0;">`).join('');
-};
-
-window.prodPreviewPrix = function(){
-  const pv    = parseFloat(document.getElementById('prod-pv')?.value)||0;
-  const promo = parseFloat(document.getElementById('prod-pv-promo')?.value)||0;
-  const el    = document.getElementById('prod-prix-preview');
-  if(!el) return;
-  if(pv>0 && promo>0 && promo<pv){
-    const eco = pv-promo;
-    const pct = Math.round(eco/pv*100);
-    el.style.display='';
-    el.innerHTML=`Prix barré : <strong>${fmt(pv)}</strong> → Prix promo : <strong style="color:var(--danger);">${fmt(promo)}</strong> — Économie : <strong>${fmt(eco)} (${pct}%)</strong>`;
-  } else if(pv>0){
-    el.style.display='';
-    el.innerHTML=`Prix de vente : <strong style="color:var(--accent);">${fmt(pv)}</strong>`;
-  } else {
-    el.style.display='none';
-  }
-};
-
-window.editerProduit = function(prodId){
-  const p = prodId ? DB.produits.find(x=>x._id===prodId) : null;
-  const f = id => document.getElementById(id);
-  prodEditImagesB64 = [];
-
-  f('prod-edit-id').value    = prodId||'';
-  f('prod-nom').value        = p?.nom||'';
-  f('prod-ref').value        = p?.ref||'';
-  f('prod-cat').value        = p?.cat||'';
-  f('prod-slogan').value     = p?.slogan||'';
-  f('prod-desc').value       = p?.desc||'';
-  f('prod-pv').value         = p?.pv||p?.prix||'';
-  f('prod-pv-promo').value   = p?.prixPromo||'';
-  f('prod-unite').value      = p?.unite||'pièce';
-  f('prod-nouveau').checked  = p?.nouveau||false;
-  f('prod-visible').checked  = p ? (p.visible!==false) : true;
-  f('prod-article-lie').value = p?.articleId||'';
-
-  // Séparer base64 (déjà stockées) et URLs externes
-  const imgs = p?.images||[];
-  const b64s = imgs.filter(s=>s.startsWith('data:'));
-  const urls = imgs.filter(s=>!s.startsWith('data:'));
-  prodEditImagesB64 = b64s;
-  f('prod-images-urls').value = urls.join('\n');
-
-  // Remplir select article lié
-  const sel = f('prod-article-lie');
-  sel.innerHTML = '<option value="">— Aucun lien —</option>' +
-    (DB.articles||[]).sort((a,b)=>(a.nom||'').localeCompare(b.nom||'')).map(a=>
-      `<option value="${a._id}"${(p?.articleId===a._id)?'selected':''}>${a.nom}${a.ref?' ('+a.ref+')':''}</option>`
-    ).join('');
-
-  document.getElementById('prod-modal-title').textContent = prodId ? '✏️ Modifier le produit' : '➕ Nouveau produit';
-  prodPreviewImages();
-  prodPreviewPrix();
-  openM('m-produit');
-};
-
-window.saveProduit = async function(){
-  if(session?.role !== 'admin'){ notify('Accès réservé admin','err'); return; }
-  const f   = id => document.getElementById(id);
-  const nom = (f('prod-nom').value||'').trim();
-  if(!nom){ notify('Le nom du produit est obligatoire','err'); return; }
-  const pv = parseFloat(f('prod-pv').value)||0;
-  if(!pv){ notify('Le prix de vente est obligatoire','err'); return; }
-
-  // Combiner base64 + URLs
-  const urlLines = (f('prod-images-urls').value||'').split('\n').map(s=>s.trim()).filter(Boolean);
-  const images   = [...prodEditImagesB64, ...urlLines];
-  const image    = images[0]||'';
-
-  const data = {
-    // — Propriétés communes avec article (catalogue visuel) —
-    nom,
-    ref:   (f('prod-ref').value||'').trim(),
-    cat:   (f('prod-cat').value||'').trim(),
-    pv,                                          // prix de vente public (même nom que article.pv)
-    unite: (f('prod-unite').value||'').trim()||'pièce',
-    desc:  (f('prod-desc').value||'').trim(),
-    images,
-    image,
-    // — Propriétés spécifiques au produit —
-    prixPromo:  parseFloat(f('prod-pv-promo').value)||0,
-    slogan:     (f('prod-slogan').value||'').trim(),
-    nouveau:    f('prod-nouveau').checked,
-    visible:    f('prod-visible').checked,
-    articleId:  (f('prod-article-lie').value||'').trim()||null,
-  };
-
-  const id = (f('prod-edit-id').value||'').trim();
-  const btn = document.getElementById('prod-save-btn');
-  if(btn){ btn.disabled=true; btn.textContent='⏳ Enregistrement...'; }
-  try {
-    if(id){ await fbSet('produits', id, data); notify('✅ Produit mis à jour'); }
-    else  { await fbAdd('produits', data);     notify('✅ Produit créé'); }
-    closeM('m-produit');
-    prodEditImagesB64=[];
-  } catch(e){ notify('Erreur: '+e.message,'err'); }
-  if(btn){ btn.disabled=false; btn.textContent='Enregistrer'; }
-};
-
-window.toggleVisibleProduit = async function(prodId, visible){
-  await fbSet('produits', prodId, {visible});
-  notify(visible?'✅ Produit visible':'🙈 Produit masqué');
-};
-
-window.supprimerProduit = async function(prodId){
-  if(session?.role !== 'admin') return;
-  await fbDelete('produits', prodId);
-  notify('🗑 Produit supprimé');
-};
-
-// ── IMPORT PRODUITS ──
-window.downloadProduitTemplate = async function(){
-  if(!window.XLSX){
-    await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s);});
-  }
-  const cols = ['nom','ref','categorie','pv','prix_promo','slogan','description','unite','image_url','nouveau','visible'];
-  const exemple = [
-    ['Savon Doux Karité','SAV-001','Hygiène',1500,0,'La douceur naturelle','Savon artisanal au beurre de karité, 100g','pièce','https://example.com/savon.jpg','oui','oui'],
-    ['Lait Condensé 380g','LC-380','Alimentation',650,580,'Le goût de toujours','Lait condensé sucré en boîte 380g','boîte','','non','oui'],
-    ['Gaz 6kg Butane','GAZ-6','Gaz',12000,0,'Cuisinez mieux','Bouteille de gaz butane 6 kg rechargeable','bouteille','','non','oui'],
-  ];
-  const ws = XLSX.utils.aoa_to_sheet([cols,...exemple]);
-  ws['!cols']=[20,10,14,10,10,25,35,10,35,7,7].map(w=>({wch:w}));
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Produits');
-  const guide = XLSX.utils.aoa_to_sheet([
-    ['Colonne','Description','Obligatoire ?','Exemple'],
-    ['nom','Nom commercial du produit','OUI','Savon Doux Karité'],
-    ['ref','Code / référence interne','Non','SAV-001'],
-    ['categorie','Famille / catégorie','Non','Hygiène'],
-    ['pv','Prix de vente public en FCFA (= article.pv)','OUI','1500'],
-    ['prix_promo','Prix promotionnel (0 = pas de promo)','Non','1200'],
-    ['slogan','Accroche commerciale courte','Non','La douceur naturelle'],
-    ['description','Description détaillée','Non','Savon artisanal au karité...'],
-    ['unite','Unité de mesure / conditionnement','Non','pièce / boîte / kg'],
-    ['image_url','URL de l\'image principale (https://...)','Non','https://...'],
-    ['nouveau','Mettre en avant comme nouveau ? (oui/non)','Non','oui'],
-    ['visible','Visible dans Nos Produits ? (oui/non)','Non','oui'],
-    ['','','',''],
-    ['⚠️ Différence article/produit','','',''],
-    ['',''"'"'Article'"'"' = gestion de stock interne (prix d\'achat, stock, mouvements)','',''],
-    ['',''"'"'Produit'"'"' = vitrine commerciale (présentation, slogan, promotion)','',''],
-    ['',''Un produit peut exister sans article associé dans le stock.','',''],
-  ]);
-  guide['!cols']=[22,55,18,30].map(w=>({wch:w}));
-  XLSX.utils.book_append_sheet(wb, guide, 'Guide');
-  XLSX.writeFile(wb, 'modele_import_produits.xlsx');
-  notify('✅ Modèle téléchargé');
-};
-
-window.handleImportProduits = async function(event){
-  const file = event.target.files[0];
-  if(!file) return;
-  const ext = file.name.split('.').pop().toLowerCase();
-  try {
-    let rows = [];
-    if(ext==='csv')             { rows = await parseCSV(file); }
-    else if(ext==='xlsx'||ext==='xls'){ rows = await parseXLSX(file); }
-    else { notify('Format non supporté. Utilisez .csv ou .xlsx','err'); return; }
-    if(!rows||!rows.length){ notify('Fichier vide ou non lisible','err'); return; }
-    prepareImportProduitsPreview(rows);
-  } catch(e){ notify('Erreur de lecture : '+e.message,'err'); }
-  event.target.value='';
-};
-
-function normalizeProduitRow(row){
-  const get = (...keys) => { for(const k of keys){ const v=row[k]; if(v!==undefined&&v!=='') return String(v).trim(); } return ''; };
-  const toBool = v => !['non','false','0','no',''].includes((v||'').toLowerCase().trim());
-  const imageUrl = get('image_url','image_principale','image','imageurl','url_image','photo','img');
-  const pv = parseFloat(get('pv','prix_vente','prix','price','montant','tarif'))||0;
-  return {
-    // — Champs alignés avec article (catalogue visuel) —
-    nom:       get('nom','name','designation','désignation','libelle','libellé','produit'),
-    ref:       get('ref','référence','reference','code','sku'),
-    cat:       get('categorie','catégorie','cat','famille','type','categorie'),
-    pv,                                            // même clé que article.pv
-    unite:     get('unite','unité','unit','conditionnement')||'pièce',
-    desc:      get('description','desc','detail','détail','note','notes'),
-    images:    imageUrl ? [imageUrl] : [],
-    image:     imageUrl,
-    // — Champs spécifiques produit —
-    prixPromo: parseFloat(get('prix_promo','promo','promotion','prix_promotionnel','remise'))||0,
-    slogan:    get('slogan','accroche','tagline'),
-    nouveau:   toBool(get('nouveau','new','nouveaute','nouveauté')),
-    visible:   get('visible','actif','active')?toBool(get('visible','actif','active')):true,
-  };
-}
-
-function prepareImportProduitsPreview(rows){
-  importProduitsRaw = rows.map(normalizeProduitRow);
-  const refsExistantes = new Set((DB.produits||[]).map(p=>(p.ref||'').toLowerCase().trim()).filter(Boolean));
-  const refsVues = new Set(), refsDoublonsFic = new Set();
-  importProduitsRaw.forEach(r=>{ const k=(r.ref||'').toLowerCase().trim(); if(k){ if(refsVues.has(k)) refsDoublonsFic.add(k); else refsVues.add(k); } });
-
-  const annotated = importProduitsRaw.map(r=>{
-    const errs=[]; if(!r.nom) errs.push('Nom manquant'); if(!r.pv||r.pv<=0) errs.push('Prix (pv) manquant');
-    const refKey=(r.ref||'').toLowerCase().trim();
-    let statut='ok', statutMsg='';
-    if(errs.length){ statut='erreur'; statutMsg=errs.join(', '); }
-    else if(refKey&&refsExistantes.has(refKey)){ statut='doublon_db'; statutMsg=`Réf. "${r.ref}" existe déjà`; }
-    else if(refKey&&refsDoublonsFic.has(refKey)){ statut='doublon_fichier'; statutMsg=`Réf. "${r.ref}" en doublon fichier`; }
-    return {...r, statut, statutMsg};
-  });
-
-  importProduitsData = annotated.filter(r=>r.statut==='ok');
-  const erreurs=annotated.filter(r=>r.statut==='erreur');
-  const doublonsDB=annotated.filter(r=>r.statut==='doublon_db');
-  const doublonsFic=annotated.filter(r=>r.statut==='doublon_fichier');
-
-  document.getElementById('import-prod-kpi').innerHTML=`
-    <div style="background:var(--surface2);border-radius:9px;padding:10px;text-align:center;border:1px solid var(--border);"><div style="font-size:18px;font-weight:800;color:var(--accent2);">${rows.length}</div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;">Lignes lues</div></div>
-    <div style="background:rgba(34,212,160,0.08);border-radius:9px;padding:10px;text-align:center;border:1px solid rgba(34,212,160,0.25);"><div style="font-size:18px;font-weight:800;color:var(--accent2);">${importProduitsData.length}</div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;">✅ À importer</div></div>
-    <div style="background:rgba(247,201,79,0.08);border-radius:9px;padding:10px;text-align:center;border:1px solid rgba(247,201,79,0.25);"><div style="font-size:18px;font-weight:800;color:var(--warn);">${doublonsDB.length+doublonsFic.length}</div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;">⚠️ Doublons</div></div>
-    <div style="background:rgba(224,92,82,0.08);border-radius:9px;padding:10px;text-align:center;border:1px solid rgba(224,92,82,0.25);"><div style="font-size:18px;font-weight:800;color:var(--danger);">${erreurs.length}</div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;">❌ Erreurs</div></div>
-  `;
-  document.getElementById('import-prod-info').innerHTML=`<strong>${rows.length}</strong> ligne(s) lues — <strong style="color:var(--accent2)">${importProduitsData.length} produit(s) prêts</strong>`+(erreurs.length+doublonsDB.length+doublonsFic.length>0?` — <strong style="color:var(--danger)">${erreurs.length+doublonsDB.length+doublonsFic.length} bloqué(s)</strong>`:'');
-
-  const doubEl=document.getElementById('import-prod-doublons');
-  if(doublonsDB.length||doublonsFic.length){ doubEl.style.display=''; doubEl.innerHTML=`⚠️ ${doublonsDB.length+doublonsFic.length} doublon(s) détecté(s) — non importé(s).`; } else doubEl.style.display='none';
-  const errEl=document.getElementById('import-prod-errors');
-  if(erreurs.length){ errEl.style.display=''; errEl.innerHTML=`❌ ${erreurs.length} ligne(s) ignorée(s) : nom ou prix manquant.`; } else errEl.style.display='none';
-
-  document.getElementById('import-prod-count').textContent=importProduitsData.length;
-  const btnC=document.getElementById('import-prod-confirm-btn'); if(btnC) btnC.disabled=importProduitsData.length===0;
-
-  document.getElementById('import-prod-body').innerHTML=annotated.slice(0,80).map((r,i)=>{
-    const badge = r.statut==='ok' ? sb('✅ OK','sg') : r.statut==='doublon_db' ? `<span class="sb sy" title="${esc(r.statutMsg)}">⚠️ Doublon DB</span>` : r.statut==='doublon_fichier' ? `<span class="sb sy" title="${esc(r.statutMsg)}">⚠️ Doublon fic.</span>` : `<span class="sb sr" title="${esc(r.statutMsg)}">❌ Erreur</span>`;
-    return `<tr style="${r.statut!=='ok'?'opacity:0.5;':''}">
-      <td style="color:var(--muted);font-size:11px;">${i+1}</td>
-      <td><span class="tag">${esc(r.ref||'—')}</span></td>
-      <td class="fw6">${esc(r.nom||'—')}</td>
-      <td class="tm">${esc(r.cat||'—')}</td>
-      <td style="color:var(--accent2);font-weight:600;">${r.pv>0?fmt(r.pv):'—'}</td>
-      <td class="tm">${r.prixPromo>0?fmt(r.prixPromo):'—'}</td>
-      <td class="tm" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(r.slogan||'—')}</td>
-      <td style="font-size:10px;">${r.imageUrl?'🖼️ Oui':'—'}</td>
-      <td>${r.visible?'✅':'🙈'}</td>
-      <td>${badge}</td>
-    </tr>`;
-  }).join('')+(annotated.length>80?`<tr><td colspan="10" style="text-align:center;padding:10px;color:var(--muted);font-size:12px;">… et ${annotated.length-80} autres lignes</td></tr>`:'');
-
-  openM('m-import-produits');
-}
-
-window.confirmImportProduits = async function(){
-  if(!importProduitsData.length){ notify('Aucun produit à importer','err'); return; }
-  const btn=document.getElementById('import-prod-confirm-btn');
-  if(btn){ btn.disabled=true; btn.textContent='⏳ Import en cours…'; }
-  let count=0;
-  for(const r of importProduitsData){
-    await fbAdd('produits',{
-      // — Champs alignés catalogue —
-      nom:r.nom, ref:r.ref, cat:r.cat, pv:r.pv,
-      unite:r.unite||'pièce', desc:r.desc||'',
-      images:r.images||[], image:r.image||'',
-      // — Champs spécifiques produit —
-      prixPromo:r.prixPromo||0, slogan:r.slogan||'',
-      nouveau:r.nouveau||false, visible:r.visible!==false,
-      articleId: null,
-    });
-    count++;
-  }
-  closeM('m-import-produits');
-  importProduitsData=[]; importProduitsRaw=[];
-  notify(`✅ ${count} produit(s) importé(s) avec succès !`);
-  if(btn){ btn.disabled=false; btn.textContent='✓ Importer'; }
-};
-
-
 
 let catZoomId = null;
 let catZoomImgIndex = 0; // index de l'image affichée dans le zoom
@@ -8587,15 +8659,6 @@ async function parseXLSX(file){
 
 function normalizeRow(row){
   const get = (...keys) => { for(const k of keys){ if(row[k]!==undefined && row[k]!=='') return row[k]; } return ''; };
-  // Cotisation statut : "paye" / "oui" / "1" / "true" → paye, sinon non_paye
-  const cotisStatutRaw = (get('cotisation_statut','statut_cotisation','cotisation statut','statut cotis','adhesion_statut','statut adhesion')||'').toLowerCase().trim();
-  const cotisStatut = ['paye','payé','oui','yes','1','true','ok','payee','payée'].includes(cotisStatutRaw) ? 'paye' : 'non_paye';
-  // Montant cotisation (priorité sur adhesion si fourni)
-  const cotisMontant = parseFloat(get('cotisation_montant','montant_cotisation','cotisation montant','montant cotis','montant_adhesion','montant adhesion')) || 0;
-  // Mises déjà effectuées : montant total des versements antérieurs
-  const misesTotal = parseFloat(get('mises','mises_effectuees','mises effectuées','mises effectuees','versements','versements_anterieurs','versements anterieurs','montant_verse','montant verse','deja_verse','déjà versé')) || 0;
-  // Date de la mise historique (facultatif, sinon date de début du contrat)
-  const misesDate = normalizeDate(get('date_mise','date mise','date_versement','date versement'));
   return {
     nom:        get('nom','name','client','prénom nom','prenom nom'),
     tel:        get('telephone','téléphone','tel','phone','mobile','gsm','contact'),
@@ -8605,10 +8668,7 @@ function normalizeRow(row){
     montant:    parseFloat(get('montant','montant_total','montant total','prix','amount','valeur','total')) || 0,
     duree:      parseInt(get('duree','durée','jours','nb_jours','nb jours','days')) || 372,
     debut:      normalizeDate(get('debut','date_debut','date debut','date_contrat','date contrat','start')),
-    adhesion:   cotisMontant || parseFloat(get('adhesion','adhésion','droit_adhesion','droit adhesion','inscription')) || 0,
-    adhesionStatut: cotisStatut,
-    misesTotal,
-    misesDate,
+    adhesion:   parseFloat(get('adhesion','adhésion','droit_adhesion','droit adhesion','inscription')) || 0,
     codeClient: (get('code_client','code client','codeclient','code','id_client','id client','identifiant')||'').toString().trim().toUpperCase(),
   };
 }
@@ -8659,12 +8719,6 @@ function prepareImportPreview(rows){
       ? `<span style="font-size:10px;padding:1px 6px;border-radius:4px;font-weight:700;background:${doublon?'rgba(224,92,82,0.14)':'rgba(201,168,76,0.15)'};color:${doublon?'var(--danger)':'var(--accent)'};border:1px solid ${doublon?'rgba(247,97,79,0.4)':'rgba(201,168,76,0.35)'};">${r.codeClient}${doublon?' ⚠️':''}</span>`
       : `<span style="font-size:10px;color:var(--accent);font-style:italic;">auto</span>`;
     const statut = doublon ? sb('Doublon','sr') : sb('OK','sg');
-    const cotisBadge = r.adhesionStatut==='paye'
-      ? `<span style="font-size:10px;background:rgba(34,212,160,0.12);border:1px solid rgba(34,212,160,0.3);border-radius:4px;padding:1px 6px;color:var(--accent2);font-weight:600;">✓ Payé${r.adhesion>0?' · '+r.adhesion.toLocaleString('fr-FR'):''}</span>`
-      : `<span style="font-size:10px;background:rgba(224,92,82,0.1);border:1px solid rgba(224,92,82,0.25);border-radius:4px;padding:1px 6px;color:var(--danger);font-weight:600;">Non payé</span>`;
-    const misesBadge = r.misesTotal>0
-      ? `<span style="font-size:10px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.3);border-radius:4px;padding:1px 6px;color:var(--accent);font-weight:600;">💰 ${r.misesTotal.toLocaleString('fr-FR')}</span>`
-      : `<span style="font-size:10px;color:var(--muted);">—</span>`;
     return `<tr${doublon?' style="background:rgba(247,97,79,0.05);"':''}>
       <td class="tm">${i+1}</td>
       <td class="fw6">${r.nom}</td>
@@ -8672,12 +8726,10 @@ function prepareImportPreview(rows){
       <td>${r.ville||'—'}</td>
       <td style="font-size:11px">${r.contrat||'—'}</td>
       <td>${r.montant>0?fmt(r.montant):'—'}</td>
-      <td>${cotisBadge}</td>
-      <td>${misesBadge}</td>
       <td>${codeBadge}</td>
       <td>${statut}</td>
     </tr>`;
-  }).join('') + (importData.length>50?`<tr><td colspan="10" style="text-align:center;padding:10px;color:var(--muted);font-size:12px;">... et ${importData.length-50} autres lignes</td></tr>`:'');
+  }).join('') + (importData.length>50?`<tr><td colspan="8" style="text-align:center;padding:10px;color:var(--muted);font-size:12px;">... et ${importData.length-50} autres lignes</td></tr>`:'');
   openM('m-import-preview');
 }
 
@@ -8689,7 +8741,7 @@ window.confirmImport = async function(){
   // Détecter doublons dans le fichier lui-même
   const codesVusDansFichier = new Set();
 
-  let count=0, ignores=0, generes=0, misesCreees=0;
+  let count=0, ignores=0, generes=0;
   for(const r of importData){
     // ── Validation et assainissement des données importées ──
     const nom = String(r.nom||'').trim().slice(0,100);
@@ -8720,34 +8772,20 @@ window.confirmImport = async function(){
       generes++;
     }
 
-    const newClient = await fbAdd('clients',{
+    await fbAdd('clients',{
       nom, tel, ville, quartier,
       contrat, montantTotal: montant,
       duree, debut,
       note:'', commercialId:comId,
-      adhesion:r.adhesion||0, adhesionStatut: r.adhesionStatut||'non_paye',
+      adhesion:r.adhesion||0, adhesionStatut:'non_paye',
       codeClient, createdAt:TODAY, origine:'import'
     });
-    // ── Créer les mises historiques si un montant est fourni ──
-    if(r.misesTotal > 0 && newClient && newClient._id){
-      const miseDateFinal = /^\d{4}-\d{2}-\d{2}$/.test(r.misesDate) ? r.misesDate : debut;
-      await fbAdd('mises',{
-        clientId: newClient._id,
-        commercialId: comId,
-        montant: r.misesTotal,
-        date: miseDateFinal,
-        note: 'Mise importée — historique antérieur',
-        origine: 'import'
-      });
-      misesCreees++;
-    }
     count++;
   }
   closeM('m-import-preview');
   importData=[];
   let msg = `${count} client(s) importé(s) avec succès !`;
   if(generes>0) msg += ` (${generes} code(s) générés auto)`;
-  if(misesCreees>0) msg += ` — ${misesCreees} mise(s) historique(s) créée(s)`;
   if(ignores>0) msg += ` — ${ignores} ignoré(s) (doublon de code)`;
   notify(msg);
 };
@@ -8755,58 +8793,6 @@ window.confirmImport = async function(){
 // ========= IMPORT ARTICLES =========
 let importArticlesData = []; // lignes valides
 let importArticlesRaw  = []; // toutes les lignes parsées (pour aperçu complet)
-
-// ══════════════════════════════════════════
-//  TÉLÉCHARGER LE MODÈLE CLIENTS
-// ══════════════════════════════════════════
-window.downloadClientTemplate = async function(){
-  if(!window.XLSX){
-    await new Promise((res,rej)=>{
-      const s=document.createElement('script');
-      s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-      s.onload=res; s.onerror=rej;
-      document.head.appendChild(s);
-    });
-  }
-  const cols = [
-    'nom','telephone','ville','quartier','contrat','montant','duree','debut',
-    'adhesion','cotisation_statut','mises','date_mise','code_client'
-  ];
-  const exemple = [
-    ['KOUASSI Jean','0701234567','Abidjan','Cocody','Chauffe-eau 10L',45000,372,'2024-01-15',5000,'paye',12000,'2024-01-15',''],
-    ['DIALLO Fatou','0789876543','Bouaké','Centre','Réfrigérateur 200L',120000,372,'2024-03-01',8000,'non_paye',0,'',''],
-    ['BAMBA Sory','0606060606','Yamoussoukro','','Climatiseur 1CV',85000,312,'2024-06-01',5000,'paye',25500,'2024-06-01','COM0012'],
-  ];
-  const ws = XLSX.utils.aoa_to_sheet([cols, ...exemple]);
-  ws['!cols'] = [18,14,12,12,22,10,8,12,10,16,10,12,12].map(w=>({wch:w}));
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Clients');
-  // Feuille guide
-  const guide = XLSX.utils.aoa_to_sheet([
-    ['Colonne','Description','Obligatoire ?','Valeurs acceptées / Exemple'],
-    ['nom','Nom complet du client','OUI ✅','KOUASSI Jean'],
-    ['telephone','Numéro de téléphone','Non','0701234567'],
-    ['ville','Ville de résidence','Non','Abidjan'],
-    ['quartier','Quartier / adresse','Non','Cocody'],
-    ['contrat','Désignation du contrat / article','Non','Chauffe-eau 10L'],
-    ['montant','Montant total du contrat (FCFA)','Non','45000'],
-    ['duree','Durée du contrat en jours','Non (372 par défaut)','372 / 312 / 186'],
-    ['debut','Date de début du contrat','Non (aujourd\'hui par défaut)','2024-01-15 (format AAAA-MM-JJ)'],
-    ['adhesion','Montant de la cotisation/adhésion (FCFA)','Non','5000'],
-    ['cotisation_statut','Statut du paiement de la cotisation','Non (non_paye par défaut)','paye  ou  non_paye'],
-    ['mises','Montant total des mises déjà versées (FCFA)','Non','12000'],
-    ['date_mise','Date d\'enregistrement de la mise historique','Non (= date début si absent)','2024-01-15'],
-    ['code_client','Code client existant (laisser vide pour génération auto)','Non','COM0012'],
-    ['','','',''],
-    ['⚠️ Important','Les colonnes acceptent aussi les noms sans accent (ex: telephone ou téléphone).','',''],
-    ['','Les colonnes cotisation_statut et mises sont les nouveaux champs.','',''],
-    ['','Pour cotisation_statut : paye, payé, oui, yes, 1, true, ok sont tous acceptés.','',''],
-  ]);
-  guide['!cols'] = [{wch:20},{wch:50},{wch:22},{wch:40}];
-  XLSX.utils.book_append_sheet(wb, guide, 'Guide colonnes');
-  XLSX.writeFile(wb, 'modele_import_clients.xlsx');
-  notify('📥 Modèle clients téléchargé ✓');
-};
 
 // ══════════════════════════════════════════
 //  TÉLÉCHARGER LE MODÈLE
