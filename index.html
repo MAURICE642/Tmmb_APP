@@ -2497,11 +2497,15 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
           <tr><td><code style="color:var(--accent)">telephone</code> ou <code style="color:var(--accent)">tel</code></td><td>Numéro de téléphone</td><td style="color:var(--accent2)">✓ Oui</td></tr>
           <tr><td><code style="color:var(--accent)">ville</code></td><td>Ville du client</td><td style="color:var(--muted)">Non</td></tr>
           <tr><td><code style="color:var(--accent)">quartier</code></td><td>Quartier / adresse</td><td style="color:var(--muted)">Non</td></tr>
-          <tr><td><code style="color:var(--accent)">contrat</code></td><td>Désignation du contrat</td><td style="color:var(--muted)">Non</td></tr>
-          <tr><td><code style="color:var(--accent)">montant</code> ou <code style="color:var(--accent)">montant_total</code></td><td>Montant total du contrat (FCFA)</td><td style="color:var(--muted)">Non</td></tr>
+          <tr><td><code style="color:var(--accent)">contrat</code></td><td>Désignation du contrat — peut être vide (sera mis "À définir")</td><td style="color:var(--muted)">Non</td></tr>
+          <tr><td><code style="color:var(--accent)">montant</code> ou <code style="color:var(--accent)">montant_total</code></td><td>Montant total du contrat (FCFA) — peut être vide si contrat non défini</td><td style="color:var(--muted)">Non</td></tr>
+          <tr><td><code style="color:var(--accent2)">cotisation_jour</code></td><td>⭐ Cotisation journalière directe (FCFA). <strong style="color:var(--accent2)">Prioritaire</strong> sur le calcul automatique (montant÷durée). Permet d'importer sans contrat défini.</td><td style="color:var(--muted)">Non</td></tr>
           <tr><td><code style="color:var(--accent)">duree</code></td><td>Durée en jours (défaut: 365)</td><td style="color:var(--muted)">Non</td></tr>
           <tr><td><code style="color:var(--accent)">debut</code> ou <code style="color:var(--accent)">date_debut</code></td><td>Date de début (format: AAAA-MM-JJ)</td><td style="color:var(--muted)">Non</td></tr>
           <tr><td><code style="color:var(--accent)">adhesion</code></td><td>Montant droit d'adhésion</td><td style="color:var(--muted)">Non</td></tr>
+          <tr style="background:rgba(56,201,160,0.05)"><td><code style="color:var(--accent2)">montant_deja_paye</code></td><td>💰 Total des cotisations déjà versées par ce client. Un paiement d'historique sera créé automatiquement.</td><td style="color:var(--muted)">Non</td></tr>
+          <tr style="background:rgba(56,201,160,0.05)"><td><code style="color:var(--accent2)">date_dernier_paiement</code></td><td>💰 Date à associer au paiement reporté (format: AAAA-MM-JJ)</td><td style="color:var(--muted)">Non</td></tr>
+          <tr style="background:rgba(56,201,160,0.05)"><td><code style="color:var(--accent2)">note_paiement</code></td><td>💰 Note ou commentaire sur le paiement historique importé</td><td style="color:var(--muted)">Non</td></tr>
         </tbody>
       </table>
     </div>
@@ -2611,7 +2615,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     <div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Assigner à un commercial</div>
     <div class="fr" style="margin-bottom:12px;"><label>Commercial responsable de ces clients</label><select id="import-com" style="height:29px;"><option value="">— Sélectionner —</option></select></div>
     <div class="tw" style="max-height:280px;overflow-y:auto;margin-bottom:10px;">
-      <table><thead><tr><th>#</th><th>Nom</th><th>Téléphone</th><th>Ville</th><th>Contrat</th><th>Montant</th><th>Code client</th><th>Statut</th></tr></thead>
+      <table><thead><tr><th>#</th><th>Nom</th><th>Téléphone</th><th>Ville</th><th>Contrat</th><th>Cotis./j</th><th>Déjà payé</th><th>Code client</th><th>Statut</th></tr></thead>
       <tbody id="import-preview-body"></tbody></table>
     </div>
     <div id="import-errors" class="ib ib-red" style="display:none;"></div>
@@ -4080,7 +4084,7 @@ function livraisonsDansAgence(){
   const clIds = clientsDansAgence().map(c=>c._id);
   return DB.livraisons.filter(l=>clIds.includes(l.clientId));
 }
-function jm(cl){ return cl.montantTotal?Math.ceil(cl.montantTotal/cl.duree):0; }
+function jm(cl){ if(cl.cotisationJourFixe>0) return cl.cotisationJourFixe; return cl.montantTotal?Math.ceil(cl.montantTotal/cl.duree):0; }
 
 // Calcule le cumul des livraisons (articles livrés) à déduire du solde client
 function cumulLivraisons(clientId){
@@ -8660,16 +8664,21 @@ async function parseXLSX(file){
 function normalizeRow(row){
   const get = (...keys) => { for(const k of keys){ if(row[k]!==undefined && row[k]!=='') return row[k]; } return ''; };
   return {
-    nom:        get('nom','name','client','prénom nom','prenom nom'),
-    tel:        get('telephone','téléphone','tel','phone','mobile','gsm','contact'),
-    ville:      get('ville','city','localite','localité'),
-    quartier:   get('quartier','adresse','address','zone','secteur'),
-    contrat:    get('contrat','article','produit','designation','désignation','objet','description'),
-    montant:    parseFloat(get('montant','montant_total','montant total','prix','amount','valeur','total')) || 0,
-    duree:      parseInt(get('duree','durée','jours','nb_jours','nb jours','days')) || 372,
-    debut:      normalizeDate(get('debut','date_debut','date debut','date_contrat','date contrat','start')),
-    adhesion:   parseFloat(get('adhesion','adhésion','droit_adhesion','droit adhesion','inscription')) || 0,
-    codeClient: (get('code_client','code client','codeclient','code','id_client','id client','identifiant')||'').toString().trim().toUpperCase(),
+    nom:             get('nom','name','client','prénom nom','prenom nom'),
+    tel:             get('telephone','téléphone','tel','phone','mobile','gsm','contact'),
+    ville:           get('ville','city','localite','localité'),
+    quartier:        get('quartier','adresse','address','zone','secteur'),
+    contrat:         get('contrat','article','produit','designation','désignation','objet','description'),
+    montant:         parseFloat(get('montant','montant_total','montant total','prix','amount','valeur','total')) || 0,
+    cotisationJour:  parseFloat(get('cotisation_jour','cotisation jour','cotis_jour','cotis jour','mise_jour','mise jour','cotisation_journaliere','cotisation journaliere')) || 0,
+    duree:           parseInt(get('duree','durée','jours','nb_jours','nb jours','days')) || 372,
+    debut:           normalizeDate(get('debut','date_debut','date debut','date_contrat','date contrat','start')),
+    adhesion:        parseFloat(get('adhesion','adhésion','droit_adhesion','droit adhesion','inscription')) || 0,
+    codeClient:      (get('code_client','code client','codeclient','code','id_client','id client','identifiant')||'').toString().trim().toUpperCase(),
+    // Paiements déjà effectués
+    montantDejaPaye: parseFloat(get('montant_deja_paye','montant deja paye','montant_déjà_payé','montant déjà payé','deja_paye','deja paye','solde_initial','solde initial','paiement_initial','paiement initial')) || 0,
+    dateDernierPaiement: normalizeDate(get('date_dernier_paiement','date dernier paiement','date_paiement','date paiement','date_versement','date versement')),
+    notePaiement:    String(get('note_paiement','note paiement','note_versement','note versement','commentaire_paiement')||'').trim().slice(0,200),
   };
 }
 
@@ -8711,6 +8720,14 @@ function prepareImportPreview(rows){
   document.getElementById('import-com').innerHTML = '<option value="">— Sélectionner —</option>' +
     DB.commerciaux.filter(c=>c.role!=='admin').map(c=>'<option value="'+c._id+'">'+c.nom+'</option>').join('');
 
+  // Stats paiements
+  const nbAvecCotisJ = importData.filter(r=>r.cotisationJour>0).length;
+  const nbAvecPaiement = importData.filter(r=>r.montantDejaPaye>0).length;
+  if(nbAvecCotisJ>0 || nbAvecPaiement>0){
+    const extra = document.getElementById('import-preview-info');
+    extra.innerHTML += `<br><span style="font-size:11px;">💰 Avec cotis/jour définie : <strong style="color:var(--accent)">${nbAvecCotisJ}</strong> &nbsp;|&nbsp; Avec paiements à reporter : <strong style="color:var(--accent2)">${nbAvecPaiement}</strong></span>`;
+  }
+
   document.getElementById('import-preview-body').innerHTML = importData.slice(0,50).map((r,i)=>{
     const estDoublonFichier = r.codeClient && doublonsFichier.has(r.codeClient);
     const estDoublonBase    = r.codeClient && codesExistants.has(r.codeClient);
@@ -8719,17 +8736,24 @@ function prepareImportPreview(rows){
       ? `<span style="font-size:10px;padding:1px 6px;border-radius:4px;font-weight:700;background:${doublon?'rgba(224,92,82,0.14)':'rgba(201,168,76,0.15)'};color:${doublon?'var(--danger)':'var(--accent)'};border:1px solid ${doublon?'rgba(247,97,79,0.4)':'rgba(201,168,76,0.35)'};">${r.codeClient}${doublon?' ⚠️':''}</span>`
       : `<span style="font-size:10px;color:var(--accent);font-style:italic;">auto</span>`;
     const statut = doublon ? sb('Doublon','sr') : sb('OK','sg');
+    const cotisCell = r.cotisationJour>0
+      ? `<span class="cotis-badge" style="font-size:10px;">💰 ${fmt(r.cotisationJour)}</span>`
+      : (r.montant>0 ? `<span style="font-size:10px;color:var(--muted);font-style:italic;">${fmt(Math.ceil(r.montant/r.duree))}/j</span>` : '—');
+    const paiCell = r.montantDejaPaye>0
+      ? `<span style="font-size:10px;color:var(--accent2);font-weight:700;">+${fmt(r.montantDejaPaye)}</span>`
+      : '<span style="color:var(--muted);font-size:10px;">—</span>';
     return `<tr${doublon?' style="background:rgba(247,97,79,0.05);"':''}>
       <td class="tm">${i+1}</td>
       <td class="fw6">${r.nom}</td>
       <td>${r.tel||'—'}</td>
       <td>${r.ville||'—'}</td>
-      <td style="font-size:11px">${r.contrat||'—'}</td>
-      <td>${r.montant>0?fmt(r.montant):'—'}</td>
+      <td style="font-size:11px">${r.contrat||'<span style="color:var(--muted);font-style:italic;">À définir</span>'}</td>
+      <td>${cotisCell}</td>
+      <td>${paiCell}</td>
       <td>${codeBadge}</td>
       <td>${statut}</td>
     </tr>`;
-  }).join('') + (importData.length>50?`<tr><td colspan="8" style="text-align:center;padding:10px;color:var(--muted);font-size:12px;">... et ${importData.length-50} autres lignes</td></tr>`:'');
+  }).join('') + (importData.length>50?`<tr><td colspan="9" style="text-align:center;padding:10px;color:var(--muted);font-size:12px;">... et ${importData.length-50} autres lignes</td></tr>`:'');
   openM('m-import-preview');
 }
 
@@ -8741,7 +8765,7 @@ window.confirmImport = async function(){
   // Détecter doublons dans le fichier lui-même
   const codesVusDansFichier = new Set();
 
-  let count=0, ignores=0, generes=0;
+  let count=0, ignores=0, generes=0, paiementsReportes=0;
   for(const r of importData){
     // ── Validation et assainissement des données importées ──
     const nom = String(r.nom||'').trim().slice(0,100);
@@ -8750,6 +8774,8 @@ window.confirmImport = async function(){
     const quartier = String(r.quartier||'').trim().slice(0,80);
     const contrat  = String(r.contrat||'À définir').trim().slice(0,200);
     const montant  = Math.max(0, Math.min(Number(r.montant)||0, 999999999));
+    // Cotisation journalière : priorité au champ direct, sinon calculé depuis montant/durée
+    const cotisationJour = r.cotisationJour > 0 ? Math.max(0, Math.min(Number(r.cotisationJour), 999999)) : 0;
     const duree    = Math.max(1, Math.min(Number(r.duree)||372, 3650));
     const debut    = /^\d{4}-\d{2}-\d{2}$/.test(r.debut) ? r.debut : TODAY;
     if(!nom){ ignores++; continue; } // Ignorer les lignes sans nom
@@ -8772,20 +8798,44 @@ window.confirmImport = async function(){
       generes++;
     }
 
-    await fbAdd('clients',{
+    const clientDoc = {
       nom, tel, ville, quartier,
       contrat, montantTotal: montant,
       duree, debut,
       note:'', commercialId:comId,
       adhesion:r.adhesion||0, adhesionStatut:'non_paye',
       codeClient, createdAt:TODAY, origine:'import'
-    });
+    };
+    // Stocker la cotisation journalière directe si fournie
+    if(cotisationJour > 0) clientDoc.cotisationJourFixe = cotisationJour;
+
+    const clientRef = await fbAdd('clients', clientDoc);
+
+    // ── Reporter les paiements déjà effectués ──
+    const montantDejaPaye = Math.max(0, Math.min(Number(r.montantDejaPaye)||0, 999999999));
+    if(montantDejaPaye > 0){
+      const datePai = /^\d{4}-\d{2}-\d{2}$/.test(r.dateDernierPaiement) ? r.dateDernierPaiement : debut;
+      const cotisRef = cotisationJour > 0 ? cotisationJour : (montant > 0 ? Math.ceil(montant/duree) : 0);
+      await fbAdd('paiements',{
+        clientId: clientRef,
+        commercialId: comId,
+        cotisJour: cotisRef,
+        montant: montantDejaPaye,
+        date: datePai,
+        heure: '00:00',
+        note: r.notePaiement || 'Paiement reporté à l\'import',
+        origine: 'import_historique'
+      });
+      paiementsReportes++;
+    }
+
     count++;
   }
   closeM('m-import-preview');
   importData=[];
   let msg = `${count} client(s) importé(s) avec succès !`;
   if(generes>0) msg += ` (${generes} code(s) générés auto)`;
+  if(paiementsReportes>0) msg += ` — ${paiementsReportes} paiement(s) historique(s) reporté(s)`;
   if(ignores>0) msg += ` — ${ignores} ignoré(s) (doublon de code)`;
   notify(msg);
 };
