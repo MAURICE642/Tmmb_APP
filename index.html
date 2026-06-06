@@ -1255,6 +1255,8 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
           <option value="sortie">📤 Sorties</option>
         </select>
         <button class="btn btn-primary btn-sm" onclick="openM('m-stock-mvt')">+ Mouvement</button>
+        <label class="btn btn-ghost btn-sm" style="cursor:pointer;margin:0;" id="btn-import-mvt-wrap">📥 Import Excel/CSV<input type="file" id="import-mvt-file" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleImportMvts(event)"></label>
+        <button class="btn btn-ghost btn-sm" onclick="downloadMvtTemplate()" title="Télécharger le modèle à remplir">📋 Modèle</button>
       </div>
     </div>
     <div id="stock-mvt-panel">
@@ -2188,6 +2190,26 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     </div>
     <div class="fr"><label>Note (optionnel)</label><input type="text" id="mvt-note" placeholder="Fournisseur, motif complémentaire..."></div>
     <div class="ma"><button class="btn btn-ghost" onclick="closeM('m-stock-mvt')">Annuler</button><button class="btn btn-primary" onclick="saveMvt()">Enregistrer</button></div>
+  </div>
+</div>
+
+<!-- IMPORT MOUVEMENTS DE STOCK -->
+<div class="mo" id="m-import-mvt">
+  <div class="md md-lg">
+    <div class="md-title">📥 Import de mouvements de stock</div>
+    <div id="import-mvt-kpi" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;"></div>
+    <div id="import-mvt-info" class="ib ib-blue" style="margin-bottom:8px;font-size:12px;"></div>
+    <div id="import-mvt-warns" class="ib ib-yellow" style="display:none;margin-bottom:8px;font-size:12px;"></div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Aperçu des 50 premières lignes :</div>
+    <div class="tw" style="max-height:300px;overflow-y:auto;">
+      <table><thead><tr>
+        <th>#</th><th>Article (réf. / nom)</th><th>Type</th><th>Qté</th><th>Date</th><th>Note</th><th>Statut</th>
+      </tr></thead><tbody id="import-mvt-body"></tbody></table>
+    </div>
+    <div class="ma">
+      <button class="btn btn-ghost" onclick="closeM('m-import-mvt');importMvtData=[];">Annuler</button>
+      <button class="btn btn-primary" id="btn-confirm-import-mvt" onclick="confirmImportMvts()">✅ Importer</button>
+    </div>
   </div>
 </div>
 
@@ -8931,6 +8953,195 @@ window.handleImportArticles = async function(event){
     prepareImportArticlesPreview(rows);
   } catch(e){ notify('Erreur de lecture : '+e.message,'err'); }
   event.target.value='';
+};
+
+// ═══════════════════════════════════════════════
+//  IMPORT MOUVEMENTS DE STOCK
+// ═══════════════════════════════════════════════
+let importMvtData = [];
+
+window.handleImportMvts = async function(event){
+  if(!['admin','gestionnaire_stock'].includes(session?.role)){ notify('Accès non autorisé','err'); return; }
+  const file = event.target.files[0];
+  if(!file) return;
+  const ext = file.name.split('.').pop().toLowerCase();
+  try{
+    let rows = [];
+    if(ext==='csv'){ rows = await parseCSV(file); }
+    else if(ext==='xlsx'||ext==='xls'){ rows = await parseXLSX(file); }
+    else { notify('Format non supporté. Utilisez .csv ou .xlsx','err'); return; }
+    if(!rows||rows.length===0){ notify('Fichier vide ou non lisible','err'); return; }
+    prepareImportMvtPreview(rows);
+  } catch(e){ notify('Erreur de lecture : '+e.message,'err'); }
+  event.target.value='';
+};
+
+function normalizeArticleForMvt(valeur){
+  // Cherche par ref exacte d'abord, puis par ref partielle, puis par nom
+  const v = (valeur||'').trim().toLowerCase();
+  if(!v) return null;
+  return DB.articles.find(a=>(a.ref||'').toLowerCase()===v)
+    || DB.articles.find(a=>(a.ref||'').toLowerCase().includes(v))
+    || DB.articles.find(a=>(a.nom||'').toLowerCase()===v)
+    || DB.articles.find(a=>(a.nom||'').toLowerCase().includes(v))
+    || null;
+}
+
+function normalizeMvtRow(row){
+  const get = (...keys) => { for(const k of keys){ const v=row[k]; if(v!==undefined&&String(v).trim()!=='') return String(v).trim(); } return ''; };
+  const typeRaw = (get('type','mouvement','sens','operation','opération')||'').toLowerCase();
+  let type = 'entree';
+  if(typeRaw.includes('sort')||typeRaw.includes('out')||typeRaw==='-') type='sortie';
+  else if(typeRaw.includes('entr')||typeRaw.includes('in')||typeRaw==='+') type='entree';
+  return {
+    articleVal: get('article','ref','référence','reference','code','code_article','designation','désignation','nom'),
+    type,
+    qty:        Math.abs(parseInt(get('quantite','quantité','qty','qte','qté','nombre','nb'))||0),
+    date:       normalizeDate(get('date','date_mvt','date mvt')),
+    note:       get('note','notes','motif','commentaire','observation').slice(0,200),
+    destination:get('destination','agence','dest','destinataire').slice(0,100),
+  };
+}
+
+function prepareImportMvtPreview(rows){
+  const normalized = rows.map(normalizeMvtRow);
+  const annotated = normalized.map((r,i)=>{
+    const art = normalizeArticleForMvt(r.articleVal);
+    const erreurs = [];
+    if(!r.articleVal) erreurs.push('Article manquant');
+    else if(!art) erreurs.push(`Article "${r.articleVal}" introuvable`);
+    if(r.qty<=0) erreurs.push('Quantité nulle ou invalide');
+    if(r.type==='sortie'&&art&&r.qty>art.stock) erreurs.push(`Stock insuffisant (dispo: ${art.stock})`);
+    return {...r, art, erreurs, statut: erreurs.length?'erreur':'ok'};
+  });
+
+  importMvtData = annotated.filter(r=>r.statut==='ok');
+  const erreurs = annotated.filter(r=>r.statut==='erreur');
+  const nbEntrees = importMvtData.filter(r=>r.type==='entree').length;
+  const nbSorties = importMvtData.filter(r=>r.type==='sortie').length;
+
+  document.getElementById('import-mvt-kpi').innerHTML=`
+    <div style="background:var(--surface2);border-radius:9px;padding:10px;text-align:center;border:1px solid var(--border);">
+      <div style="font-size:18px;font-weight:800;color:var(--text);">${rows.length}</div>
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">Lignes lues</div>
+    </div>
+    <div style="background:rgba(34,212,160,0.08);border-radius:9px;padding:10px;text-align:center;border:1px solid rgba(34,212,160,0.25);">
+      <div style="font-size:18px;font-weight:800;color:var(--accent2);">${importMvtData.length}</div>
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">✅ À importer</div>
+    </div>
+    <div style="background:rgba(201,168,76,0.08);border-radius:9px;padding:10px;text-align:center;border:1px solid rgba(201,168,76,0.2);">
+      <div style="font-size:18px;font-weight:800;color:var(--accent);">📥${nbEntrees} / 📤${nbSorties}</div>
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">Entrées / Sorties</div>
+    </div>
+    <div style="background:rgba(224,92,82,0.08);border-radius:9px;padding:10px;text-align:center;border:1px solid rgba(224,92,82,0.25);">
+      <div style="font-size:18px;font-weight:800;color:var(--danger);">${erreurs.length}</div>
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">❌ Erreurs</div>
+    </div>`;
+
+  document.getElementById('import-mvt-info').innerHTML =
+    `<strong>${rows.length}</strong> ligne(s) lues — <strong style="color:var(--accent2)">${importMvtData.length} mouvement(s) prêts</strong>`+
+    (erreurs.length?` — <strong style="color:var(--danger)">${erreurs.length} ligne(s) en erreur (ignorées)</strong>`:'');
+
+  const warnsEl = document.getElementById('import-mvt-warns');
+  if(erreurs.length){
+    warnsEl.style.display='';
+    warnsEl.innerHTML = `⚠️ Lignes ignorées :<ul style="margin:6px 0 0 16px;font-size:11px;">`+
+      erreurs.slice(0,10).map(r=>`<li>${r.articleVal||'(sans article)'} — ${r.erreurs.join(', ')}</li>`).join('')+
+      (erreurs.length>10?`<li>... et ${erreurs.length-10} autre(s)</li>`:'')+`</ul>`;
+  } else { warnsEl.style.display='none'; }
+
+  const btnConfirm = document.getElementById('btn-confirm-import-mvt');
+  if(btnConfirm) btnConfirm.disabled = importMvtData.length===0;
+
+  document.getElementById('import-mvt-body').innerHTML = annotated.slice(0,50).map((r,i)=>{
+    const artNom = r.art ? `<span style="font-weight:600;color:var(--text);">${esc(r.art.nom)}</span><br><span style="font-size:10px;color:var(--accent);">${esc(r.art.ref||'—')}</span>` : `<span style="color:var(--danger);font-size:11px;">${esc(r.articleVal)||'—'}</span>`;
+    const typeBadge = r.type==='entree'
+      ? `<span style="background:rgba(34,212,160,0.12);border:1px solid rgba(34,212,160,0.3);color:var(--accent2);border-radius:5px;padding:2px 7px;font-size:10px;font-weight:700;">📥 Entrée</span>`
+      : `<span style="background:rgba(212,137,58,0.12);border:1px solid rgba(212,137,58,0.3);color:var(--warn);border-radius:5px;padding:2px 7px;font-size:10px;font-weight:700;">📤 Sortie</span>`;
+    const statutBadge = r.statut==='ok'
+      ? `<span style="background:rgba(34,212,160,0.1);border:1px solid rgba(34,212,160,0.25);color:var(--accent2);border-radius:5px;padding:2px 7px;font-size:10px;font-weight:700;">✅ OK</span>`
+      : `<span style="background:rgba(224,92,82,0.1);border:1px solid rgba(224,92,82,0.25);color:var(--danger);border-radius:5px;padding:2px 7px;font-size:10px;font-weight:700;" title="${esc(r.erreurs.join(', '))}">❌ Erreur</span>`;
+    return `<tr${r.statut!=='ok'?' style="background:rgba(247,97,79,0.05);"':''}>
+      <td class="tm">${i+1}</td>
+      <td>${artNom}</td>
+      <td>${typeBadge}</td>
+      <td style="font-weight:700;color:var(--text);">${r.qty||'—'}</td>
+      <td style="font-size:11px;color:var(--subtle);">${r.date||'—'}</td>
+      <td style="font-size:11px;color:var(--muted);">${esc(r.note||r.destination||'—')}</td>
+      <td>${statutBadge}</td>
+    </tr>`;
+  }).join('')+(annotated.length>50?`<tr><td colspan="7" style="text-align:center;padding:10px;color:var(--muted);font-size:12px;">... et ${annotated.length-50} autres lignes</td></tr>`:'');
+
+  openM('m-import-mvt');
+}
+
+window.confirmImportMvts = async function(){
+  if(!importMvtData.length){ notify('Aucun mouvement valide à importer','err'); return; }
+  if(!['admin','gestionnaire_stock'].includes(session?.role)){ notify('Accès non autorisé','err'); return; }
+  let count=0, errCount=0;
+  // Traiter ligne par ligne pour mettre à jour le stock en cascade
+  for(const r of importMvtData){
+    try{
+      // Re-chercher l'article (stock peut avoir changé)
+      const art = DB.articles.find(a=>a._id===r.art._id);
+      if(!art){ errCount++; continue; }
+      if(r.type==='sortie'&&r.qty>art.stock){ errCount++; continue; }
+      const delta = r.type==='entree' ? r.qty : -r.qty;
+      const newStock = Math.max(0, art.stock + delta);
+      await fbUpdate('articles', art._id, {stock: newStock});
+      // Mettre à jour le cache local immédiatement
+      art.stock = newStock;
+      const mvtDoc = {
+        articleId: art._id,
+        type: r.type,
+        qty: r.qty,
+        stockApres: newStock,
+        date: r.date || TODAY,
+        note: r.note || (r.destination ? `Import — Destination : ${r.destination}` : 'Importé depuis Excel/CSV'),
+        origine: 'import',
+      };
+      if(r.destination) mvtDoc.destinationLibre = r.destination;
+      await fbAdd('stockMvts', mvtDoc);
+      count++;
+    } catch(e){ errCount++; }
+  }
+  closeM('m-import-mvt');
+  importMvtData=[];
+  let msg = `✅ ${count} mouvement(s) importé(s) avec succès !`;
+  if(errCount>0) msg += ` — ${errCount} échec(s)`;
+  notify(msg, errCount>0?'':'ok');
+};
+
+window.downloadMvtTemplate = async function(){
+  if(!window.XLSX){
+    await new Promise((res,rej)=>{
+      const s=document.createElement('script');
+      s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      s.onload=res; s.onerror=rej;
+      document.head.appendChild(s);
+    });
+  }
+  const artExemples = DB.articles.slice(0,3).map(a=>a.ref||a.nom);
+  const rows = [
+    ['article','type','quantite','date','note','destination'],
+    [artExemples[0]||'REF-001','entree',10,TODAY,'Réapprovisionnement fournisseur',''],
+    [artExemples[1]||'REF-002','sortie',5,TODAY,'Envoi agence','Agence Nord'],
+    [artExemples[2]||'REF-003','entree',20,TODAY,'Livraison initiale',''],
+    ['','','','','',''],
+    ['=== AIDE ===','','','','',''],
+    ['article','Référence (ref) ou nom exact de l\'article','','','',''],
+    ['type','entree OU sortie','','','',''],
+    ['quantite','Nombre entier positif','','','',''],
+    ['date','Format JJ/MM/AAAA ou AAAA-MM-JJ (laisser vide = aujourd\'hui)','','','',''],
+    ['note','Commentaire libre (optionnel)','','','',''],
+    ['destination','Agence / motif de sortie (optionnel)','','','',''],
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{wch:22},{wch:10},{wch:12},{wch:16},{wch:35},{wch:22}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Mouvements');
+  XLSX.writeFile(wb, 'modele_import_mouvements.xlsx');
+  notify('📋 Modèle téléchargé','ok');
 };
 
 function normalizeArticleRow(row){
