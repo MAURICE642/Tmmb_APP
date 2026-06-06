@@ -368,7 +368,8 @@
 .art-card-img{width:100%;height:140px;object-fit:cover;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:42px;}
 .art-card-img img{width:100%;height:140px;object-fit:cover;display:block;}
 .art-card-body{padding:10px 12px;}
-.art-card-ref{font-size:9.5px;color:var(--muted);margin-bottom:2px;}
+.art-card-ref{font-size:10px;color:var(--accent);font-weight:700;margin-bottom:4px;letter-spacing:0.3px;}
+.art-card-ref-badge{display:inline-block;background:rgba(201,168,76,0.13);border:1px solid rgba(201,168,76,0.3);border-radius:5px;padding:1px 7px;font-size:10px;color:var(--accent);font-weight:700;letter-spacing:0.5px;margin-bottom:5px;}
 .art-card-nom{font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .art-card-prix{font-size:14px;font-weight:800;color:var(--accent2);}
 .art-card-stock{font-size:10px;margin-top:4px;}
@@ -1140,9 +1141,12 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     </div>
     <!-- Barre recherche + tri -->
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
-      <input type="text" id="art-search" placeholder="🔍  Rechercher par réf., nom, catégorie..."
-        style="flex:1;min-width:200px;max-width:400px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 14px;color:var(--text);font-size:13px;outline:none;"
+      <input type="text" id="art-search" placeholder="🔍  Rechercher par nom, catégorie..."
+        style="flex:1;min-width:180px;max-width:340px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 14px;color:var(--text);font-size:13px;outline:none;"
         oninput="renderArticles()">
+      <input type="text" id="art-filter-ref" placeholder="🏷️ Filtrer par code / réf."
+        style="width:180px;background:var(--surface2);border:1px solid rgba(201,168,76,0.35);border-radius:8px;padding:7px 14px;color:var(--accent);font-size:12px;font-weight:600;outline:none;letter-spacing:0.3px;"
+        oninput="renderArticles()" title="Filtrer par code ou référence article">
       <select id="art-sort" onchange="renderArticles()"
         style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:6px 10px;color:var(--text);font-size:11px;outline:none;">
         <option value="nom">Trier : Nom A→Z</option>
@@ -1169,9 +1173,12 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     <div class="sec-hdr no-print" id="produits-hdr">
       <div class="sec-title">Produits</div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        <input type="text" id="prod-search" placeholder="🔍 Rechercher un produit..."
-          style="flex:1;min-width:180px;max-width:340px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 14px;color:var(--text);font-size:13px;outline:none;"
+        <input type="text" id="prod-search" placeholder="🔍 Rechercher par nom, catégorie..."
+          style="flex:1;min-width:180px;max-width:280px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 14px;color:var(--text);font-size:13px;outline:none;"
           oninput="renderProduits()">
+        <input type="text" id="prod-filter-ref" placeholder="🏷️ Code / réf."
+          style="width:150px;background:var(--surface2);border:1px solid rgba(201,168,76,0.35);border-radius:8px;padding:7px 14px;color:var(--accent);font-size:12px;font-weight:600;outline:none;letter-spacing:0.3px;"
+          oninput="renderProduits()" title="Filtrer par code ou référence produit">
         <select id="prod-sort" onchange="renderProduits()"
           style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:6px 11px;color:var(--text);font-size:12px;outline:none;">
           <option value="nom">🔤 Nom (A→Z)</option>
@@ -5053,6 +5060,7 @@ function renderProduits() {
   if (adminBtns) adminBtns.style.display = canEdit ? 'flex' : 'none';
 
   const search = (document.getElementById('prod-search')?.value || '').toLowerCase().trim();
+  const searchRef = (document.getElementById('prod-filter-ref')?.value || '').toLowerCase().trim();
   const sort   = document.getElementById('prod-sort')?.value || 'nom';
 
   // Catégories
@@ -5073,9 +5081,9 @@ function renderProduits() {
   if (search) prods = prods.filter(p =>
     (p.nom||'').toLowerCase().includes(search) ||
     (p.cat||'').toLowerCase().includes(search) ||
-    (p.desc||'').toLowerCase().includes(search) ||
-    (p.ref||'').toLowerCase().includes(search)
+    (p.desc||'').toLowerCase().includes(search)
   );
+  if (searchRef) prods = prods.filter(p => (p.ref||'').toLowerCase().includes(searchRef));
 
   if (sort === 'nom') prods.sort((a,b) => (a.nom||'').localeCompare(b.nom||''));
   else if (sort === 'prix-asc') prods.sort((a,b) => (a.prix||0) - (b.prix||0));
@@ -5110,6 +5118,9 @@ function renderProduits() {
     return `<div class="prod-card" onclick="ouvrirZoomProduit('${p._id}')">
       <div class="prod-card-img">${imgHtml}</div>
       <div class="prod-card-body">
+        <div style="margin-bottom:5px;">
+          ${p.ref ? `<span style="display:inline-block;background:rgba(201,168,76,0.13);border:1px solid rgba(201,168,76,0.3);border-radius:5px;padding:1px 8px;font-size:10px;color:var(--accent);font-weight:700;letter-spacing:0.5px;">🏷️ ${esc(p.ref)}</span>` : `<span style="font-size:9px;color:var(--muted);font-style:italic;">Sans réf.</span>`}
+        </div>
         ${p.cat ? `<div class="prod-card-cat">${p.cat}</div>` : ''}
         <div class="prod-card-nom">${p.nom||'—'}</div>
         ${p.desc ? `<div class="prod-card-desc">${p.desc}</div>` : ''}
@@ -6091,10 +6102,12 @@ window.setArtView = function(mode){
 function renderArticles(){
   // ── Recherche ──
   const q = (document.getElementById('art-search')?.value||'').toLowerCase().trim();
+  const qRef = (document.getElementById('art-filter-ref')?.value||'').toLowerCase().trim();
   // ── Tri ──
   const sort = document.getElementById('art-sort')?.value || 'nom';
   let arts = [...DB.articles];
-  if(q) arts = arts.filter(a=>(a.nom||'').toLowerCase().includes(q)||(a.ref||'').toLowerCase().includes(q)||(a.cat||'').toLowerCase().includes(q));
+  if(q) arts = arts.filter(a=>(a.nom||'').toLowerCase().includes(q)||(a.cat||'').toLowerCase().includes(q));
+  if(qRef) arts = arts.filter(a=>(a.ref||'').toLowerCase().includes(qRef));
   arts.sort((a,b)=>{
     if(sort==='ref') return (a.ref||'').localeCompare(b.ref||'');
     if(sort==='pv_asc') return (a.pv||0)-(b.pv||0);
@@ -6118,11 +6131,13 @@ function renderArticles(){
             <button class="btn btn-ghost btn-xs" style="flex:1;" onclick="editArt('${a._id}')">✏️ Modifier</button>
             <button class="btn btn-xs btn-warn" onclick="delArt('${a._id}')">🗑</button>
           </div>` : '';
+        const refBadge = a.ref ? `<span class="art-card-ref-badge">🏷️ ${esc(a.ref)}</span>` : `<span style="font-size:9px;color:var(--muted);font-style:italic;">Sans réf.</span>`;
         return `<div class="art-card" onclick="ouvrirArtModal('${a._id}')">
           ${imgHtml}
           <div class="art-card-body">
-            <div class="art-card-ref">${a.ref||'—'} · ${a.cat||'—'}</div>
-            <div class="art-card-nom" title="${a.nom}">${a.nom}</div>
+            <div style="margin-bottom:3px;">${refBadge}</div>
+            <div class="art-card-nom" title="${a.nom}">${esc(a.nom)}</div>
+            <div style="font-size:9.5px;color:var(--muted);margin-bottom:4px;">${esc(a.cat||'—')}</div>
             <div class="art-card-prix">${fmt(a.pv)}</div>
             <div class="art-card-stock" style="color:${stockColor}">Stock : ${a.stock} ${a.unite||'pcs'} ${stockStatut(a)}</div>
           </div>
@@ -6137,7 +6152,7 @@ function renderArticles(){
         ? `<img src="${a.image}" alt="" style="width:38px;height:38px;object-fit:cover;border-radius:6px;cursor:pointer;" onclick="ouvrirArtModal('${a._id}')">`
         : `<div style="width:38px;height:38px;border-radius:6px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer;" onclick="ouvrirArtModal('${a._id}')">${catEmoji(a.cat)}</div>`}
     </td>
-    <td><span class="tag">${esc(a.ref)}</span></td><td class="fw6">${esc(a.nom)}</td><td class="tm">${esc(a.cat)}</td>
+    <td><span style="display:inline-block;background:rgba(201,168,76,0.13);border:1px solid rgba(201,168,76,0.3);border-radius:5px;padding:2px 8px;font-size:11px;color:var(--accent);font-weight:700;letter-spacing:0.3px;">${esc(a.ref)||'—'}</span></td><td class="fw6">${esc(a.nom)}</td><td class="tm">${esc(a.cat)}</td>
     <td class="fw6">${fmt(a.pv)}</td><td class="tm">${fmt(a.pa)}</td>
     <td><div style="font-weight:700;color:${a.stock<=0?'var(--danger)':a.stock<=a.stockMin?'var(--accent3)':'var(--accent2)'}">${a.stock} ${a.unite}</div><div class="stock-bar"><div class="stock-fill" style="width:${Math.min(100,a.stock*100/((a.stockMin*3)||1))}%;background:${a.stock<=0?'var(--danger)':a.stock<=a.stockMin?'var(--accent3)':'var(--accent2)'}"></div></div></td>
     <td class="tm">${a.stockMin}</td><td>${stockStatut(a)}</td>
@@ -8674,6 +8689,7 @@ function normalizeRow(row){
     duree:           parseInt(get('duree','durée','jours','nb_jours','nb jours','days')) || 372,
     debut:           normalizeDate(get('debut','date_debut','date debut','date_contrat','date contrat','start')),
     adhesion:        parseFloat(get('adhesion','adhésion','droit_adhesion','droit adhesion','inscription')) || 0,
+    adhesionStatut:  (()=>{ const v=(get('adhesion_statut','adhesionstatut','statut_adhesion','statut adhesion','adhesion_paye','adhesion paye')||'').toLowerCase().trim(); return (v==='paye'||v==='payé'||v==='oui'||v==='yes'||v==='paid'||v==='1')?'paye':'non_paye'; })(),
     codeClient:      (get('code_client','code client','codeclient','code','id_client','id client','identifiant')||'').toString().trim().toUpperCase(),
     // Paiements déjà effectués
     montantDejaPaye: parseFloat(get('montant_deja_paye','montant deja paye','montant_déjà_payé','montant déjà payé','deja_paye','deja paye','solde_initial','solde initial','paiement_initial','paiement initial')) || 0,
@@ -8684,9 +8700,9 @@ function normalizeRow(row){
 
 function normalizeDate(d){
   if(!d) return TODAY;
-  if(/^\d{8}-\d{2}-\d{2}$/.test(d)) return d;
-  if(/^\d{2}\/\d{2}\/\d{8}$/.test(d)){ const p=d.split('/'); return p[2]+'-'+p[1]+'-'+p[0]; }
-  if(/^\d{2}-\d{2}-\d{8}$/.test(d)){ const p=d.split('-'); return p[2]+'-'+p[1]+'-'+p[0]; }
+  if(/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+  if(/^\d{2}\/\d{2}\/\d{4}$/.test(d)){ const p=d.split('/'); return p[2]+'-'+p[1]+'-'+p[0]; }
+  if(/^\d{2}-\d{2}-\d{4}$/.test(d)){ const p=d.split('-'); return p[2]+'-'+p[1]+'-'+p[0]; }
   const dt=new Date(d);
   if(!isNaN(dt)) return dt.toISOString().split('T')[0];
   return TODAY;
@@ -8742,6 +8758,9 @@ function prepareImportPreview(rows){
     const paiCell = r.montantDejaPaye>0
       ? `<span style="font-size:10px;color:var(--accent2);font-weight:700;">+${fmt(r.montantDejaPaye)}</span>`
       : '<span style="color:var(--muted);font-size:10px;">—</span>';
+    const adhBadge = r.adhesionStatut==='paye'
+      ? `<span style="font-size:10px;padding:1px 6px;border-radius:4px;font-weight:700;background:rgba(34,212,160,0.12);color:var(--accent2);border:1px solid rgba(34,212,160,0.3);">✓ Payé</span>`
+      : `<span style="font-size:10px;padding:1px 6px;border-radius:4px;font-weight:700;background:rgba(224,92,82,0.1);color:var(--danger);border:1px solid rgba(224,92,82,0.25);">Non payé</span>`;
     return `<tr${doublon?' style="background:rgba(247,97,79,0.05);"':''}>
       <td class="tm">${i+1}</td>
       <td class="fw6">${r.nom}</td>
@@ -8750,6 +8769,8 @@ function prepareImportPreview(rows){
       <td style="font-size:11px">${r.contrat||'<span style="color:var(--muted);font-style:italic;">À définir</span>'}</td>
       <td>${cotisCell}</td>
       <td>${paiCell}</td>
+      <td style="font-size:10px;color:var(--subtle);">${r.debut||'—'}</td>
+      <td>${adhBadge}</td>
       <td>${codeBadge}</td>
       <td>${statut}</td>
     </tr>`;
@@ -8803,7 +8824,7 @@ window.confirmImport = async function(){
       contrat, montantTotal: montant,
       duree, debut,
       note:'', commercialId:comId,
-      adhesion:r.adhesion||0, adhesionStatut:'non_paye',
+      adhesion:r.adhesion||0, adhesionStatut:r.adhesionStatut||'non_paye',
       codeClient, createdAt:TODAY, origine:'import'
     };
     // Stocker la cotisation journalière directe si fournie
