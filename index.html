@@ -368,7 +368,15 @@
 .art-card-img{width:100%;height:140px;object-fit:cover;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:42px;}
 .art-card-img img{width:100%;height:140px;object-fit:cover;display:block;}
 .art-card-body{padding:10px 12px;}
-.art-card-ref{font-size:10px;color:var(--accent);font-weight:700;margin-bottom:4px;letter-spacing:0.3px;}
+.dash-section{background:var(--surface);border:1px solid var(--border);border-radius:14px;margin-bottom:14px;overflow:hidden;transition:box-shadow 0.2s;}
+.dash-section:hover{box-shadow:0 2px 12px rgba(0,0,0,0.18);}
+.dash-sec-hdr{display:flex;align-items:center;justify-content:space-between;padding:13px 18px;cursor:pointer;user-select:none;gap:10px;background:var(--surface);transition:background 0.15s;}
+.dash-sec-hdr:hover{background:var(--surface2);}
+.dash-sec-title{font-size:13px;font-weight:700;color:var(--text);flex:1;}
+.dash-chevron{font-size:14px;color:var(--muted);transition:transform 0.25s;display:inline-block;line-height:1;}
+.dash-section.collapsed .dash-chevron{transform:rotate(-90deg);}
+.dash-sec-body{padding:14px 18px 16px;border-top:1px solid var(--border);}
+.dash-section.collapsed .dash-sec-body{display:none;}
 .art-card-ref-badge{display:inline-block;background:rgba(201,168,76,0.13);border:1px solid rgba(201,168,76,0.3);border-radius:5px;padding:1px 7px;font-size:10px;color:var(--accent);font-weight:700;letter-spacing:0.5px;margin-bottom:5px;}
 .art-card-nom{font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .art-card-prix{font-size:14px;font-weight:800;color:var(--accent2);}
@@ -987,75 +995,138 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
       <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:1px;">🏢 Vue :</div>
       <div id="dash-agence-chips" style="display:flex;gap:7px;flex-wrap:wrap;"></div>
     </div>
+
+    <!-- KPIs toujours visibles -->
     <div class="kpi-row kpi-4" id="ad-kpi"></div>
 
-    <!-- Graphiques -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px;">
-      <!-- Courbe 30 jours -->
-      <div class="tw" style="padding:16px;grid-column:1/-1;">
-        <div class="sec-hdr" style="margin-bottom:12px;">
-          <div class="sec-title">Collecte des 30 derniers jours</div>
-          <div style="display:flex;gap:6px;">
+    <!-- ═══ SECTION : Collecte 30 jours ═══ -->
+    <div class="dash-section" id="ds-collecte">
+      <div class="dash-sec-hdr" onclick="toggleDashSection('ds-collecte')">
+        <span class="dash-sec-title">📈 Collecte des 30 derniers jours</span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="display:flex;gap:6px;" onclick="event.stopPropagation()">
             <button class="btn btn-ghost btn-xs dash-period active" onclick="setDashPeriod(30,this)">30j</button>
             <button class="btn btn-ghost btn-xs dash-period" onclick="setDashPeriod(7,this)">7j</button>
             <button class="btn btn-ghost btn-xs dash-period" onclick="setDashPeriod(90,this)">90j</button>
           </div>
+          <span class="dash-chevron">▾</span>
         </div>
+      </div>
+      <div class="dash-sec-body">
         <canvas id="chart-collecte" style="max-height:200px;"></canvas>
-      </div>
-      <!-- Donut par commercial -->
-      <div class="tw" style="padding:16px;">
-        <div class="sec-title" style="margin-bottom:12px;">Part par utilisateur — ce mois</div>
-        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
-          <div style="flex:0 0 160px;max-width:160px;"><canvas id="chart-coms" style="max-height:160px;"></canvas></div>
-          <div id="chart-coms-legend" style="flex:1;font-size:11px;"></div>
-        </div>
-      </div>
-      <!-- Barres statuts contrats -->
-      <div class="tw" style="padding:16px;">
-        <div class="sec-title" style="margin-bottom:12px;">Statut des contrats</div>
-        <canvas id="chart-statuts" style="max-height:160px;"></canvas>
-      </div>
-      <!-- Graphique en bâtons : collectes par mois sur 12 mois -->
-      <div class="tw" style="padding:16px;grid-column:1/-1;">
-        <div class="sec-hdr" style="margin-bottom:12px;">
-          <div class="sec-title">📊 Collectes mensuelles — 12 derniers mois</div>
-          <div id="chart-mensuel-total" style="font-size:11px;color:var(--muted);"></div>
-        </div>
-        <canvas id="chart-mensuel" style="max-height:220px;"></canvas>
-      </div>
-      <!-- Top produits livrés -->
-      <div class="tw" style="padding:16px;grid-column:1/-1;">
-        <div class="sec-hdr" style="margin-bottom:12px;">
-          <div class="sec-title">🏆 Top produits livrés</div>
-          <div style="display:flex;gap:6px;">
-            <button class="btn btn-ghost btn-xs dash-prod-mode active" onclick="setDashProdMode('qty',this)">Quantité</button>
-            <button class="btn btn-ghost btn-xs dash-prod-mode" onclick="setDashProdMode('montant',this)">Montant</button>
-          </div>
-        </div>
-        <canvas id="chart-produits" style="max-height:240px;"></canvas>
       </div>
     </div>
 
-    <!-- Tables existantes -->
-    <div class="g2">
-      <div>
-        <div class="sec-hdr"><div class="sec-title">Utilisateurs</div><button class="btn btn-primary btn-sm no-print" onclick="openM('m-com')">+ Ajouter</button></div>
-        <div class="tw"><table><thead><tr><th>Nom</th><th>Zone</th><th>Clients</th><th>Cotis./jour</th><th>Mois</th></tr></thead><tbody id="ad-coms-list"></tbody></table></div>
+    <!-- ═══ SECTION : Graphiques stats ═══ -->
+    <div class="dash-section" id="ds-stats">
+      <div class="dash-sec-hdr" onclick="toggleDashSection('ds-stats')">
+        <span class="dash-sec-title">📊 Statistiques</span>
+        <span class="dash-chevron">▾</span>
       </div>
-      <div>
-        <div class="sec-hdr"><div class="sec-title">Paiements du jour</div></div>
-        <div class="tw"><table><thead><tr><th>Client</th><th>Commercial</th><th>Cotis.</th><th>Payé</th><th>Ratio</th></tr></thead><tbody id="ad-today"></tbody></table></div>
+      <div class="dash-sec-body" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div>
+          <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:10px;">Part par utilisateur — ce mois</div>
+          <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+            <div style="flex:0 0 140px;max-width:140px;"><canvas id="chart-coms" style="max-height:140px;"></canvas></div>
+            <div id="chart-coms-legend" style="flex:1;font-size:11px;"></div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:10px;">Statut des contrats</div>
+          <canvas id="chart-statuts" style="max-height:160px;"></canvas>
+        </div>
+        <div style="grid-column:1/-1;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div style="font-size:12px;font-weight:600;color:var(--muted);">📊 Collectes mensuelles — 12 derniers mois</div>
+            <div id="chart-mensuel-total" style="font-size:11px;color:var(--muted);"></div>
+          </div>
+          <canvas id="chart-mensuel" style="max-height:200px;"></canvas>
+        </div>
+        <div style="grid-column:1/-1;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div style="font-size:12px;font-weight:600;color:var(--muted);">🏆 Top produits livrés</div>
+            <div style="display:flex;gap:6px;" onclick="event.stopPropagation()">
+              <button class="btn btn-ghost btn-xs dash-prod-mode active" onclick="setDashProdMode('qty',this)">Quantité</button>
+              <button class="btn btn-ghost btn-xs dash-prod-mode" onclick="setDashProdMode('montant',this)">Montant</button>
+            </div>
+          </div>
+          <canvas id="chart-produits" style="max-height:220px;"></canvas>
+        </div>
       </div>
     </div>
-    <div class="g2">
-      <div>
-        <div class="sec-hdr"><div class="sec-title">Stock — Alertes</div><button class="btn btn-ghost btn-sm" onclick="go('stock')">Voir tout</button></div>
-        <div class="tw"><table><thead><tr><th>Article</th><th>Stock</th><th>Statut</th></tr></thead><tbody id="ad-stock-alert"></tbody></table></div>
+
+    <!-- ═══ SECTION : Utilisateurs + Paiements du jour ═══ -->
+    <div class="dash-section" id="ds-users">
+      <div class="dash-sec-hdr" onclick="toggleDashSection('ds-users')">
+        <span class="dash-sec-title">👥 Utilisateurs &amp; Paiements du jour</span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button class="btn btn-primary btn-xs no-print" onclick="event.stopPropagation();openM('m-com')">+ Utilisateur</button>
+          <span class="dash-chevron">▾</span>
+        </div>
       </div>
-      <div>
-        <div class="sec-hdr"><div class="sec-title">Livraisons en attente</div><button class="btn btn-ghost btn-sm" onclick="go('livraisons')">Voir tout</button></div>
-        <div class="tw"><table><thead><tr><th>Client</th><th>Article</th><th>Date</th><th>Statut</th></tr></thead><tbody id="ad-livraisons-att"></tbody></table></div>
+      <div class="dash-sec-body g2">
+        <div>
+          <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Utilisateurs</div>
+          <div class="tw"><table><thead><tr><th>Nom</th><th>Zone</th><th>Clients</th><th>Cotis./jour</th><th>Mois</th></tr></thead><tbody id="ad-coms-list"></tbody></table></div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Paiements du jour</div>
+          <div class="tw"><table><thead><tr><th>Client</th><th>Commercial</th><th>Cotis.</th><th>Payé</th><th>Ratio</th></tr></thead><tbody id="ad-today"></tbody></table></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ SECTION : Produits en cours ═══ -->
+    <div class="dash-section" id="ds-prodcours">
+      <div class="dash-sec-hdr" onclick="toggleDashSection('ds-prodcours')">
+        <span class="dash-sec-title">📦 Produits avec clients en cours</span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div onclick="event.stopPropagation()" style="display:flex;gap:6px;align-items:center;">
+            <input type="text" id="dash-prodcours-search" placeholder="🔍 Filtrer..." oninput="renderRapportProduitsEnCours()"
+              style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:4px 10px;color:var(--text);font-size:12px;outline:none;width:150px;">
+            <button class="btn btn-ghost btn-xs" onclick="exportRapportProduitsEnCoursCSV()">⬇️ CSV</button>
+          </div>
+          <span class="dash-chevron">▾</span>
+        </div>
+      </div>
+      <div class="dash-sec-body">
+        <div class="tw">
+          <table>
+            <thead><tr>
+              <th style="width:32px;">#</th>
+              <th>Produit / Contrat</th>
+              <th style="text-align:center;">Clients en cours</th>
+              <th style="text-align:center;">% actifs</th>
+              <th style="text-align:right;">Détail</th>
+            </tr></thead>
+            <tbody id="dash-prodcours-body"></tbody>
+          </table>
+          <div id="dash-prodcours-empty" style="display:none;padding:28px;text-align:center;color:var(--muted);font-size:13px;font-style:italic;">Aucun client actif trouvé.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ SECTION : Stock + Livraisons ═══ -->
+    <div class="dash-section" id="ds-stock-liv">
+      <div class="dash-sec-hdr" onclick="toggleDashSection('ds-stock-liv')">
+        <span class="dash-sec-title">📦 Stock &amp; Livraisons</span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div onclick="event.stopPropagation()" style="display:flex;gap:6px;">
+            <button class="btn btn-ghost btn-xs" onclick="go('stock')">Stock complet</button>
+            <button class="btn btn-ghost btn-xs" onclick="go('livraisons')">Livraisons</button>
+          </div>
+          <span class="dash-chevron">▾</span>
+        </div>
+      </div>
+      <div class="dash-sec-body g2">
+        <div>
+          <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Stock — Alertes</div>
+          <div class="tw"><table><thead><tr><th>Article</th><th>Stock</th><th>Statut</th></tr></thead><tbody id="ad-stock-alert"></tbody></table></div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Livraisons en attente</div>
+          <div class="tw"><table><thead><tr><th>Client</th><th>Article</th><th>Date</th><th>Statut</th></tr></thead><tbody id="ad-livraisons-att"></tbody></table></div>
+        </div>
       </div>
     </div>
   </div>
@@ -2190,6 +2261,29 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     </div>
     <div class="fr"><label>Note (optionnel)</label><input type="text" id="mvt-note" placeholder="Fournisseur, motif complémentaire..."></div>
     <div class="ma"><button class="btn btn-ghost" onclick="closeM('m-stock-mvt')">Annuler</button><button class="btn btn-primary" onclick="saveMvt()">Enregistrer</button></div>
+  </div>
+</div>
+
+<!-- MODAL DETAIL CLIENTS EN COURS PAR PRODUIT -->
+<div class="mo" id="m-prodcours-detail">
+  <div class="md md-lg">
+    <div class="md-title" id="m-prodcours-detail-title">📦 Clients en cours — Produit</div>
+    <div id="m-prodcours-detail-kpi" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;"></div>
+    <input type="text" id="m-prodcours-detail-search" placeholder="🔍 Rechercher un client..."
+      style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 14px;color:var(--text);font-size:13px;outline:none;margin-bottom:10px;"
+      oninput="filterProdCoursDetailSearch()">
+    <div class="tw" style="max-height:380px;overflow-y:auto;">
+      <table>
+        <thead><tr>
+          <th>#</th><th>Client</th><th>Téléphone</th><th>Commercial</th><th>Début</th><th>Fin contrat</th><th>Jours restants</th>
+        </tr></thead>
+        <tbody id="m-prodcours-detail-body"></tbody>
+      </table>
+    </div>
+    <div class="ma">
+      <button class="btn btn-ghost btn-sm" onclick="exportDetailProdCoursCSV()" style="margin-right:auto;">⬇️ Export CSV</button>
+      <button class="btn btn-ghost" onclick="closeM('m-prodcours-detail')">Fermer</button>
+    </div>
   </div>
 </div>
 
@@ -5048,8 +5142,193 @@ function renderAdminDash(){
   const livsAtt=DB.livraisons.filter(l=>l.statut==='en_attente');
   document.getElementById('ad-livraisons-att').innerHTML=livsAtt.slice(0,5).map(l=>`<tr><td class="fw6">${getCl(l.clientId).nom}</td><td style="font-size:11px">${getArt(l.articleId).nom}</td><td>${l.date}</td><td>${livStatut(l.statut)}</td></tr>`).join('')||'<tr><td colspan="4" class="emp">Aucune livraison en attente</td></tr>';
 
+  renderRapportProduitsEnCours();
+  initDashSections();
   setTimeout(dessinerGraphiques, 80);
 }
+
+// ════════════════════════════════════════════════
+//  SECTIONS COLLAPSIBLES DU TABLEAU DE BORD
+// ════════════════════════════════════════════════
+const DASH_SECTIONS = ['ds-collecte','ds-stats','ds-users','ds-prodcours','ds-stock-liv'];
+
+function initDashSections(){
+  DASH_SECTIONS.forEach(id=>{
+    const el = document.getElementById(id);
+    if(!el) return;
+    // Lire l'état mémorisé (localStorage), défaut = ouvert
+    const collapsed = localStorage.getItem('dash-collapsed-'+id) === '1';
+    if(collapsed) el.classList.add('collapsed');
+  });
+}
+
+window.toggleDashSection = function(id){
+  const el = document.getElementById(id);
+  if(!el) return;
+  const isNowCollapsed = !el.classList.contains('collapsed');
+  el.classList.toggle('collapsed', isNowCollapsed);
+  localStorage.setItem('dash-collapsed-'+id, isNowCollapsed ? '1' : '0');
+  // Si on rouvre une section avec des charts, les redessiner
+  if(!isNowCollapsed){
+    setTimeout(dessinerGraphiques, 80);
+  }
+};
+
+// Retourne true si le contrat du client est encore actif (date fin non atteinte)
+function clientEstEnCours(c){
+  if(!c.debut) return false;
+  const debut = new Date(c.debut+'T12:00:00');
+  const duree = c.duree || 372;
+  const fin   = new Date(debut);
+  fin.setDate(fin.getDate() + duree - 1);
+  const today = new Date(TODAY+'T12:00:00');
+  return fin >= today;
+}
+
+// Construit le rapport groupé par libellé de contrat/produit
+function buildRapportProduitsEnCours(){
+  const actifs = DB.clients.filter(clientEstEnCours);
+  // Regrouper par libellé de contrat (champ c.contrat)
+  const map = new Map(); // label → [{client}]
+  for(const c of actifs){
+    const label = (c.contrat||'(Sans produit)').trim();
+    if(!map.has(label)) map.set(label, []);
+    map.get(label).push(c);
+  }
+  // Trier par nombre de clients décroissant
+  const lignes = [...map.entries()]
+    .map(([label, clients])=>({label, clients, nb: clients.length}))
+    .sort((a,b)=>b.nb - a.nb);
+  return { lignes, totalActifs: actifs.length };
+}
+
+// Cache pour la modal de détail
+let _prodCoursDetailClients = [];
+let _prodCoursDetailLabel   = '';
+
+function renderRapportProduitsEnCours(){
+  const q = (document.getElementById('dash-prodcours-search')?.value||'').toLowerCase().trim();
+  const { lignes, totalActifs } = buildRapportProduitsEnCours();
+  const filtered = q ? lignes.filter(l=>l.label.toLowerCase().includes(q)) : lignes;
+
+  const emptyEl = document.getElementById('dash-prodcours-empty');
+  const tbody    = document.getElementById('dash-prodcours-body');
+  if(!tbody) return;
+
+  if(filtered.length===0){
+    tbody.innerHTML='';
+    if(emptyEl) emptyEl.style.display='';
+    return;
+  }
+  if(emptyEl) emptyEl.style.display='none';
+
+  tbody.innerHTML = filtered.map((l,i)=>{
+    const pct = totalActifs>0 ? Math.round(l.nb/totalActifs*100) : 0;
+    const barW = pct;
+    return `<tr style="cursor:pointer;" onclick="ouvrirDetailProdCours(${JSON.stringify(l.label).replace(/"/g,'&quot;')})" title="Voir les ${l.nb} clients en cours pour ce produit">
+      <td class="tm">${i+1}</td>
+      <td>
+        <div style="font-weight:700;font-size:13px;color:var(--text);">${esc(l.label)}</div>
+        <div style="margin-top:4px;height:5px;border-radius:3px;background:var(--surface2);overflow:hidden;max-width:240px;">
+          <div style="height:100%;width:${barW}%;background:var(--accent);border-radius:3px;transition:width 0.4s;"></div>
+        </div>
+      </td>
+      <td style="text-align:center;">
+        <span style="display:inline-block;background:rgba(201,168,76,0.13);border:1px solid rgba(201,168,76,0.3);border-radius:6px;padding:3px 12px;font-size:13px;font-weight:800;color:var(--accent);">${l.nb}</span>
+      </td>
+      <td style="text-align:center;font-size:12px;color:var(--muted);">${pct}%</td>
+      <td style="text-align:right;">
+        <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation();ouvrirDetailProdCours(${JSON.stringify(l.label).replace(/"/g,'&quot;')})">👁 Voir</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+window.ouvrirDetailProdCours = function(label){
+  const { lignes } = buildRapportProduitsEnCours();
+  const ligne = lignes.find(l=>l.label===label);
+  if(!ligne) return;
+  _prodCoursDetailClients = ligne.clients.slice();
+  _prodCoursDetailLabel   = label;
+
+  // KPIs
+  const joursRestantsListe = ligne.clients.map(c=>{
+    const debut = new Date(c.debut+'T12:00:00');
+    const fin   = new Date(debut); fin.setDate(fin.getDate()+(c.duree||372)-1);
+    return Math.max(0,Math.round((fin-new Date(TODAY+'T12:00:00'))/86400000));
+  });
+  const avgJours = joursRestantsListe.length ? Math.round(joursRestantsListe.reduce((a,b)=>a+b,0)/joursRestantsListe.length) : 0;
+  const minJours = joursRestantsListe.length ? Math.min(...joursRestantsListe) : 0;
+
+  document.getElementById('m-prodcours-detail-title').textContent = `📦 ${label} — Clients en cours (${ligne.nb})`;
+  document.getElementById('m-prodcours-detail-kpi').innerHTML=`
+    <div style="background:rgba(201,168,76,0.08);border-radius:9px;padding:10px;text-align:center;border:1px solid rgba(201,168,76,0.2);">
+      <div style="font-size:22px;font-weight:800;color:var(--accent);">${ligne.nb}</div>
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">Clients actifs</div>
+    </div>
+    <div style="background:rgba(34,212,160,0.08);border-radius:9px;padding:10px;text-align:center;border:1px solid rgba(34,212,160,0.2);">
+      <div style="font-size:22px;font-weight:800;color:var(--accent2);">${avgJours}j</div>
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">Moy. jours restants</div>
+    </div>
+    <div style="background:rgba(224,92,82,0.08);border-radius:9px;padding:10px;text-align:center;border:1px solid rgba(224,92,82,0.2);">
+      <div style="font-size:22px;font-weight:800;color:var(--danger);">${minJours}j</div>
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">Contrat le + proche</div>
+    </div>`;
+
+  document.getElementById('m-prodcours-detail-search').value='';
+  renderProdCoursDetailTable(ligne.clients);
+  openM('m-prodcours-detail');
+};
+
+function renderProdCoursDetailTable(clients){
+  const getCom = id => DB.commerciaux?.find(c=>c._id===id)?.nom || '—';
+  document.getElementById('m-prodcours-detail-body').innerHTML = clients.map((c,i)=>{
+    const debut = new Date(c.debut+'T12:00:00');
+    const fin   = new Date(debut); fin.setDate(fin.getDate()+(c.duree||372)-1);
+    const joursR = Math.max(0,Math.round((fin-new Date(TODAY+'T12:00:00'))/86400000));
+    const finStr = fin.toISOString().slice(0,10);
+    const urgColor = joursR<=30?'var(--danger)':joursR<=90?'var(--warn)':'var(--accent2)';
+    return `<tr>
+      <td class="tm">${i+1}</td>
+      <td><span style="font-weight:700;">${esc(c.nom)}</span>${c.code?`<br><span style="font-size:10px;color:var(--accent);">Code : ${c.code}</span>`:''}</td>
+      <td style="font-size:12px;">${c.tel||'—'}</td>
+      <td style="font-size:12px;">${getCom(c.commercialId)}</td>
+      <td style="font-size:11px;color:var(--subtle);">${c.debut||'—'}</td>
+      <td style="font-size:11px;color:var(--subtle);">${finStr}</td>
+      <td style="text-align:center;"><span style="font-weight:700;color:${urgColor};">${joursR}j</span></td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="7" class="emp">Aucun résultat.</td></tr>';
+}
+
+window.filterProdCoursDetailSearch = function(){
+  const q = (document.getElementById('m-prodcours-detail-search')?.value||'').toLowerCase().trim();
+  const filtered = q
+    ? _prodCoursDetailClients.filter(c=>(c.nom||'').toLowerCase().includes(q)||(c.tel||'').toLowerCase().includes(q)||(c.code||'').toLowerCase().includes(q))
+    : _prodCoursDetailClients;
+  renderProdCoursDetailTable(filtered);
+};
+
+window.exportRapportProduitsEnCoursCSV = function(){
+  const { lignes } = buildRapportProduitsEnCours();
+  let csv = 'Produit/Contrat;Nb clients en cours\n';
+  lignes.forEach(l=>{ csv += `"${l.label.replace(/"/g,'""')}";${l.nb}\n`; });
+  const a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);
+  a.download=`rapport_produits_en_cours_${TODAY}.csv`; a.click();
+};
+
+window.exportDetailProdCoursCSV = function(){
+  const getCom = id => DB.commerciaux?.find(c=>c._id===id)?.nom || '—';
+  let csv = 'Client;Téléphone;Commercial;Début;Fin contrat;Jours restants\n';
+  _prodCoursDetailClients.forEach(c=>{
+    const debut = new Date(c.debut+'T12:00:00');
+    const fin   = new Date(debut); fin.setDate(fin.getDate()+(c.duree||372)-1);
+    const joursR = Math.max(0,Math.round((fin-new Date(TODAY+'T12:00:00'))/86400000));
+    csv += `"${c.nom.replace(/"/g,'""')}";"${c.tel||''}";"${getCom(c.commercialId)}";"${c.debut||''}";"${fin.toISOString().slice(0,10)}";${joursR}\n`;
+  });
+  const label = _prodCoursDetailLabel.replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,30);
+  const a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);
+  a.download=`clients_en_cours_${label}_${TODAY}.csv`; a.click();
+};
 
 // ========= PRODUITS =========
 let prodFiltreActif = '';
@@ -9986,6 +10265,29 @@ function afficherRecu(data){
     ${agenceLabel!=='—'?`<div class="row"><span class="lbl">Agence</span><span class="val">${_escHtml(agenceLabel)}</span></div>`:''}
     ${data.note?`<div class="row"><span class="lbl">Note</span><span class="val">${_escHtml(data.note)}</span></div>`:''}
   </div>
+  ${data.type !== 'adhesion' && data.cotisJour > 0 ? (() => {
+    // Calcul identique à la fiche client : cumul total versé / cotis/jour
+    const joursCouv   = Math.min(data.duree||372, Math.floor((data.totalPaye||0) / data.cotisJour));
+    const joursTotal  = data.duree || 372;
+    // joursEnJM : jour = ((n-1)%31)+1, mois = floor((n-1)/31)+1
+    function _jm(n){ if(!n||n<=0) return '0/1'; const m=Math.floor((n-1)/31)+1; const j=((n-1)%31)+1; return j+'/'+m; }
+    const niveauCourant = _jm(joursCouv);
+    const niveauTotal   = _jm(joursTotal);
+    const solde = data.totalPaye || 0;
+    const restant = Math.max(0, (data.totalRestant !== undefined ? data.totalRestant : 0));
+    return `<hr class="sep" style="margin:0;">
+  <div style="padding:16px 20px 14px;text-align:center;">
+    <div style="font-size:0.75rem;color:#888;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;">📊 Niveau de paiement</div>
+    <div style="font-family:'Courier New',monospace;font-size:2.8rem;font-weight:700;color:#0c0e12;letter-spacing:2px;line-height:1;">
+      ${niveauCourant}
+    </div>
+    <div style="font-size:0.85rem;color:#888;margin-top:4px;">sur&nbsp;<strong style="color:#b8833e;">${niveauTotal}</strong></div>
+    <div style="display:flex;justify-content:space-between;margin-top:12px;font-size:0.85rem;border-top:1px dashed #ddd;padding-top:10px;">
+      <span style="color:#2a7a50;font-weight:700;">✔ Versé&nbsp;: ${solde.toLocaleString('fr-FR')} F</span>
+      <span style="color:#b8833e;font-weight:700;">⏳ Restant&nbsp;: ${restant.toLocaleString('fr-FR')} F</span>
+    </div>
+  </div>`;
+  })() : ''}
   <div class="ftr">
     Conservez ce reçu — preuve officielle
   </div>
@@ -10068,6 +10370,8 @@ window.enregistrerMiseSaisie = async function(){
     type: 'cotisation',
     clientNom: c.nom,
     clientCode: c.codeClient || '',
+    contrat: c.contrat || '',
+    duree: c.duree || 372,
     commercialNom: com.nom,
     commercialId: c.commercialId,
     montant, nbCotis: nb, cotisJour: jm(c),
