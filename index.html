@@ -236,6 +236,13 @@
 .gperiode-chart-wrap{border-radius:9px;padding:12px;background:var(--surface2);margin-bottom:12px;}
 .gperiode-chart-wrap canvas{max-height:200px;}
 #page-rapport-activite{background:radial-gradient(ellipse at 10% 20%,rgba(201,168,76,0.05) 0%,transparent 55%);}
+#page-transfert-resiliation{background:radial-gradient(ellipse at 10% 20%,rgba(224,92,82,0.05) 0%,transparent 55%);}
+#page-transfert-resiliation .sec-title{color:var(--danger) !important;}
+#page-transfert-resiliation .tw thead th{background:#1c1414 !important;}
+#page-transfert-resiliation .tw{border-color:rgba(224,92,82,0.18) !important;}
+.transfert-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px;}
+.transfert-arrow{display:flex;align-items:center;justify-content:center;padding:12px 0;color:var(--danger);font-size:22px;}
+.resilie-badge{display:inline-flex;align-items:center;gap:4px;background:rgba(224,92,82,0.1);border:1px solid rgba(224,92,82,0.3);border-radius:6px;padding:3px 9px;font-size:11px;color:var(--danger);font-weight:600;}
 #page-rapport-activite .sec-title{color:var(--accent) !important;}
 #page-rapport-activite .tw thead th{background:#161a26 !important;}
 #page-rapport-activite .tw{border-color:rgba(201,168,76,0.18) !important;}
@@ -1850,6 +1857,82 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     </div>
   </div>
 
+  <!-- ═══════════════════════════════════════════════
+       PAGE TRANSFERT & RÉSILIATION DE CONTRAT
+       ═══════════════════════════════════════════════ -->
+  <div id="page-transfert-resiliation" class="page">
+    <div class="sec-hdr no-print">
+      <div class="sec-title">🔄 Transfert & Résiliation de contrat</div>
+    </div>
+
+    <!-- Étape 1 : Contrat source -->
+    <div class="transfert-card">
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;color:var(--danger);margin-bottom:10px;">1️⃣ Contrat à résilier (source)</div>
+      <div class="fr">
+        <label>Rechercher le client source</label>
+        <input type="text" id="tr-src-search" placeholder="Code client, nom, téléphone…"
+          oninput="trSrcLiveSearch()" autocomplete="off">
+      </div>
+      <div id="tr-src-results" style="margin-top:6px;display:none;"></div>
+      <div id="tr-src-info" style="display:none;margin-top:10px;"></div>
+    </div>
+
+    <!-- Flèche -->
+    <div class="transfert-arrow">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+    </div>
+
+    <!-- Étape 2 : Contrat destination -->
+    <div class="transfert-card">
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;color:var(--accent2);margin-bottom:10px;">2️⃣ Contrat de destination</div>
+      <div class="fr">
+        <label>Rechercher le client destinataire</label>
+        <input type="text" id="tr-dst-search" placeholder="Code client, nom, téléphone…"
+          oninput="trDstLiveSearch()" autocomplete="off">
+      </div>
+      <div id="tr-dst-results" style="margin-top:6px;display:none;"></div>
+      <div id="tr-dst-info" style="display:none;margin-top:10px;"></div>
+    </div>
+
+    <!-- Étape 3 : Montant & Motif -->
+    <div class="transfert-card" id="tr-montant-zone" style="display:none;">
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;color:var(--accent);margin-bottom:10px;">3️⃣ Montant à transférer</div>
+      <div class="fg">
+        <div class="fr">
+          <label>Montant (FCFA)</label>
+          <input type="number" id="tr-montant" min="1" placeholder="ex: 15000" oninput="trCheckWarn()">
+        </div>
+        <div class="fr">
+          <label>Motif / Note</label>
+          <input type="text" id="tr-motif" placeholder="ex: Changement de contrat client…">
+        </div>
+      </div>
+      <div id="tr-warn" style="display:none;margin-top:8px;" class="ib ib-yellow"></div>
+      <div class="ma" style="margin-top:14px;">
+        <button class="btn btn-ghost" onclick="trReset()">✖ Annuler</button>
+        <button class="btn btn-primary" id="tr-btn-confirm" onclick="trConfirmer()"
+          style="background:linear-gradient(135deg,rgba(224,92,82,0.35),rgba(224,92,82,0.18));border-color:rgba(224,92,82,0.5);color:var(--danger);">
+          🔄 Confirmer le transfert & résilier
+        </button>
+      </div>
+    </div>
+
+    <!-- Historique des transferts -->
+    <div style="margin-top:18px;">
+      <div class="sec-title" style="font-size:12px;margin-bottom:10px;">📋 Historique des transferts</div>
+      <div class="tw">
+        <table>
+          <thead><tr>
+            <th>Date</th><th>Heure</th><th>Client source</th><th>Client dest.</th>
+            <th>Montant</th><th>Motif</th><th>Opérateur</th>
+          </tr></thead>
+          <tbody id="tr-historique-body"><tr><td colspan="7" class="emp">Aucun transfert enregistré</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <!-- FIN PAGE TRANSFERT RÉSILIATION -->
+
   <div id="page-fiche" class="page">
     <div class="sec-hdr no-print">
       <div class="sec-title" id="fiche-page-title">Fiche de recouvrement</div>
@@ -3020,7 +3103,8 @@ let DB = {
   mises: [],
   primesPaliers: [],
   pointsJour: [],
-  versements: []
+  versements: [],
+  transferts: []
 };
 
 // ========= SETUP & CONFIG =========
@@ -3128,7 +3212,7 @@ async function initFB(cfg) {
 
 // ========= FIREBASE DATA =========
 async function loadFirebaseData() {
-  const cols = ['agences','commerciaux','clients','paiements','articles','produits','stockMvts','livraisons','adhesionPays','mises','primesPaliers','pointsJour','versements'];
+  const cols = ['agences','commerciaux','clients','paiements','articles','produits','stockMvts','livraisons','adhesionPays','mises','primesPaliers','pointsJour','versements','transferts'];
   for (const col of cols) {
     const snap = await getDocs(collection(db_fs, col));
     DB[col] = snap.docs.map(d => ({...d.data(), _id: d.id}));
@@ -3155,6 +3239,7 @@ const _PAGE_DEPS = {
   'saisie-adhesions':   ['adhesionPays','clients','commerciaux'],
   'com-clients':        ['clients','paiements','commerciaux'],
   'com-nouveau-client': ['commerciaux','agences'],
+  'transfert-resiliation': ['clients','paiements','commerciaux'],
 };
 
 // Debounce : évite les re-renders en rafale (plusieurs collections modifiées simultanément)
@@ -3168,7 +3253,7 @@ function _debouncedRenderPg(id) {
 }
 
 function setupRealtimeListeners() {
-  const cols = ['agences','commerciaux','clients','paiements','articles','produits','stockMvts','livraisons','adhesionPays','mises','primesPaliers','pointsJour','versements'];
+  const cols = ['agences','commerciaux','clients','paiements','articles','produits','stockMvts','livraisons','adhesionPays','mises','primesPaliers','pointsJour','versements','transferts'];
   let _firstLoad = {};
   cols.forEach(col => { _firstLoad[col] = true; });
 
@@ -3219,6 +3304,7 @@ const _WRITE_ROLES = {
   primesPaliers: ['admin','secretaire'],
   pointsJour:    ['admin','commercial','secretaire'],
   versements:    ['admin','secretaire'],
+  transferts:    ['admin','secretaire'],
 };
 function _checkWriteRole(col) {
   if (!session) { notify('Accès refusé — non connecté', 'err'); throw new Error('NOT_AUTHENTICATED'); }
@@ -4374,7 +4460,8 @@ const ADMIN_NAV=`<div class="nav-sec">Principal</div>
 <div class="nav-item" id="nav-saisie-mises" onclick="go('saisie-mises')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>Saisie de mises</div>
 <div class="nav-item" id="nav-saisie-adhesions" onclick="go('saisie-adhesions')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>Saisie des adhésions</div>
 <div class="nav-item" id="nav-fiche" onclick="go('fiche')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>Fiche du jour</div>
-<div class="nav-item" id="nav-rapport-activite" onclick="go('rapport-activite')" style="color:var(--accent);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Rapport d'activité</div>`;
+<div class="nav-item" id="nav-rapport-activite" onclick="go('rapport-activite')" style="color:var(--accent);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Rapport d'activité</div>
+<div class="nav-item" id="nav-transfert-resiliation" onclick="go('transfert-resiliation')" style="color:var(--danger);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>Transfert & Résiliation</div>`;
 
 const COM_NAV=`<div class="nav-sec">Mon espace</div>
 <div class="nav-item" id="nav-com-clients" onclick="go('com-clients')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>Mes clients</div>
@@ -4393,7 +4480,8 @@ const SECRETAIRE_NAV=`<div class="nav-sec">Principal</div>
 <div class="nav-item" id="nav-livraisons" onclick="go('livraisons')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>Livraisons</div>
 <div class="nav-item" id="nav-saisie-adhesions" onclick="go('saisie-adhesions')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>Saisie des adhésions</div>
 <div class="nav-item" id="nav-articles" onclick="go('articles')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>Articles</div>
-<div class="nav-item" id="nav-produits" onclick="go('produits')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>Produits</div>`;
+<div class="nav-item" id="nav-produits" onclick="go('produits')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>Produits</div>
+<div class="nav-item" id="nav-transfert-resiliation" onclick="go('transfert-resiliation')" style="color:var(--danger);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>Transfert & Résiliation</div>`;
 
 const CONTROLEUR_NAV=`<div class="nav-sec">Consultation</div>
 <div class="nav-item" id="nav-registre" onclick="go('registre')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Registre</div>
@@ -4448,7 +4536,7 @@ function setupUI(){
   if(btnReinit) btnReinit.style.display = (session.role === 'admin') ? '' : 'none';
 }
 
-const TITLES={'admin-dashboard':'Tableau de bord',registre:'Registre par date',historique:'Historique','tous-clients':'Clients',livraisons:'Livraisons',articles:'Articles',produits:'Produits',catalogue:'Catalogue visuel',stock:'Stock',commerciaux:'Utilisateurs',agences:'Agences',recouvrement:'Recouvrement du jour',fiche:'Fiche du jour','saisie-mises':'Saisie de mises','saisie-adhesions':'Saisie des adhésions','com-clients':'Mes clients','com-nouveau-client':'Nouveau client','rapport-activite':"Rapport d'activité",'gstock-periode':'Suivi de période'};
+const TITLES={'admin-dashboard':'Tableau de bord',registre:'Registre par date',historique:'Historique','tous-clients':'Clients',livraisons:'Livraisons',articles:'Articles',produits:'Produits',catalogue:'Catalogue visuel',stock:'Stock',commerciaux:'Utilisateurs',agences:'Agences',recouvrement:'Recouvrement du jour',fiche:'Fiche du jour','saisie-mises':'Saisie de mises','saisie-adhesions':'Saisie des adhésions','com-clients':'Mes clients','com-nouveau-client':'Nouveau client','rapport-activite':"Rapport d'activité",'gstock-periode':'Suivi de période','transfert-resiliation':'Transfert & Résiliation'};
 const BTN={'tous-clients':'+ Client',articles:'+ Article',produits:'+ Produit',livraisons:'+ Livraison',stock:'+ Mouvement',commerciaux:'+ Utilisateur'};
 const ACT={'tous-clients':()=>openM('m-client'),articles:()=>openM('m-article'),produits:()=>ouvrirModalProduit(),livraisons:()=>openM('m-livraison'),stock:()=>openM('m-stock-mvt'),commerciaux:()=>openM('m-com')};
 let curPg='';
@@ -4718,7 +4806,7 @@ function renderPg(id){
     const pr=document.getElementById('cl-prompt'); if(pr) pr.style.display='flex';
     const tw=document.getElementById('tw-clients'); if(tw) tw.style.display='none';
     const ct=document.getElementById('search-clients-count'); if(ct) ct.textContent='';
-  },livraisons:renderLivraisons,articles:renderArticles,produits:renderProduits,catalogue:renderCatalogue,stock:renderStock,commerciaux:renderComs,agences:renderAgences,recouvrement:renderRec,fiche:renderFiche,'saisie-mises':renderSaisieMises,'saisie-adhesions':renderSaisieAdhesions,'com-clients':renderComClients,'com-nouveau-client':renderComNouveauClient};
+  },livraisons:renderLivraisons,articles:renderArticles,produits:renderProduits,catalogue:renderCatalogue,stock:renderStock,commerciaux:renderComs,agences:renderAgences,recouvrement:renderRec,fiche:renderFiche,'saisie-mises':renderSaisieMises,'saisie-adhesions':renderSaisieAdhesions,'com-clients':renderComClients,'com-nouveau-client':renderComNouveauClient,'transfert-resiliation':renderTransfertResiliation};
   if(m[id]) m[id]();
   if(id==='rapport-activite'){
     if(session?.role!=='admin'){ notify("Accès réservé à l'administrateur",'err'); go('admin-dashboard'); return; }
@@ -6996,7 +7084,7 @@ function renderTousCls(){
           style="width:14px;height:14px;accent-color:var(--danger);cursor:pointer;"
           onchange="mettreAJourSelectionBar()">`:''}
       </td>
-      <td class="fw6">${esc(c.nom)}<div class="tm" style="font-size:10px">${esc(c.ville||'')} · ${esc(c.quartier||'')}</div>${c.codeClient?`<span style="font-size:9.5px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.4);border-radius:4px;padding:0 5px;color:var(--accent);font-weight:700;">${esc(c.codeClient)}</span>`:''}</td>
+      <td class="fw6">${esc(c.nom)}<div class="tm" style="font-size:10px">${esc(c.ville||'')} · ${esc(c.quartier||'')}</div>${c.codeClient?`<span style="font-size:9.5px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.4);border-radius:4px;padding:0 5px;color:var(--accent);font-weight:700;">${esc(c.codeClient)}</span>`:''}${c.statutContrat==='resilie'?`<span class="resilie-badge" style="font-size:9px;margin-left:5px;">RÉSILIÉ</span>`:''}</td>
       <td>${esc(c.tel||'—')}</td><td><span class="tag">${esc(getCom(c.commercialId).nom)}</span></td>
       <td>${c.adhesionStatut==='paye'?sb('Payée','sg'):sb('Non payée','sr')}<div class="tm" style="font-size:10px">${fmt(c.adhesion)}</div></td>
       <td style="font-size:11px">${(()=>{
@@ -10265,29 +10353,6 @@ function afficherRecu(data){
     ${agenceLabel!=='—'?`<div class="row"><span class="lbl">Agence</span><span class="val">${_escHtml(agenceLabel)}</span></div>`:''}
     ${data.note?`<div class="row"><span class="lbl">Note</span><span class="val">${_escHtml(data.note)}</span></div>`:''}
   </div>
-  ${data.type !== 'adhesion' && data.cotisJour > 0 ? (() => {
-    // Calcul identique à la fiche client : cumul total versé / cotis/jour
-    const joursCouv   = Math.min(data.duree||372, Math.floor((data.totalPaye||0) / data.cotisJour));
-    const joursTotal  = data.duree || 372;
-    // joursEnJM : jour = ((n-1)%31)+1, mois = floor((n-1)/31)+1
-    function _jm(n){ if(!n||n<=0) return '0/1'; const m=Math.floor((n-1)/31)+1; const j=((n-1)%31)+1; return j+'/'+m; }
-    const niveauCourant = _jm(joursCouv);
-    const niveauTotal   = _jm(joursTotal);
-    const solde = data.totalPaye || 0;
-    const restant = Math.max(0, (data.totalRestant !== undefined ? data.totalRestant : 0));
-    return `<hr class="sep" style="margin:0;">
-  <div style="padding:16px 20px 14px;text-align:center;">
-    <div style="font-size:0.75rem;color:#888;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;">📊 Niveau de paiement</div>
-    <div style="font-family:'Courier New',monospace;font-size:2.8rem;font-weight:700;color:#0c0e12;letter-spacing:2px;line-height:1;">
-      ${niveauCourant}
-    </div>
-    <div style="font-size:0.85rem;color:#888;margin-top:4px;">sur&nbsp;<strong style="color:#b8833e;">${niveauTotal}</strong></div>
-    <div style="display:flex;justify-content:space-between;margin-top:12px;font-size:0.85rem;border-top:1px dashed #ddd;padding-top:10px;">
-      <span style="color:#2a7a50;font-weight:700;">✔ Versé&nbsp;: ${solde.toLocaleString('fr-FR')} F</span>
-      <span style="color:#b8833e;font-weight:700;">⏳ Restant&nbsp;: ${restant.toLocaleString('fr-FR')} F</span>
-    </div>
-  </div>`;
-  })() : ''}
   <div class="ftr">
     Conservez ce reçu — preuve officielle
   </div>
@@ -10370,8 +10435,6 @@ window.enregistrerMiseSaisie = async function(){
     type: 'cotisation',
     clientNom: c.nom,
     clientCode: c.codeClient || '',
-    contrat: c.contrat || '',
-    duree: c.duree || 372,
     commercialNom: com.nom,
     commercialId: c.commercialId,
     montant, nbCotis: nb, cotisJour: jm(c),
@@ -11625,6 +11688,255 @@ window.connecterImprimanteBT = async function(){
     }
   } catch(e) { /* afficher l'ecran de configuration */ }
 })();
+
+// ═══════════════════════════════════════════════════════════
+//  TRANSFERT DE SOLDE & RÉSILIATION DE CONTRAT
+//  Accès : admin + secrétaire
+//  Logique :
+//   1. Chercher client SOURCE → afficher solde total versé
+//   2. Chercher client DESTINATION → afficher montant contrat
+//   3. Saisir montant manuel → avertissement si dépassement
+//   4. Confirmer → fbAdd paiement sur destination + fbUpdate client source statut='resilie' + trace dans 'transferts'
+// ═══════════════════════════════════════════════════════════
+
+let _trSrcId = null;   // id client source sélectionné
+let _trDstId = null;   // id client destination sélectionné
+
+// ── Accès guard ──────────────────────────────────────────────
+function _trCheckAccess(){
+  if(!session){ notify('Non connecté','err'); return false; }
+  if(!['admin','secretaire'].includes(session.role)){
+    notify('Accès refusé — réservé admin & secrétaire','err');
+    go(getRoleHome(session.role));
+    return false;
+  }
+  return true;
+}
+
+// ── Render page (historique) ──────────────────────────────────
+function renderTransfertResiliation(){
+  if(!_trCheckAccess()) return;
+  const transferts = (DB.transferts || []).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const tbody = document.getElementById('tr-historique-body');
+  if(!tbody) return;
+  if(!transferts.length){
+    tbody.innerHTML='<tr><td colspan="7" class="emp">Aucun transfert enregistré</td></tr>';
+    return;
+  }
+  tbody.innerHTML = transferts.map(t=>{
+    const src = DB.clients.find(c=>c._id===t.srcClientId);
+    const dst = DB.clients.find(c=>c._id===t.dstClientId);
+    return `<tr>
+      <td>${t.date||'—'}</td>
+      <td class="tm">${t.heure||'—'}</td>
+      <td><strong>${esc(src?src.nom:'—')}</strong><br><span class="resilie-badge" style="font-size:9px;">RÉSILIÉ</span></td>
+      <td><strong>${esc(dst?dst.nom:'—')}</strong></td>
+      <td style="color:var(--accent2);font-weight:700;">${fmt(t.montant||0)}</td>
+      <td class="tm" style="font-size:11px;">${esc(t.motif||'—')}</td>
+      <td class="tm" style="font-size:11px;">${esc(t.operateur||'—')}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Live search SOURCE ────────────────────────────────────────
+window.trSrcLiveSearch = function(){
+  const q = (document.getElementById('tr-src-search').value||'').toLowerCase().trim();
+  const box = document.getElementById('tr-src-results');
+  if(q.length < 2){ box.style.display='none'; return; }
+  const results = (DB.clients||[]).filter(c=>{
+    if(c.statutContrat==='resilie') return false;
+    return (c.nom||'').toLowerCase().includes(q)
+        || (c.codeClient||'').toLowerCase().includes(q)
+        || (c.tel||'').includes(q);
+  }).slice(0,8);
+  if(!results.length){ box.innerHTML='<div style="padding:8px;font-size:12px;color:var(--muted);">Aucun client trouvé</div>'; box.style.display='block'; return; }
+  box.innerHTML = results.map(c=>{
+    const totalPaye = (DB.paiements||[]).filter(p=>p.clientId===c._id).reduce((a,p)=>a+p.montant,0);
+    return `<div onclick="trSelectSrc('${c._id}')" style="padding:8px 10px;cursor:pointer;border-radius:7px;border:1px solid var(--border);margin-bottom:4px;background:var(--surface2);">
+      <strong style="font-size:12px;">${esc(c.nom)}</strong>
+      <span class="tag" style="margin-left:6px;">${esc(c.codeClient||'—')}</span>
+      <span style="font-size:11px;color:var(--accent2);margin-left:6px;">${fmt(totalPaye)} versés</span>
+    </div>`;
+  }).join('');
+  box.style.display='block';
+};
+
+window.trSelectSrc = function(id){
+  _trSrcId = id;
+  const c = DB.clients.find(cl=>cl._id===id);
+  if(!c){ return; }
+  document.getElementById('tr-src-results').style.display='none';
+  document.getElementById('tr-src-search').value = c.nom + (c.codeClient?' ('+c.codeClient+')':'');
+  const totalPaye = (DB.paiements||[]).filter(p=>p.clientId===id).reduce((a,p)=>a+p.montant,0);
+  const info = document.getElementById('tr-src-info');
+  info.style.display='block';
+  info.innerHTML=`<div class="ib ib-red">
+    <strong>📋 ${esc(c.nom)}</strong> — ${esc(c.contrat||'—')}<br>
+    💰 Total versé : <strong style="color:var(--accent2);">${fmt(totalPaye)}</strong>
+    &nbsp;/&nbsp; Contrat : <strong>${fmt(c.montantTotal||0)}</strong><br>
+    <span style="font-size:10px;color:var(--muted);">Tel: ${esc(c.tel||'—')} · Commercial : ${esc((DB.commerciaux||[]).find(x=>x._id===c.commercialId)?.nom||'—')}</span>
+  </div>`;
+  _trCheckBothSelected();
+};
+
+// ── Live search DESTINATION ───────────────────────────────────
+window.trDstLiveSearch = function(){
+  const q = (document.getElementById('tr-dst-search').value||'').toLowerCase().trim();
+  const box = document.getElementById('tr-dst-results');
+  if(q.length < 2){ box.style.display='none'; return; }
+  const results = (DB.clients||[]).filter(c=>{
+    if(c._id===_trSrcId) return false; // exclure le source
+    return (c.nom||'').toLowerCase().includes(q)
+        || (c.codeClient||'').toLowerCase().includes(q)
+        || (c.tel||'').includes(q);
+  }).slice(0,8);
+  if(!results.length){ box.innerHTML='<div style="padding:8px;font-size:12px;color:var(--muted);">Aucun client trouvé</div>'; box.style.display='block'; return; }
+  box.innerHTML = results.map(c=>{
+    const totalPaye = (DB.paiements||[]).filter(p=>p.clientId===c._id).reduce((a,p)=>a+p.montant,0);
+    const restant = Math.max(0,(c.montantTotal||0)-totalPaye);
+    return `<div onclick="trSelectDst('${c._id}')" style="padding:8px 10px;cursor:pointer;border-radius:7px;border:1px solid var(--border);margin-bottom:4px;background:var(--surface2);">
+      <strong style="font-size:12px;">${esc(c.nom)}</strong>
+      <span class="tag" style="margin-left:6px;">${esc(c.codeClient||'—')}</span>
+      <span style="font-size:11px;color:var(--accent);margin-left:6px;">${fmt(restant)} restant</span>
+    </div>`;
+  }).join('');
+  box.style.display='block';
+};
+
+window.trSelectDst = function(id){
+  _trDstId = id;
+  const c = DB.clients.find(cl=>cl._id===id);
+  if(!c){ return; }
+  document.getElementById('tr-dst-results').style.display='none';
+  document.getElementById('tr-dst-search').value = c.nom + (c.codeClient?' ('+c.codeClient+')':'');
+  const totalPaye = (DB.paiements||[]).filter(p=>p.clientId===id).reduce((a,p)=>a+p.montant,0);
+  const restant = Math.max(0,(c.montantTotal||0)-totalPaye);
+  const info = document.getElementById('tr-dst-info');
+  info.style.display='block';
+  info.innerHTML=`<div class="ib ib-green">
+    <strong>📋 ${esc(c.nom)}</strong> — ${esc(c.contrat||'—')}<br>
+    💰 Déjà versé : <strong style="color:var(--accent2);">${fmt(totalPaye)}</strong>
+    &nbsp;·&nbsp; Restant à couvrir : <strong style="color:var(--accent);">${fmt(restant)}</strong><br>
+    <span style="font-size:10px;color:var(--muted);">Montant total contrat : ${fmt(c.montantTotal||0)}</span>
+  </div>`;
+  _trCheckBothSelected();
+};
+
+// ── Afficher zone montant si les deux sont sélectionnés ───────
+function _trCheckBothSelected(){
+  const zone = document.getElementById('tr-montant-zone');
+  if(_trSrcId && _trDstId && zone) zone.style.display='block';
+}
+
+// ── Vérification avertissement dépassement ────────────────────
+window.trCheckWarn = function(){
+  const warn = document.getElementById('tr-warn');
+  if(!warn || !_trDstId) return;
+  const montant = parseFloat(document.getElementById('tr-montant').value)||0;
+  const dst = DB.clients.find(c=>c._id===_trDstId);
+  if(!dst){ warn.style.display='none'; return; }
+  const totalPayeDst = (DB.paiements||[]).filter(p=>p.clientId===_trDstId).reduce((a,p)=>a+p.montant,0);
+  const restant = Math.max(0,(dst.montantTotal||0)-totalPayeDst);
+  if(montant > restant){
+    warn.style.display='block';
+    warn.innerHTML=`⚠️ Attention : le montant transféré (${fmt(montant)}) dépasse le solde restant du contrat destination (${fmt(restant)}). L'opération est quand même autorisée.`;
+  } else {
+    warn.style.display='none';
+  }
+};
+
+// ── Confirmer le transfert ────────────────────────────────────
+window.trConfirmer = async function(){
+  if(!_trCheckAccess()) return;
+  if(!_trSrcId || !_trDstId){ notify('Sélectionnez les deux clients','err'); return; }
+  const montant = parseFloat(document.getElementById('tr-montant').value)||0;
+  if(montant <= 0){ notify('Montant invalide','err'); return; }
+  const motif = (document.getElementById('tr-motif').value||'').trim();
+  const srcClient = DB.clients.find(c=>c._id===_trSrcId);
+  const dstClient = DB.clients.find(c=>c._id===_trDstId);
+  if(!srcClient || !dstClient){ notify('Client introuvable','err'); return; }
+
+  // Confirmation double
+  const ok = confirm(
+    `⚠️ CONFIRMATION DU TRANSFERT\n\n`+
+    `Source (à résilier) : ${srcClient.nom}\n`+
+    `Destination : ${dstClient.nom}\n`+
+    `Montant : ${fmt(montant)}\n\n`+
+    `Le contrat de ${srcClient.nom} sera marqué RÉSILIÉ.\n`+
+    `Cette action est irréversible. Continuer ?`
+  );
+  if(!ok) return;
+
+  const btn = document.getElementById('tr-btn-confirm');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ En cours…'; }
+
+  try {
+    const now = new Date();
+    const heure = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    const operateur = session.nom || session.userId;
+
+    // 1. Enregistrer le paiement sur le contrat destination
+    await fbAdd('paiements',{
+      clientId: _trDstId,
+      commercialId: dstClient.commercialId || session.userId,
+      cotisJour: 0,
+      montant: montant,
+      date: TODAY,
+      heure: heure,
+      note: `Transfert depuis ${srcClient.nom}${srcClient.codeClient?' ('+srcClient.codeClient+')':''} · ${motif||'Transfert de contrat'}`,
+      saisiParId: session.userId,
+      saisiParNom: operateur,
+      source: 'transfert',
+      verrouille: true
+    });
+
+    // 2. Marquer le contrat source comme résilié (ne pas supprimer)
+    await fbUpdate('clients', _trSrcId, {
+      statutContrat: 'resilie',
+      dateResiliation: TODAY,
+      motifResiliation: motif || 'Transfert vers contrat '+dstClient.nom,
+      resiliePar: operateur
+    });
+
+    // 3. Enregistrer la trace dans la collection 'transferts'
+    await fbAdd('transferts',{
+      srcClientId: _trSrcId,
+      dstClientId: _trDstId,
+      montant: montant,
+      motif: motif || '—',
+      date: TODAY,
+      heure: heure,
+      operateur: operateur,
+      operateurId: session.userId
+    });
+
+    notify(`✅ Transfert effectué — ${srcClient.nom} résilié · ${fmt(montant)} ajouté au contrat de ${dstClient.nom}`);
+    trReset();
+    renderTransfertResiliation();
+
+  } catch(e){
+    notify('Erreur lors du transfert : '+e.message,'err');
+    if(btn){ btn.disabled=false; btn.textContent='🔄 Confirmer le transfert & résilier'; }
+  }
+};
+
+// ── Réinitialiser le formulaire ───────────────────────────────
+window.trReset = function(){
+  _trSrcId = null;
+  _trDstId = null;
+  const ids = ['tr-src-search','tr-src-results','tr-src-info','tr-dst-search','tr-dst-results','tr-dst-info','tr-montant','tr-motif','tr-warn'];
+  ids.forEach(id=>{
+    const el = document.getElementById(id);
+    if(!el) return;
+    if(el.tagName==='INPUT') el.value='';
+    else el.style.display='none';
+  });
+  const zone = document.getElementById('tr-montant-zone');
+  if(zone) zone.style.display='none';
+  const btn = document.getElementById('tr-btn-confirm');
+  if(btn){ btn.disabled=false; btn.textContent='🔄 Confirmer le transfert & résilier'; }
+};
+// ═══════════════ FIN TRANSFERT RÉSILIATION ═══════════════════
 </script>
 </body>
 </html>
