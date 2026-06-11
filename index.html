@@ -8102,6 +8102,11 @@ window.supprimerPalier = async function(id) {
 window.openPay = function(cid){
   payCtx=cid;
   const c=getCl(cid),s=stats(c);
+  // ── Bloquer si contrat résilié ──
+  if(c.statutContrat==='resilie'){
+    notify(`🚫 Contrat de ${c.nom} résilié — aucune cotisation possible.`,'err');
+    return;
+  }
   const contratSolde = c.montantTotal>0 && s.totalPaye>=c.montantTotal;
   // Affichage info + badge contrat soldé si applicable
   const soldeBadge = contratSolde
@@ -8142,6 +8147,12 @@ window.openPay = function(cid){
 window.savePay = async function(){
   if(!['admin','commercial'].includes(session?.role)){ notify('Accès refusé','err'); return; }
   if(!payCtx) return;
+  // ── Bloquer si contrat résilié ──
+  const _clResilie = getCl(payCtx);
+  if(_clResilie && _clResilie.statutContrat==='resilie'){
+    notify(`🚫 Contrat de ${_clResilie.nom} résilié — aucune cotisation possible.`,'err');
+    closeM('m-pay'); payCtx=null; return;
+  }
   // ── Bloquer si montant contrat totalement atteint (non-admin) ──
   if(session.role !== 'admin'){
     const _cl = getCl(payCtx);
