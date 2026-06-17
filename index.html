@@ -18,32 +18,51 @@
      6. Dans Authentication → Connexion anonyme → Activer
      7. ⚠️ OBLIGATOIRE : Appliquez ces Firestore Security Rules :
 
-     ⚠️ RÈGLES FIRESTORE SÉCURISÉES — voir fichier firestore.rules joint
-     Déployer avec : firebase deploy --only firestore:rules
-     Les règles ci-dessous remplacent les anciennes règles permissives.
+     ⚠️ RÈGLES FIRESTORE SÉCURISÉES — à copier-coller dans la console Firebase
+     (Firestore Database → onglet "Règles" → Publier)
+     Ces règles ne sont QUE de la documentation ici : ce commentaire n'a aucun
+     effet sur le site. Elles doivent être publiées manuellement sur Firebase
+     pour être réellement appliquées.
+
+     ⚠️ IMPORTANT : isAuth() NE DOIT PAS exclure les connexions anonymes,
+     car ce site utilise signInAnonymously() pour TOUS les utilisateurs
+     (voir plus bas dans ce fichier : "await signInAnonymously(auth)").
+     Si isAuth() exclut l'anonyme, personne ne peut se connecter au site.
 
      rules_version = '2';
      service cloud.firestore {
        match /databases/{database}/documents {
+
+         // Authentifié = une session Firebase existe (anonyme incluse)
          function isAuth(){ return request.auth != null; }
-         function role(){ return get(/databases/$(database)/documents/commerciaux/$(request.auth.uid)).data.role; }
+
+         // Rôle lu depuis Firestore — '' si le document n'existe pas encore
+         function role(){
+           return exists(/databases/$(database)/documents/commerciaux/$(request.auth.uid))
+             ? get(/databases/$(database)/documents/commerciaux/$(request.auth.uid)).data.role
+             : '';
+         }
          function isAdmin(){ return isAuth() && role() == 'admin'; }
          function isOneOf(roles){ return isAuth() && role() in roles; }
+         function isStaff(){ return isOneOf(['admin','commercial','secretaire','gestionnaire_stock','controleur']); }
 
-         match /agences/{d}       { allow read: if isAuth(); allow write: if isAdmin(); }
-         match /commerciaux/{d}   { allow read: if isAuth(); allow create,delete: if isAdmin();
-                                    allow update: if isAdmin() || (isAuth() && request.auth.uid==d && request.resource.data.role==resource.data.role); }
-         match /clients/{d}       { allow read: if isAuth(); allow create,delete: if isOneOf(['admin','commercial','secretaire']); allow update: if isOneOf(['admin','commercial','secretaire','controleur']); }
-         match /paiements/{d}     { allow read: if isAuth(); allow create: if isOneOf(['admin','commercial','secretaire']); allow update,delete: if isAdmin(); }
-         match /articles/{d}      { allow read: if isAuth(); allow write: if isOneOf(['admin','gestionnaire_stock']); }
-         match /produits/{d}      { allow read: if isAuth(); allow write: if isOneOf(['admin','gestionnaire_stock']); }
-         match /stockMvts/{d}     { allow read: if isAuth(); allow write: if isOneOf(['admin','gestionnaire_stock']); }
-         match /livraisons/{d}    { allow read: if isAuth(); allow create,update: if isOneOf(['admin','commercial','secretaire']); allow delete: if isAdmin(); }
-         match /adhesionPays/{d}  { allow read: if isAuth(); allow create: if isOneOf(['admin','commercial','secretaire']); allow update,delete: if isAdmin(); }
-         match /mises/{d}         { allow read: if isAuth(); allow create: if isOneOf(['admin','commercial','secretaire']); allow update,delete: if isAdmin(); }
-         match /versements/{d}    { allow read: if isAuth(); allow create,update: if isOneOf(['admin','secretaire']); allow delete: if isAdmin(); }
-         match /primesPaliers/{d} { allow read: if isAuth(); allow write: if isAdmin(); }
-         match /pointsJour/{d}    { allow read: if isAuth(); allow write: if isOneOf(['admin','commercial','secretaire']); }
+         match /agences/{d}       { allow read: if isStaff(); allow write: if isAdmin(); }
+         match /commerciaux/{d}   { allow read: if isStaff(); allow create,delete: if isAdmin();
+                                    allow update: if isAdmin() || (isAuth() && request.auth.uid==d
+                                      && request.resource.data.role==resource.data.role
+                                      && request.resource.data.agenceId==resource.data.agenceId); }
+         match /clients/{d}       { allow read: if isStaff(); allow create,update: if isOneOf(['admin','commercial','secretaire']); allow delete: if isAdmin(); }
+         match /paiements/{d}     { allow read: if isStaff(); allow create: if isOneOf(['admin','commercial','secretaire']); allow update,delete: if isAdmin(); }
+         match /articles/{d}      { allow read: if isStaff(); allow write: if isOneOf(['admin','gestionnaire_stock']); }
+         match /produits/{d}      { allow read: if isStaff(); allow write: if isOneOf(['admin','gestionnaire_stock']); }
+         match /stockMvts/{d}     { allow read: if isStaff(); allow create: if isOneOf(['admin','gestionnaire_stock']); allow update,delete: if isAdmin(); }
+         match /livraisons/{d}    { allow read: if isStaff(); allow create,update: if isOneOf(['admin','commercial','secretaire']); allow delete: if isAdmin(); }
+         match /adhesionPays/{d}  { allow read: if isStaff(); allow create: if isOneOf(['admin','commercial','secretaire']); allow update,delete: if isAdmin(); }
+         match /mises/{d}         { allow read: if isStaff(); allow create: if isOneOf(['admin','commercial','secretaire']); allow update,delete: if isAdmin(); }
+         match /versements/{d}    { allow read: if isStaff(); allow create,update: if isOneOf(['admin','secretaire']); allow delete: if isAdmin(); }
+         match /primesPaliers/{d} { allow read: if isStaff(); allow write: if isAdmin(); }
+         match /pointsJour/{d}    { allow read: if isStaff(); allow write: if isOneOf(['admin','commercial','secretaire']); }
+         match /transferts/{d}    { allow read: if isStaff(); allow create: if isOneOf(['admin','secretaire']); allow update,delete: if isAdmin(); }
          match /{document=**}     { allow read, write: if false; }
        }
      }
