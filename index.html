@@ -70,12 +70,13 @@
 <script>
   // ✅ CONFIGURATION FIREBASE — FLEXIMARKET SYSTEM
   const FIREBASE_CONFIG = {
-    apiKey:            "AIzaSyCQA971XZwNP6Zlprt8EsofaWJXz1LjfU4",
-    authDomain:        "triomphant-mmb-service.firebaseapp.com",
-    projectId:         "triomphant-mmb-service",
-    storageBucket:     "triomphant-mmb-service.firebasestorage.app",
-    messagingSenderId: "53427091291",
-    appId:             "1:53427091291:web:7747b725839c54a4070c7e"
+    apiKey:            "AIzaSyATa_tOvEbGROCIZ9xZgkAsr_--d2vYIjc",
+    authDomain:        "triomphant-v2.firebaseapp.com",
+    projectId:         "triomphant-v2",
+    storageBucket:     "triomphant-v2.firebasestorage.app",
+    messagingSenderId: "908578874554",
+    appId:             "1:908578874554:web:5c008fba39204ce6c24e83",
+    measurementId:     "G-STQHJF83X2"
   };
   // ✅ FIN DE LA CONFIGURATION
   window.FIREBASE_CONFIG = FIREBASE_CONFIG;
@@ -3106,7 +3107,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
 
 
 <script type="module">
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { initializeApp, getApps, getApp, deleteApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getFirestore, collection, doc, setDoc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 
@@ -3223,7 +3224,24 @@ async function initFB(cfg) {
   document.getElementById('loading-screen').classList.remove('hidden');
   document.getElementById('load-text').textContent = 'Connexion à Firebase...';
   try {
-    const app = initializeApp(cfg);
+    // Évite l'erreur "Firebase App named '[DEFAULT]' already exists" :
+    // si une app par défaut existe déjà (ex: init automatique au chargement
+    // de la page), on la réutilise si la config est identique, sinon on la
+    // supprime proprement avant de réinitialiser avec la nouvelle config.
+    const existing = getApps();
+    let app;
+    if (existing.length > 0) {
+      const current = getApp();
+      const sameCfg = current.options && current.options.apiKey === cfg.apiKey && current.options.projectId === cfg.projectId;
+      if (sameCfg) {
+        app = current;
+      } else {
+        try { await deleteApp(current); } catch(e) { /* ignore */ }
+        app = initializeApp(cfg);
+      }
+    } else {
+      app = initializeApp(cfg);
+    }
     db_fs = getFirestore(app);
     auth = getAuth(app);
     await signInAnonymously(auth);
