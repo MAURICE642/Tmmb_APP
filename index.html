@@ -1012,17 +1012,6 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
   </div>
   <nav class="nav" id="nav-menu"></nav>
   <div class="sidebar-footer">
-    <!-- Bouton réinitialisation — admin uniquement -->
-    <div id="btn-reinit-wrap" style="display:none;padding:8px 12px 4px 12px;">
-      <button onclick="ouvrirModalDefinirCodeReinit()" style="width:100%;display:flex;align-items:center;gap:7px;background:rgba(212,137,58,0.10);border:1px solid rgba(212,137,58,0.30);border-radius:8px;padding:7px 11px;color:var(--warn);font-size:11px;font-weight:700;cursor:pointer;font-family:'Outfit',sans-serif;transition:background 0.15s;margin-bottom:6px;" onmouseover="this.style.background='rgba(212,137,58,0.20)'" onmouseout="this.style.background='rgba(212,137,58,0.10)'">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        Définir code de réinitialisation
-      </button>
-      <button onclick="ouvrirModalReinit()" style="width:100%;display:flex;align-items:center;gap:7px;background:rgba(224,92,82,0.10);border:1px solid rgba(224,92,82,0.30);border-radius:8px;padding:7px 11px;color:var(--danger);font-size:11px;font-weight:700;cursor:pointer;font-family:'Outfit',sans-serif;transition:background 0.15s;" onmouseover="this.style.background='rgba(224,92,82,0.20)'" onmouseout="this.style.background='rgba(224,92,82,0.10)'">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.65"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        Réinitialiser le logiciel
-      </button>
-    </div>
     <!-- Bouton imprimante Bluetooth -->
     <div style="padding:6px 12px 4px 12px;">
       <button onclick="connecterImprimanteBT()" style="width:100%;display:flex;align-items:center;gap:7px;background:rgba(26,111,196,0.10);border:1px solid rgba(26,111,196,0.30);border-radius:8px;padding:7px 11px;color:#5aaaf7;font-size:11px;font-weight:700;cursor:pointer;font-family:'Outfit',sans-serif;transition:background 0.15s;" onmouseover="this.style.background='rgba(26,111,196,0.22)'" onmouseout="this.style.background='rgba(26,111,196,0.10)'">
@@ -3115,74 +3104,6 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
   </div>
 </div>
 
-<!-- MODAL RÉINITIALISATION -->
-<div class="mo" id="m-reinit" style="z-index:10000;">
-  <div class="md" style="border:2px solid rgba(224,92,82,0.45);max-width:420px;">
-    <div style="text-align:center;margin-bottom:16px;">
-      <div style="font-size:40px;margin-bottom:8px;">⚠️</div>
-      <div style="font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:800;color:var(--danger);">Réinitialisation totale</div>
-      <div style="font-size:12px;color:var(--muted);margin-top:6px;line-height:1.6;">
-        Cette action va <strong style="color:var(--danger);">supprimer définitivement</strong> toutes les données :<br>
-        clients, paiements, articles, livraisons, utilisateurs, stock, mises…<br>
-        <strong>Cette opération est irréversible.</strong>
-      </div>
-    </div>
-    <div id="reinit-stats" style="background:rgba(224,92,82,0.08);border:1px solid rgba(224,92,82,0.2);border-radius:8px;padding:10px;font-size:11px;color:var(--muted);margin-bottom:14px;display:none;"></div>
-    <div id="reinit-hint-code" style="display:none;background:rgba(212,137,58,0.1);border:1px solid rgba(212,137,58,0.3);border-radius:8px;padding:9px 12px;font-size:11px;color:var(--warn);margin-bottom:12px;">
-      ⚠️ Aucun code de réinitialisation n'a encore été défini. Rendez-vous dans <strong>Paramètres → Définir le code de réinitialisation</strong> avant d'utiliser cette fonction.
-    </div>
-    <div style="margin-bottom:14px;">
-      <label style="display:block;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;font-weight:700;">Code de réinitialisation *</label>
-      <input type="password" id="reinit-code-input" placeholder="Votre code secret..."
-        style="width:100%;background:var(--surface2);border:2px solid rgba(224,92,82,0.4);border-radius:8px;padding:10px 14px;color:var(--text);font-size:14px;font-weight:700;font-family:'Space Grotesk',sans-serif;letter-spacing:2px;outline:none;box-sizing:border-box;"
-        oninput="verifierCodeReinit(this)">
-      <div id="reinit-code-status" style="font-size:11px;margin-top:6px;height:16px;"></div>
-    </div>
-    <div id="reinit-progress" style="display:none;margin-bottom:12px;">
-      <div style="font-size:11px;color:var(--muted);margin-bottom:6px;" id="reinit-progress-label">Suppression en cours…</div>
-      <div style="height:6px;border-radius:4px;background:rgba(255,255,255,0.08);overflow:hidden;">
-        <div id="reinit-progress-bar" style="height:100%;width:0%;background:var(--danger);border-radius:4px;transition:width 0.3s;"></div>
-      </div>
-    </div>
-    <div class="ma" style="margin-top:0;">
-      <button class="btn btn-ghost" id="reinit-btn-annuler" onclick="closeM('m-reinit')">Annuler</button>
-      <button id="reinit-btn-confirm" onclick="executerReinit()" disabled
-        style="background:rgba(224,92,82,0.15);border:1px solid rgba(224,92,82,0.35);color:var(--danger);padding:7px 16px;border-radius:8px;font-size:12px;font-weight:700;cursor:not-allowed;opacity:0.5;transition:all 0.2s;font-family:'Outfit',sans-serif;">
-        🗑️ Tout supprimer
-      </button>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL DÉFINIR CODE DE RÉINITIALISATION -->
-<div class="mo" id="m-definir-code-reinit" style="z-index:10000;">
-  <div class="md" style="border:1px solid rgba(212,137,58,0.4);max-width:400px;">
-    <div class="md-title" style="color:var(--warn);">🔐 Définir le code de réinitialisation</div>
-    <div class="ib ib-yellow" style="font-size:12px;margin-bottom:14px;line-height:1.7;">
-      Ce code secret protège la réinitialisation totale du logiciel.<br>
-      Choisissez un code <strong>long et mémorisable</strong> (min. 6 caractères).<br>
-      Il est stocké hashé sur cet appareil — <strong>jamais en clair</strong>.
-    </div>
-    <div class="fr">
-      <label>Nouveau code *</label>
-      <input type="password" id="def-reinit-new" placeholder="Votre code secret..." autocomplete="new-password"
-        style="letter-spacing:3px;font-size:15px;">
-    </div>
-    <div class="fr">
-      <label>Confirmer le code *</label>
-      <input type="password" id="def-reinit-confirm" placeholder="Répétez le code..."
-        style="letter-spacing:3px;font-size:15px;">
-    </div>
-    <div id="def-reinit-err" style="display:none;color:var(--danger);font-size:12px;margin-bottom:8px;padding:7px 10px;background:rgba(224,92,82,0.1);border-radius:6px;border:1px solid rgba(224,92,82,0.28);"></div>
-    <div class="ma">
-      <button class="btn btn-ghost" onclick="closeM('m-definir-code-reinit')">Annuler</button>
-      <button class="btn btn-primary" onclick="sauvegarderCodeReinit()" style="background:rgba(212,137,58,0.2);border-color:rgba(212,137,58,0.5);color:var(--warn);">
-        🔐 Enregistrer le code
-      </button>
-    </div>
-  </div>
-</div>
-
 
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
@@ -3450,134 +3371,6 @@ async function fbDelete(col, id) {
   await deleteDoc(doc(db_fs, col, id));
   setSyncStatus(true);
 }
-
-// ========= RÉINITIALISATION TOTALE =========
-// Le code de réinitialisation est défini par l'admin et stocké hashé dans localStorage.
-// Il n'est JAMAIS écrit en clair dans le code source.
-const RESET_COLLECTIONS = ['clients','paiements','articles','produits','stockMvts','livraisons','adhesionPays','mises','primesPaliers','agences','commerciaux'];
-
-async function getResetCodeHash(){ return localStorage.getItem('gestcom_reset_hash') || null; }
-async function setResetCodeHash(code){ localStorage.setItem('gestcom_reset_hash', await hashPin(code)); }
-async function verifyResetCode(code){
-  const stored = await getResetCodeHash();
-  if(!stored) return false;
-  return await verifyPin(code, stored);
-}
-
-window.ouvrirModalReinit = function(){
-  if(session?.role !== 'admin'){ notify('Accès réservé à l\'administrateur','err'); return; }
-  document.getElementById('reinit-code-input').value = '';
-  document.getElementById('reinit-code-status').innerHTML = '';
-  document.getElementById('reinit-progress').style.display = 'none';
-  document.getElementById('reinit-progress-bar').style.width = '0%';
-  const btn = document.getElementById('reinit-btn-confirm');
-  btn.disabled = true; btn.style.opacity='0.5'; btn.style.cursor='not-allowed';
-  document.getElementById('reinit-btn-annuler').disabled = false;
-  // Afficher les stats
-  const statsEl = document.getElementById('reinit-stats');
-  statsEl.style.display = 'block';
-  statsEl.innerHTML = `📊 Données actuelles :<br>
-    👥 ${DB.clients.length} client(s) &nbsp;·&nbsp;
-    💰 ${DB.paiements.length} paiement(s) &nbsp;·&nbsp;
-    📦 ${DB.articles.length} article(s)<br>
-    🚚 ${DB.livraisons.length} livraison(s) &nbsp;·&nbsp;
-    👔 ${DB.commerciaux.length} utilisateur(s) &nbsp;·&nbsp;
-    🏢 ${DB.agences.length} agence(s)<br>
-    📈 ${DB.stockMvts.length} mouvement(s) de stock &nbsp;·&nbsp;
-    💳 ${DB.mises.length} mise(s)`;
-  // Vérifier si un code a déjà été défini
-  const codeDefini = !!localStorage.getItem('gestcom_reset_hash');
-  document.getElementById('reinit-hint-code').style.display = codeDefini ? 'none' : 'block';
-  document.getElementById('reinit-hint-nocode').style.display = codeDefini ? 'none' : 'none';
-  openM('m-reinit');
-};
-
-window.verifierCodeReinit = async function(input){
-  const val = input.value.trim();
-  const statusEl = document.getElementById('reinit-code-status');
-  const btn = document.getElementById('reinit-btn-confirm');
-  if(val.length === 0){
-    statusEl.innerHTML = '';
-    btn.disabled = true; btn.style.opacity='0.5'; btn.style.cursor='not-allowed';
-    return;
-  }
-  const ok = await verifyResetCode(val);
-  if(ok){
-    statusEl.innerHTML = '<span style="color:var(--danger);font-weight:700;">✓ Code correct — confirmation activée</span>';
-    btn.disabled = false; btn.style.opacity='1'; btn.style.cursor='pointer';
-    btn.style.background='rgba(224,92,82,0.22)'; btn.style.borderColor='rgba(224,92,82,0.6)';
-  } else {
-    statusEl.innerHTML = '<span style="color:var(--muted);">Code incorrect…</span>';
-    btn.disabled = true; btn.style.opacity='0.5'; btn.style.cursor='not-allowed';
-  }
-};
-
-window.executerReinit = async function(){
-  if(session?.role !== 'admin'){ notify('Accès refusé','err'); return; }
-  const code = document.getElementById('reinit-code-input').value.trim();
-  const ok = await verifyResetCode(code);
-  if(!ok){ notify('Code de réinitialisation incorrect','err'); return; }
-
-  document.getElementById('reinit-btn-confirm').disabled = true;
-  document.getElementById('reinit-btn-annuler').disabled = true;
-  document.getElementById('reinit-progress').style.display = 'block';
-
-  const cols = RESET_COLLECTIONS;
-  let done = 0;
-
-  for(const col of cols){
-    document.getElementById('reinit-progress-label').textContent = `Suppression : ${esc(col)}…`;
-    document.getElementById('reinit-progress-bar').style.width = Math.round((done/cols.length)*100)+'%';
-    if(isOnline && db_fs){
-      try {
-        const snap = await getDocs(collection(db_fs, col));
-        for(const d of snap.docs){ await deleteDoc(doc(db_fs, col, d.id)); }
-      } catch(e){ console.warn('Erreur suppression collection', col, e); }
-    }
-    DB[col] = [];
-    done++;
-    document.getElementById('reinit-progress-bar').style.width = Math.round((done/cols.length)*100)+'%';
-  }
-
-  localStorage.removeItem('gestcom_local');
-  document.getElementById('reinit-progress-bar').style.width = '100%';
-  document.getElementById('reinit-progress-label').textContent = '✓ Réinitialisation terminée !';
-  document.getElementById('reinit-progress-bar').style.background = 'var(--accent2)';
-
-  setTimeout(()=>{
-    closeM('m-reinit');
-    notify('✅ Logiciel réinitialisé — toutes les données ont été supprimées');
-    session = null;
-    setTimeout(()=>window.location.reload(), 1200);
-  }, 1500);
-};
-
-// ── Définir / changer le code de réinitialisation (admin uniquement) ──
-window.ouvrirModalDefinirCodeReinit = function(){
-  if(session?.role !== 'admin'){ notify('Accès refusé','err'); return; }
-  document.getElementById('def-reinit-new').value = '';
-  document.getElementById('def-reinit-confirm').value = '';
-  document.getElementById('def-reinit-err').style.display = 'none';
-  openM('m-definir-code-reinit');
-};
-
-window.sauvegarderCodeReinit = async function(){
-  const v1 = document.getElementById('def-reinit-new').value.trim();
-  const v2 = document.getElementById('def-reinit-confirm').value.trim();
-  const errEl = document.getElementById('def-reinit-err');
-  if(!v1 || v1.length < 6){
-    errEl.textContent = 'Le code doit contenir au moins 6 caractères.';
-    errEl.style.display = 'block'; return;
-  }
-  if(v1 !== v2){
-    errEl.textContent = 'Les deux saisies ne correspondent pas.';
-    errEl.style.display = 'block'; return;
-  }
-  await setResetCodeHash(v1);
-  errEl.style.display = 'none';
-  closeM('m-definir-code-reinit');
-  notify('✅ Code de réinitialisation enregistré avec succès');
-};
 
 // ========= LOCAL FALLBACK =========
 function loadLocalData() {
@@ -4514,8 +4307,6 @@ window.doLogin = async function(){
 window.doLogout = function(){
   session = null;
   _stopSessionTimer();
-  const btnReinit = document.getElementById('btn-reinit-wrap');
-  if(btnReinit) btnReinit.style.display = 'none';
   document.getElementById('login-screen').classList.remove('hidden');
   document.getElementById('login-pin').value = '';
   fillLogin();
@@ -4644,9 +4435,6 @@ function setupUI(){
   document.getElementById('s-rl').textContent = getRoleLabel(u.role)+(u.zone?' · '+u.zone:'')+agLabel;
   document.getElementById('nav-menu').innerHTML = getRoleNav(session.role);
   document.getElementById('today-pill').textContent = new Date().toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'long'});
-  // Afficher bouton réinitialisation uniquement pour l'admin
-  const btnReinit = document.getElementById('btn-reinit-wrap');
-  if(btnReinit) btnReinit.style.display = (session.role === 'admin') ? '' : 'none';
 }
 
 const TITLES={'admin-dashboard':'Tableau de bord',registre:'Registre par date',historique:'Historique','tous-clients':'Clients',controle:'Contrôle',livraisons:'Livraisons',articles:'Articles',produits:'Produits',catalogue:'Catalogue visuel',stock:'Stock',commerciaux:'Utilisateurs',agences:'Agences',recouvrement:'Recouvrement du jour',fiche:'Fiche du jour','saisie-mises':'Saisie de mises','saisie-adhesions':'Saisie des adhésions','com-clients':'Mes clients','com-nouveau-client':'Nouveau client','rapport-activite':"Rapport d'activité",'gstock-periode':'Suivi de période','transfert-resiliation':'Transfert & Résiliation'};
