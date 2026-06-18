@@ -1180,7 +1180,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         </div>
         <div>
           <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Livraisons en attente</div>
-          <div class="tw"><table><thead><tr><th>Client</th><th>Article</th><th>Date</th><th>Statut</th></tr></thead><tbody id="ad-livraisons-att"></tbody></table></div>
+          <div class="tw"><table><thead><tr><th>Client</th><th>Produit</th><th>Date</th><th>Statut</th></tr></thead><tbody id="ad-livraisons-att"></tbody></table></div>
         </div>
       </div>
     </div>
@@ -1480,11 +1480,11 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         onchange="renderLivraisons()">
         <option value="">Tous les commerciaux</option>
       </select>
-      <!-- Filtre article -->
+      <!-- Filtre produit -->
       <select id="filter-liv-article"
         style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 10px;color:var(--text);font-size:11px;outline:none;min-width:140px;"
         onchange="renderLivraisons()">
-        <option value="">Tous les articles</option>
+        <option value="">Tous les produits</option>
       </select>
       <!-- Filtre statut -->
       <select id="filter-liv-statut"
@@ -1500,7 +1500,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     </div>
     <!-- Label résumé filtres actifs -->
     <div id="liv-filtre-label" style="font-size:11px;color:var(--muted);margin-bottom:8px;padding:0 2px;"></div>
-    <div class="tw"><table><thead><tr><th>Date</th><th>Client</th><th>Commercial</th><th>Article</th><th>Qté</th><th>Montant</th><th>Statut</th><th>Actions</th></tr></thead><tbody id="tb-livraisons"></tbody></table></div>
+    <div class="tw"><table><thead><tr><th>Date</th><th>Client</th><th>Commercial</th><th>Produit</th><th>Qté</th><th>Montant</th><th>Statut</th><th>Actions</th></tr></thead><tbody id="tb-livraisons"></tbody></table></div>
   </div>
 
   <!-- ADMIN: REGISTRE -->
@@ -1751,11 +1751,11 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         </div>
         <div class="divider"></div>
         <div style="font-size:9.5px;font-weight:700;color:var(--accent2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Contrat de recouvrement</div>
-        <!-- Saisie par code article -->
+        <!-- Saisie par code produit -->
         <div class="fr">
-          <label>Code article <span style="color:var(--muted);font-weight:400;font-size:10px;">(tapez le code ou la référence, puis +)</span></label>
+          <label>Code produit <span style="color:var(--muted);font-weight:400;font-size:10px;">(tapez le code ou la référence, puis +)</span></label>
           <div style="display:flex;gap:6px;align-items:center;">
-            <input type="text" id="com-ncl-art-code" placeholder="ex: ART-001" style="flex:1;text-transform:uppercase;"
+            <input type="text" id="com-ncl-art-code" placeholder="ex: PRD-001" style="flex:1;text-transform:uppercase;"
               oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter'){event.preventDefault();ajouterArticleParCode('com-ncl');}">
             <button type="button" onclick="ajouterArticleParCode('com-ncl')"
               style="background:var(--accent);border:none;border-radius:6px;color:#fff;padding:5px 14px;cursor:pointer;font-size:14px;font-weight:700;flex-shrink:0;line-height:1;">+</button>
@@ -2179,11 +2179,11 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     <select id="cl-adhesion-statut" style="display:none;"><option value="non_paye">Non payé</option><option value="paye">Payé</option></select>
     <div class="divider"></div>
     <div style="font-size:9.5px;font-weight:700;color:var(--accent2);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Contrat de recouvrement</div>
-    <!-- Saisie par code article -->
+    <!-- Saisie par code produit -->
     <div class="fr">
-      <label>Code article <span style="color:var(--muted);font-weight:400;font-size:10px;">(tapez le code ou la référence, puis +)</span></label>
+      <label>Code produit <span style="color:var(--muted);font-weight:400;font-size:10px;">(tapez le code ou la référence, puis +)</span></label>
       <div style="display:flex;gap:6px;align-items:center;">
-        <input type="text" id="cl-art-code" placeholder="ex: ART-001" style="flex:1;text-transform:uppercase;"
+        <input type="text" id="cl-art-code" placeholder="ex: PRD-001" style="flex:1;text-transform:uppercase;"
           oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter'){event.preventDefault();ajouterArticleParCode('cl');}">
         <button type="button" onclick="ajouterArticleParCode('cl')"
           style="background:var(--accent);border:none;border-radius:6px;color:#fff;padding:5px 14px;cursor:pointer;font-size:14px;font-weight:700;flex-shrink:0;line-height:1;">+</button>
@@ -2510,9 +2510,9 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     <!-- DÉTAILS LIVRAISON -->
     <div class="fg">
       <div class="fr">
-        <label>Code article *</label>
+        <label>Code produit *</label>
         <div style="display:flex;gap:6px;align-items:center;">
-          <input type="text" id="liv-art-code" placeholder="ex: MOB-001" style="flex:1;text-transform:uppercase;font-weight:700;letter-spacing:1px;color:var(--accent);"
+          <input type="text" id="liv-art-code" placeholder="ex: PRD-001" style="flex:1;text-transform:uppercase;font-weight:700;letter-spacing:1px;color:var(--accent);"
             oninput="this.value=this.value.toUpperCase();onLivArtCodeInput()"
             onkeydown="if(event.key==='Enter'){event.preventDefault();onLivArtCodeInput(true);}">
           <input type="hidden" id="liv-article">
@@ -2592,7 +2592,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     </div>
     <div id="fiche-cl-info"></div>
     <div id="fiche-cl-paiements" style="display:none;"><div class="tw" style="max-height:240px;overflow-y:auto;margin-bottom:0;"><table><thead><tr><th>Date</th><th>Heure</th><th>Cotis./j</th><th>Montant</th><th>Ratio</th><th style="color:var(--accent);white-space:nowrap;">📊 Niveau après</th><th>Saisi par</th><th>Note</th></tr></thead><tbody id="fiche-cl-pays-list"></tbody></table></div></div>
-    <div id="fiche-cl-livraisons" style="display:none;"><div class="tw" style="max-height:240px;overflow-y:auto;margin-bottom:0;"><table><thead><tr><th>Date</th><th>Article</th><th>Qté</th><th>Montant</th><th>Statut</th></tr></thead><tbody id="fiche-cl-liv-list"></tbody></table></div></div>
+    <div id="fiche-cl-livraisons" style="display:none;"><div class="tw" style="max-height:240px;overflow-y:auto;margin-bottom:0;"><table><thead><tr><th>Date</th><th>Produit</th><th>Qté</th><th>Montant</th><th>Statut</th></tr></thead><tbody id="fiche-cl-liv-list"></tbody></table></div></div>
     <div id="fiche-cl-adhesion" style="display:none;"><div id="fiche-cl-adh-content" style="padding:12px;"></div></div>
     <div id="fiche-cl-calendrier" style="display:none;"><div id="fiche-cl-cal-content" style="padding:4px 0;"></div></div>
     <div class="ma">
@@ -2616,7 +2616,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
       <button class="btn btn-ghost btn-sm det-tab" onclick="switchDetTab('calendrier',this)">📅 Calendrier</button>
     </div>
     <div id="det-paiements"><div class="tw" style="max-height:200px;overflow-y:auto;margin-bottom:0;"><table><thead><tr><th>Date</th><th>Heure</th><th>Cotis./j</th><th>Payé</th><th>Ratio</th><th style="color:var(--accent);white-space:nowrap;">📊 Niveau après</th><th>Note</th></tr></thead><tbody id="det-pays-list"></tbody></table></div></div>
-    <div id="det-livraisons" style="display:none;"><div class="tw" style="max-height:200px;overflow-y:auto;margin-bottom:0;"><table><thead><tr><th>Date</th><th>Article</th><th>Qté</th><th>Montant</th><th>Statut</th></tr></thead><tbody id="det-liv-list"></tbody></table></div></div>
+    <div id="det-livraisons" style="display:none;"><div class="tw" style="max-height:200px;overflow-y:auto;margin-bottom:0;"><table><thead><tr><th>Date</th><th>Produit</th><th>Qté</th><th>Montant</th><th>Statut</th></tr></thead><tbody id="det-liv-list"></tbody></table></div></div>
     <div id="det-adhesion" style="display:none;"><div id="det-adh-content" style="padding:12px;"></div></div>
     <div id="det-calendrier" style="display:none;"><div id="det-cal-content" style="padding:4px 0;"></div></div>
     <div class="ma"><button class="btn btn-ghost" onclick="closeM('m-detail')">Fermer</button><button class="btn btn-success btn-sm" id="det-pay-btn">💰 Payer cotisation</button></div>
@@ -3611,7 +3611,7 @@ window.ouvrirFicheClient = function(cid){
 
   // Livraisons
   const livs=DB.livraisons.filter(l=>l.clientId===cid).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  document.getElementById('fiche-cl-liv-list').innerHTML=livs.map(l=>`<tr><td>${l.date}</td><td class="fw6">${getArt(l.articleId).nom}</td><td>${l.qty}</td><td>${fmt(l.montant)}</td><td>${livStatut(l.statut)}</td></tr>`).join('')||'<tr><td colspan="5" class="emp">Aucune livraison</td></tr>';
+  document.getElementById('fiche-cl-liv-list').innerHTML=livs.map(l=>`<tr><td>${l.date}</td><td class="fw6">${getProd(l.produitId).nom}</td><td>${l.qty}</td><td>${fmt(l.montant)}</td><td>${livStatut(l.statut)}</td></tr>`).join('')||'<tr><td colspan="5" class="emp">Aucune livraison</td></tr>';
 
   // Adhésion
   const adhPays=DB.adhesionPays.filter(a=>a.clientId===cid);
@@ -4161,6 +4161,7 @@ function fmt(n){ return Number(n||0).toLocaleString('fr-FR')+' FCFA'; }
 function getCl(id){ return DB.clients.find(c=>c._id===id)||{nom:'—',contrat:'—'}; }
 function getCom(id){ return DB.commerciaux.find(c=>c._id===id)||{nom:'—'}; }
 function getArt(id){ return DB.articles.find(a=>a._id===id)||{nom:'—',unite:'pcs'}; }
+function getProd(id){ return (DB.produits||[]).find(p=>p._id===id)||{nom:'—',prix:0,composition:[]}; }
 
 // ── AGENCES ──
 function getAgence(id){ return DB.agences.find(a=>a._id===id)||{nom:'—'}; }
@@ -4840,11 +4841,11 @@ function dessinerTopProduits(){
     livs = livs.filter(l=>clIds.includes(l.clientId));
   }
 
-  // Agréger par article
+  // Agréger par produit
   const map = {};
   livs.forEach(l=>{
-    const art = DB.articles.find(a=>a._id===l.articleId)||{nom:'Inconnu'};
-    const nom = art.nom || l.articleId || 'Inconnu';
+    const prod = (DB.produits||[]).find(p=>p._id===l.produitId)||{nom:'Inconnu'};
+    const nom = prod.nom || l.produitId || 'Inconnu';
     if(!map[nom]) map[nom]={qty:0,montant:0};
     map[nom].qty += Number(l.qty)||0;
     map[nom].montant += Number(l.montant)||0;
@@ -5130,7 +5131,7 @@ function renderAdminDash(){
   const alertArts=DB.articles.filter(a=>a.stock<=a.stockMin);
   document.getElementById('ad-stock-alert').innerHTML=alertArts.slice(0,5).map(a=>`<tr><td class="fw6">${a.nom}</td><td style="font-weight:700;color:${a.stock<=0?'var(--danger)':'var(--accent3)'}">${a.stock} ${a.unite}</td><td>${stockStatut(a)}</td></tr>`).join('')||'<tr><td colspan="3" class="emp">✅ Tous les stocks OK</td></tr>';
   const livsAtt=DB.livraisons.filter(l=>l.statut==='en_attente');
-  document.getElementById('ad-livraisons-att').innerHTML=livsAtt.slice(0,5).map(l=>`<tr><td class="fw6">${getCl(l.clientId).nom}</td><td style="font-size:11px">${getArt(l.articleId).nom}</td><td>${l.date}</td><td>${livStatut(l.statut)}</td></tr>`).join('')||'<tr><td colspan="4" class="emp">Aucune livraison en attente</td></tr>';
+  document.getElementById('ad-livraisons-att').innerHTML=livsAtt.slice(0,5).map(l=>`<tr><td class="fw6">${getCl(l.clientId).nom}</td><td style="font-size:11px">${getProd(l.produitId).nom}</td><td>${l.date}</td><td>${livStatut(l.statut)}</td></tr>`).join('')||'<tr><td colspan="4" class="emp">Aucune livraison en attente</td></tr>';
 
   renderRapportProduitsEnCours();
   initDashSections();
@@ -5630,8 +5631,15 @@ window.saveProduit = async function() {
   };
   const editId = document.getElementById('prod-edit-id')?.value;
   if (editId) {
+    const prodActuel = DB.produits.find(p => p._id === editId);
+    const ancienPrix = prodActuel ? prodActuel.prix : null;
     await fbUpdate('produits', editId, data);
-    notify('Produit mis à jour ✓');
+    if (ancienPrix !== null && ancienPrix !== data.prix) {
+      const clientsProteges = DB.clients.filter(c => (c.produitsPrixFiges||[]).some(x => x.produitId === editId));
+      if (clientsProteges.length > 0) {
+        notify(`Produit mis à jour ✓ — Prix ${fmt(ancienPrix)} → ${fmt(data.prix)} · ${clientsProteges.length} client(s) conservent leur prix 🔒`);
+      } else { notify('Produit mis à jour ✓'); }
+    } else { notify('Produit mis à jour ✓'); }
   } else {
     data.createdAt = TODAY;
     await fbAdd('produits', data);
@@ -6671,10 +6679,15 @@ window.renderStockParAgence = function(){
     const sortiesMap = {}; // articleId => qty envoyée
     sortiesVersAgence.forEach(m=>{ sortiesMap[m.articleId]=(sortiesMap[m.articleId]||0)+m.qty; });
 
-    // ── Livraisons confirmées de cette agence ──
+    // ── Livraisons confirmées de cette agence (décomposées produit → articles) ──
     const livs = DB.livraisons.filter(l=>clIds.includes(l.clientId) && l.statut==='livre');
-    const livsMap = {}; // articleId => qty livrée
-    livs.forEach(l=>{ livsMap[l.articleId]=(livsMap[l.articleId]||0)+l.qty; });
+    const livsMap = {}; // articleId => qty livrée (équivalent articles consommés)
+    livs.forEach(l=>{
+      const prod = (DB.produits||[]).find(p=>p._id===l.produitId);
+      (prod?.composition||[]).forEach(c=>{
+        livsMap[c.articleId] = (livsMap[c.articleId]||0) + (c.qte*l.qty);
+      });
+    });
 
     // ── Fusionner : articles concernés par envoi OU livraison ──
     const artIdsConcernes = new Set([...Object.keys(sortiesMap), ...Object.keys(livsMap)]);
@@ -6807,12 +6820,12 @@ function renderLivraisons(){
       comsSource.map(c => `<option value="${c._id}"${c._id===prevCom?' selected':''}>${c.nom}${c.zone?' — '+c.zone:''}</option>`).join('');
   }
 
-  // ── Peupler select articles (une seule fois) ──
+  // ── Peupler select produits (une seule fois) ──
   const selArt = document.getElementById('filter-liv-article');
   if(selArt && selArt.options.length <= 1){
-    DB.articles.filter(a=>a.nom).sort((a,b)=>a.nom.localeCompare(b.nom)).forEach(a=>{
+    (DB.produits||[]).filter(p=>p.nom).sort((a,b)=>a.nom.localeCompare(b.nom)).forEach(p=>{
       const opt = document.createElement('option');
-      opt.value = a._id; opt.textContent = a.nom;
+      opt.value = p._id; opt.textContent = p.nom;
       selArt.appendChild(opt);
     });
   }
@@ -6843,7 +6856,7 @@ function renderLivraisons(){
   if(filtStatut) livs = livs.filter(l => l.statut === filtStatut);
 
   // Filtre article
-  if(filtArticleId) livs = livs.filter(l => l.articleId === filtArticleId);
+  if(filtArticleId) livs = livs.filter(l => l.produitId === filtArticleId);
 
   // Filtre recherche texte (client)
   if(q){
@@ -6872,7 +6885,7 @@ function renderLivraisons(){
     if(agId){ const ag = DB.agences.find(a=>a._id===agId); if(ag) parts.push(`🏢 ${ag.nom}`); }
     if(filtComId){ const com = DB.commerciaux.find(c=>c._id===filtComId); if(com) parts.push(`👤 ${com.nom}`); }
     if(filtStatut){ parts.push(filtStatut==='en_attente'?'⏳ En attente':filtStatut==='livre'?'✅ Livrées':'❌ Annulées'); }
-    if(filtArticleId){ const art = DB.articles.find(a=>a._id===filtArticleId); if(art) parts.push(`📦 ${art.nom}`); }
+    if(filtArticleId){ const prod = (DB.produits||[]).find(p=>p._id===filtArticleId); if(prod) parts.push(`📦 ${prod.nom}`); }
     if(q) parts.push(`🔍 "${q}"`);
     labelEl.innerHTML = parts.length
       ? `<span style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.2);border-radius:6px;padding:3px 10px;">Filtres actifs : ${parts.join(' · ')}</span>`
@@ -6881,7 +6894,7 @@ function renderLivraisons(){
 
   // ── Tableau ──
   document.getElementById('tb-livraisons').innerHTML=livs.map(l=>{
-    const c=getCl(l.clientId),a=getArt(l.articleId),com=getCom(l.commercialId);
+    const c=getCl(l.clientId),a=getProd(l.produitId),com=getCom(l.commercialId);
     return`<tr><td>${esc(l.date)}</td><td class="fw6">${esc(c.nom)}${c.codeClient?`<div style="font-size:9px;color:var(--accent);font-weight:700;">${c.codeClient}</div>`:''}</td>
     <td><span class="tag">${com.nom}</span></td>
     <td style="font-size:11px">${a.nom}</td><td>${l.qty}</td><td>${fmt(l.montant)}</td><td>${livStatut(l.statut)}</td>
@@ -7894,15 +7907,22 @@ function renderFiche(){
   const com=getCom(comId);
   const cls=DB.clients.filter(c=>c.commercialId===comId);
   const pays=DB.paiements.filter(p=>p.date===fd&&cls.some(c=>c._id===p.clientId));
-  const clientsPayeurs=cls.filter(c=>pays.some(p=>p.clientId===c._id));
+  let clientsPayeurs=cls.filter(c=>pays.some(p=>p.clientId===c._id));
+  // Trier par heure de saisie du paiement (du plus ancien au plus récent)
+  clientsPayeurs = clientsPayeurs.slice().sort((c1,c2)=>{
+    const h1 = (pays.find(p=>p.clientId===c1._id)||{}).heure || '';
+    const h2 = (pays.find(p=>p.clientId===c2._id)||{}).heure || '';
+    return h1.localeCompare(h2);
+  });
   const total=pays.reduce((a,p)=>a+p.montant,0);
   const dateStr=new Date(fd+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 
   // Nouveaux clients enregistrés ce jour par ce commercial
   const nouveauxClients = cls.filter(c=>c.debut===fd || c.createdAt===fd);
-  // Adhésions encaissées ce jour (table adhesionPays)
+  // Adhésions encaissées ce jour (table adhesionPays), triées par heure de saisie croissante
   const clientIdsComm = new Set(cls.map(c=>c._id));
-  const adhJourFiche = (DB.adhesionPays||[]).filter(a=>a.date===fd && clientIdsComm.has(a.clientId));
+  const adhJourFiche = (DB.adhesionPays||[]).filter(a=>a.date===fd && clientIdsComm.has(a.clientId))
+    .slice().sort((a,b)=>(a.heure||'').localeCompare(b.heure||''));
   const totalAdhesions = adhJourFiche.reduce((a,x)=>a+Number(x.montant||0),0);
   // Total général = cotisations + adhésions
   const totalJour = total + totalAdhesions;
@@ -8261,7 +8281,7 @@ window.openDet = function(cid){
     return`<tr><td>${p.date}</td><td class="tm">${p.heure||'—'}</td><td><span class="cotis-badge" style="font-size:10px">💰 ${fmt(p.cotisJour||s.m)}</span></td><td style="color:var(--accent2);font-weight:700">${fmt(p.montant)}</td><td>${ratio(p.montant,p.cotisJour||s.m)}</td><td style="font-size:12px;font-weight:700;color:${nivColor2};white-space:nowrap;">${nivLabel2}<span style="font-size:9px;color:var(--muted);font-weight:400;"> /${joursEnJM(duree2)}</span></td><td class="tm" style="font-size:10px">${p.note||'—'}${locked?'<span style="margin-left:4px;color:var(--accent2);" title="Saisi par commercial — verrouillé">🔒</span>':''}</td></tr>`;
   }).join('')||'<tr><td colspan="7" class="emp">Aucun paiement</td></tr>';
   const livs=DB.livraisons.filter(l=>l.clientId===cid).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  document.getElementById('det-liv-list').innerHTML=livs.map(l=>`<tr><td>${l.date}</td><td class="fw6">${getArt(l.articleId).nom}</td><td>${l.qty}</td><td>${fmt(l.montant)}</td><td>${livStatut(l.statut)}</td></tr>`).join('')||'<tr><td colspan="5" class="emp">Aucune livraison</td></tr>';
+  document.getElementById('det-liv-list').innerHTML=livs.map(l=>`<tr><td>${l.date}</td><td class="fw6">${getProd(l.produitId).nom}</td><td>${l.qty}</td><td>${fmt(l.montant)}</td><td>${livStatut(l.statut)}</td></tr>`).join('')||'<tr><td colspan="5" class="emp">Aucune livraison</td></tr>';
   const adhPays=DB.adhesionPays.filter(a=>a.clientId===cid);
   document.getElementById('det-adh-content').innerHTML=`<div class="ib ${c.adhesionStatut==='paye'?'ib-green':'ib-red'}" style="margin-bottom:8px;"><strong>Adhésion : ${fmt(c.adhesion)}</strong> — ${c.adhesionStatut==='paye'?'✅ Payé':'❌ Non payé'}${c.adhesionStatut!=='paye'&&session.role==='admin'?`<br><button class="btn btn-success btn-xs no-print" onclick="closeM('m-detail');openAdh('${cid}')" style="margin-top:5px">Encaisser</button>`:''}</div>${adhPays.length>0?`<div class="tw" style="margin:0"><table><thead><tr><th>Date</th><th>Montant</th><th>Note</th></tr></thead><tbody>${adhPays.map(a=>`<tr><td>${a.date}</td><td style="color:var(--accent2);font-weight:600">${fmt(a.montant)}</td><td class="tm" style="font-size:10px">${a.note||'—'}</td></tr>`).join('')}</tbody></table></div>`:'<div class="emp" style="padding:16px">Aucun paiement d\'adhésion</div>'}`;
   document.querySelectorAll('.det-tab').forEach(t=>t.classList.remove('active'));
@@ -8272,8 +8292,8 @@ window.openDet = function(cid){
   openM('m-detail');
 };
 
-// ========= ARTICLES PAR CODE =========
-// Stockage interne des articles ajoutés par prefix
+// ========= PRODUITS DU CONTRAT (PAR CODE) =========
+// Stockage interne des produits ajoutés par prefix
 const _articlesAdded = { 'cl': [], 'com-ncl': [] };
 
 // Appelé au reset du formulaire
@@ -8294,23 +8314,23 @@ window.ajouterArticleParCode = function(prefix){
   const msgEl  = document.getElementById(prefix+'-art-code-msg');
   if(!codeEl||!msgEl) return;
   const code = codeEl.value.trim().toUpperCase();
-  if(!code){ showMsg(msgEl,'Veuillez saisir un code article.','err'); return; }
+  if(!code){ showMsg(msgEl,'Veuillez saisir un code produit.','err'); return; }
 
   // Recherche par ref (insensible à la casse) ou par nom exact
-  const art = DB.articles.find(a=>
-    (a.ref||'').toUpperCase()===code ||
-    a.nom.toUpperCase()===code
+  const prod = (DB.produits||[]).find(p=>
+    (p.ref||'').toUpperCase()===code ||
+    (p.nom||'').toUpperCase()===code
   );
-  if(!art){ showMsg(msgEl,`Aucun article trouvé pour le code « ${code} ».`,'err'); return; }
+  if(!prod){ showMsg(msgEl,`Aucun produit trouvé pour le code « ${code} ».`,'err'); return; }
 
   // Vérifier doublon
-  if(_articlesAdded[prefix].find(x=>x._id===art._id)){
-    showMsg(msgEl,`« ${art.nom} » est déjà dans le contrat.`,'warn'); return;
+  if(_articlesAdded[prefix].find(x=>x._id===prod._id)){
+    showMsg(msgEl,`« ${prod.nom} » est déjà dans le contrat.`,'warn'); return;
   }
 
-  _articlesAdded[prefix].push(art);
+  _articlesAdded[prefix].push(prod);
   codeEl.value='';
-  showMsg(msgEl,`✓ « ${art.nom} » ajouté.`,'ok');
+  showMsg(msgEl,`✓ « ${prod.nom} » ajouté.`,'ok');
   renderArticlesList(prefix);
 };
 
@@ -8342,17 +8362,17 @@ function renderArticlesList(prefix){
     return;
   }
 
-  // Affichage des lignes article
+  // Affichage des lignes produit
   if(listEl){
     listEl.style.display='flex';
-    listEl.innerHTML = list.map((a,i)=>`
+    listEl.innerHTML = list.map((p,i)=>`
       <div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:6px 10px;font-size:12px;">
         <div>
-          <span style="color:var(--accent);font-weight:700;font-size:10px;margin-right:6px;">${a.ref||'—'}</span>
-          <span style="font-weight:600;">${a.nom}</span>
+          <span style="color:var(--accent);font-weight:700;font-size:10px;margin-right:6px;">${p.ref||'—'}</span>
+          <span style="font-weight:600;">${p.nom}</span>
         </div>
         <div style="display:flex;align-items:center;gap:10px;">
-          <span style="color:var(--accent2);font-weight:700;">${fmt(a.pv)}</span>
+          <span style="color:var(--accent2);font-weight:700;">${fmt(p.prix)}</span>
           <button onclick="supprimerArticle('${prefix}',${i})"
             style="background:rgba(224,92,82,0.14);border:1px solid rgba(247,97,79,0.4);border-radius:5px;color:var(--danger);padding:2px 7px;cursor:pointer;font-size:11px;">✕</button>
         </div>
@@ -8360,14 +8380,14 @@ function renderArticlesList(prefix){
   }
 
   // Calcul total + désignation auto
-  const total = list.reduce((s,a)=>s+(parseFloat(a.pv)||0),0);
-  const noms  = list.map(a=>a.nom);
+  const total = list.reduce((s,p)=>s+(parseFloat(p.prix)||0),0);
+  const noms  = list.map(p=>p.nom);
   if(montantEl) montantEl.value = total;
   if(contratEl) contratEl.value = noms.join(' + ');
 
   if(recap){
     recap.style.display='block';
-    recap.innerHTML=`📦 ${list.length} article(s) : <strong>${noms.join(', ')}</strong> &mdash; Montant total : <strong style="color:var(--accent2)">${fmt(total)}</strong>`;
+    recap.innerHTML=`📦 ${list.length} produit(s) : <strong>${noms.join(', ')}</strong> &mdash; Montant total : <strong style="color:var(--accent2)">${fmt(total)}</strong>`;
   }
   if(prefix==='cl') calcJour(); else calcJourComNcl();
 }
@@ -8376,6 +8396,7 @@ window.supprimerArticle = function(prefix, idx){
   _articlesAdded[prefix].splice(idx,1);
   renderArticlesList(prefix);
 };
+
 
 // Compat: ces fonctions ne font plus rien (les selects checkbox n'existent plus)
 function chargerArticlesSelect(containerId, prefix){ /* obsolète */ }
@@ -8402,9 +8423,9 @@ window.saveCl = async function(){
   const adhRadio = document.querySelector('input[name="cl-adh-statut-r"]:checked');
   const adhesionStatut = adhRadio ? adhRadio.value : 'non_paye';
   const codeClient = await genererCodeClient(comId);
-  // Figer les prix des articles au moment de la création du contrat
-  const articlesPrixFiges = _articlesAdded['cl'].map(a=>({articleId:a._id, pvFige:a.pv, nom:a.nom}));
-  const newClRef = await fbAdd('clients',{nom,tel,ville:document.getElementById('cl-ville').value,quartier:document.getElementById('cl-qrt').value,contrat:ct,montantTotal:mt,duree:parseInt(document.getElementById('cl-duree').value)||365,debut,note:document.getElementById('cl-note').value,commercialId:comId,adhesion:200,adhesionStatut,codeClient,articlesPrixFiges});
+  // Figer les prix des produits au moment de la création du contrat
+  const produitsPrixFiges = _articlesAdded['cl'].map(p=>({produitId:p._id, pvFige:p.prix, nom:p.nom}));
+  const newClRef = await fbAdd('clients',{nom,tel,ville:document.getElementById('cl-ville').value,quartier:document.getElementById('cl-qrt').value,contrat:ct,montantTotal:mt,duree:parseInt(document.getElementById('cl-duree').value)||365,debut,note:document.getElementById('cl-note').value,commercialId:comId,adhesion:200,adhesionStatut,codeClient,produitsPrixFiges});
   // Si adhésion payée à la création → enregistrer dans adhesionPays pour le registre
   if(adhesionStatut === 'paye' && newClRef && newClRef._id){
     const now = new Date();
@@ -8451,9 +8472,10 @@ window.saveArticle = async function(){
     await fbUpdate('articles', editId, data);
     closeM('m-article');
     if(ancienPv !== null && ancienPv !== data.pv){
+      // Compatibilité : anciens contrats créés avant le passage aux produits pouvaient figer un prix d'article
       const clientsProtéges = DB.clients.filter(c=>(c.articlesPrixFiges||[]).some(x=>x.articleId===editId));
       if(clientsProtéges.length>0){
-        notify(`Article modifié ✓ — Prix ${fmt(ancienPv)} → ${fmt(data.pv)} · ${clientsProtéges.length} client(s) conservent leur prix 🔒`);
+        notify(`Article modifié ✓ — Prix ${fmt(ancienPv)} → ${fmt(data.pv)} · ${clientsProtéges.length} ancien(s) contrat(s) conservent leur prix 🔒`);
       } else { notify(`Article modifié ✓`); }
     } else { notify('Article modifié ✓'); }
   } else {
@@ -8515,41 +8537,41 @@ window.openMvtFor = function(artId){
 window.saveLivraison = async function(){
   if(!['admin','secretaire','commercial'].includes(session?.role)){ notify('Accès refusé','err'); return; }
   const cId=document.getElementById('liv-client').value;
-  const aId=document.getElementById('liv-article').value;
+  const pId=document.getElementById('liv-article').value;
   const qty=parseInt(document.getElementById('liv-qty').value)||1;
   const date=document.getElementById('liv-date').value;
-  if(!cId||!aId||!date){notify('Client, article et date obligatoires','err');return;}
+  if(!cId||!pId||!date){notify('Client, produit et date obligatoires','err');return;}
   const statut=document.getElementById('liv-statut').value;
-  const art=DB.articles.find(a=>a._id===aId);
+  const prod=getProd(pId);
   const montantLivraison = parseFloat(document.getElementById('liv-montant').value)||0;
 
   // ── BLOCAGE SOLDE INSUFFISANT ──
   const client = DB.clients.find(c=>c._id===cId);
-  if(client && art){
+  if(client && prod){
     const solde = soldeClient(client);
-    // Prix figé au contrat du client (protège contre les changements de prix article)
-    const prixFige = (client.articlesPrixFiges||[]).find(x=>x.articleId===aId);
-    const pvUtilise = prixFige ? prixFige.pvFige : art.pv;
-    const coutArticle = pvUtilise * qty;
-    if(solde < coutArticle){
-      notify(`⛔ Livraison bloquée — Solde client insuffisant : ${fmt(solde)} disponible, ${fmt(coutArticle)} requis.`, 'err');
+    // Prix figé au contrat du client (protège contre les changements de prix produit)
+    const prixFige = (client.produitsPrixFiges||[]).find(x=>x.produitId===pId);
+    const pvUtilise = prixFige ? prixFige.pvFige : prod.prix;
+    const coutProduit = pvUtilise * qty;
+    if(solde < coutProduit){
+      notify(`⛔ Livraison bloquée — Solde client insuffisant : ${fmt(solde)} disponible, ${fmt(coutProduit)} requis.`, 'err');
       return;
     }
   }
 
   // Sauvegarder le prix figé dans la livraison pour l'historique
   const _prixFigeLiv = (() => {
-    if(!client) return art ? art.pv : 0;
-    const pf = (client.articlesPrixFiges||[]).find(x=>x.articleId===aId);
-    return pf ? pf.pvFige : (art ? art.pv : 0);
+    if(!client) return prod ? prod.prix : 0;
+    const pf = (client.produitsPrixFiges||[]).find(x=>x.produitId===pId);
+    return pf ? pf.pvFige : (prod ? prod.prix : 0);
   })();
   const montantFinal = montantLivraison || (_prixFigeLiv * qty);
 
-  if(statut==='livre'&&art){
-    const warnings = await deduireStockLivraison(art, qty, getCl(cId)?.nom||'');
+  if(statut==='livre'&&prod){
+    const warnings = await deduireStockLivraison(prod, qty, getCl(cId)?.nom||'');
     if(warnings.length) notify(`⚠️ Stock insuffisant sur : ${warnings.join(', ')}`,'warn');
   }
-  await fbAdd('livraisons',{clientId:cId,commercialId:session.userId,articleId:aId,qty,montant:montantFinal,pvFige:_prixFigeLiv,date,statut,note:document.getElementById('liv-note').value});
+  await fbAdd('livraisons',{clientId:cId,commercialId:session.userId,produitId:pId,qty,montant:montantFinal,pvFige:_prixFigeLiv,date,statut,note:document.getElementById('liv-note').value});
   closeM('m-livraison');notify('Livraison enregistrée ✓');
 };
 
@@ -8557,9 +8579,9 @@ window.marquerLivre = async function(id){
   if(!['admin','secretaire'].includes(session?.role)){ notify('Accès refusé','err'); return; }
   const l=DB.livraisons.find(l=>l._id===id);
   if(!l) return;
-  const art=DB.articles.find(a=>a._id===l.articleId);
-  if(!art){ await fbUpdate('livraisons',id,{statut:'livre'}); notify('Livraison marquée livrée ✓'); return; }
-  const warnings = await deduireStockLivraison(art, l.qty, l.clientId||'');
+  const prod=getProd(l.produitId);
+  if(!prod || !prod._id){ await fbUpdate('livraisons',id,{statut:'livre'}); notify('Livraison marquée livrée ✓'); return; }
+  const warnings = await deduireStockLivraison(prod, l.qty, l.clientId||'');
   await fbUpdate('livraisons',id,{statut:'livre'});
   if(warnings.length){
     notify(`⚠️ Livraison marquée livrée — Stock insuffisant sur : ${warnings.join(', ')}`,'warn');
@@ -8568,26 +8590,24 @@ window.marquerLivre = async function(id){
   }
 };
 
-// Déduit le stock selon type article ou pack. Retourne liste des alertes manque.
-async function deduireStockLivraison(art, qty, clientNom){
+// Décompose le produit livré en ses articles (composition de la recette) et déduit le stock de chacun.
+// Retourne la liste des alertes de manque de stock.
+async function deduireStockLivraison(prod, qty, clientNom){
   const warnings=[];
-  if(art.type==='pack'){
-    const comp=art.composition||[];
-    for(const c of comp){
-      const compArt=DB.articles.find(x=>x._id===c.articleId);
-      if(!compArt){ warnings.push(`(composant inconnu)`); continue; }
-      const needed=c.qte*qty;
-      const deduct=Math.min(needed, compArt.stock);
-      const ns=Math.max(0,compArt.stock-needed);
-      await fbUpdate('articles',c.articleId,{stock:ns});
-      await fbAdd('stockMvts',{articleId:c.articleId,type:'sortie',qty:deduct,stockApres:ns,date:TODAY,note:`Pack livré: ${art.nom} × ${qty} → client ${clientNom}`});
-      if(deduct<needed) warnings.push(`${compArt.nom} (manque ${needed-deduct})`);
-    }
-  } else {
-    const ns=Math.max(0,art.stock-qty);
-    await fbUpdate('articles',art._id,{stock:ns});
-    await fbAdd('stockMvts',{articleId:art._id,type:'sortie',qty:Math.min(qty,art.stock),stockApres:ns,date:TODAY,note:`Livraison client ${clientNom}`});
-    if(qty>art.stock) warnings.push(`${art.nom} (manque ${qty-art.stock})`);
+  const comp = prod.composition||[];
+  if(!comp.length){
+    warnings.push(`(« ${prod.nom} » n'a pas de composition d'articles définie)`);
+    return warnings;
+  }
+  for(const c of comp){
+    const compArt=DB.articles.find(x=>x._id===c.articleId);
+    if(!compArt){ warnings.push(`(composant inconnu)`); continue; }
+    const needed=c.qte*qty;
+    const deduct=Math.min(needed, compArt.stock);
+    const ns=Math.max(0,compArt.stock-needed);
+    await fbUpdate('articles',c.articleId,{stock:ns});
+    await fbAdd('stockMvts',{articleId:c.articleId,type:'sortie',qty:deduct,stockApres:ns,date:TODAY,note:`Produit livré: ${prod.nom} × ${qty} → client ${clientNom}`});
+    if(deduct<needed) warnings.push(`${compArt.nom} (manque ${needed-deduct})`);
   }
   return warnings;
 }
@@ -8858,22 +8878,23 @@ window.onLivArtCodeInput = function(force){
     return;
   }
   // Chercher par ref exacte, ou ref partielle, ou nom
-  let art = DB.articles.find(a=>(a.ref||'').toUpperCase()===code);
-  if(!art) art = DB.articles.find(a=>(a.ref||'').toUpperCase().startsWith(code));
-  if(!art && force) art = DB.articles.find(a=>(a.nom||'').toUpperCase().includes(code));
-  if(art){
-    artHidden.value = art._id;
+  let prod = (DB.produits||[]).find(p=>(p.ref||'').toUpperCase()===code);
+  if(!prod) prod = (DB.produits||[]).find(p=>(p.ref||'').toUpperCase().startsWith(code));
+  if(!prod && force) prod = (DB.produits||[]).find(p=>(p.nom||'').toUpperCase().includes(code));
+  if(prod){
+    artHidden.value = prod._id;
     errEl.style.display='none';
     const cId = document.getElementById('liv-client').value;
     const c = cId ? getCl(cId) : null;
-    const prixFige = c ? (c.articlesPrixFiges||[]).find(x=>x.articleId===art._id) : null;
-    const pvAff = prixFige ? prixFige.pvFige : art.pv;
-    const stockColor = art.stock>0?'var(--accent2)':'var(--danger)';
+    const prixFige = c ? (c.produitsPrixFiges||[]).find(x=>x.produitId===prod._id) : null;
+    const pvAff = prixFige ? prixFige.pvFige : prod.prix;
+    const stockDispo = stockDisponibleProduit(prod);
+    const stockColor = stockDispo>0?'var(--accent2)':'var(--danger)';
     const prixLabel = prixFige
       ? `${fmt(pvAff)} <span style="font-size:10px;color:var(--accent2);">🔒 prix contrat</span>`
-      : fmt(art.pv);
+      : fmt(prod.prix);
     infoEl.style.display='block';
-    infoEl.innerHTML=`✅ <strong>${esc(art.nom)}</strong> &nbsp;·&nbsp; Réf: <strong style="color:var(--accent)">${esc(art.ref||'-')}</strong> &nbsp;·&nbsp; Stock : <strong style="color:${stockColor}">${art.stock} ${art.unite||''}</strong> &nbsp;·&nbsp; Prix : ${prixLabel}`;
+    infoEl.innerHTML=`✅ <strong>${esc(prod.nom)}</strong> &nbsp;·&nbsp; Réf: <strong style="color:var(--accent)">${esc(prod.ref||'-')}</strong> &nbsp;·&nbsp; Stock dispo. : <strong style="color:${stockColor}">${stockDispo}</strong> &nbsp;·&nbsp; Prix : ${prixLabel}`;
     // Déclencher onLivArtChange pour mettre à jour le panneau montant/solde
     onLivArtChange();
   } else {
@@ -8881,7 +8902,7 @@ window.onLivArtCodeInput = function(force){
     infoEl.style.display='none';
     if(code.length>=3){
       errEl.style.display='block';
-      errEl.textContent=`❌ Aucun article trouvé pour le code « ${code} »`;
+      errEl.textContent=`❌ Aucun produit trouvé pour le code « ${code} »`;
     } else {
       errEl.style.display='none';
     }
@@ -8889,40 +8910,52 @@ window.onLivArtCodeInput = function(force){
   }
 };
 
+// Stock disponible d'un produit = quantité maximale livrable selon le stock des articles de sa composition
+function stockDisponibleProduit(prod){
+  const comp = prod.composition||[];
+  if(!comp.length) return 0;
+  return Math.min(...comp.map(c=>{
+    const art = DB.articles.find(x=>x._id===c.articleId);
+    if(!art || !c.qte) return 0;
+    return Math.floor((art.stock||0) / c.qte);
+  }));
+}
+
 window.onLivArtChange = function(){
-  const aId=document.getElementById('liv-article').value;
-  if(!aId) return;
-  const art=getArt(aId);
+  const pId=document.getElementById('liv-article').value;
+  if(!pId) return;
+  const prod=getProd(pId);
   calcLivMontant();
   const qty=parseInt(document.getElementById('liv-qty').value)||1;
   const cId=document.getElementById('liv-client').value;
   // Utiliser prix figé au contrat si disponible
   const c = cId ? getCl(cId) : null;
-  const prixFige = c ? (c.articlesPrixFiges||[]).find(x=>x.articleId===aId) : null;
-  const pvAffiche = prixFige ? prixFige.pvFige : art.pv;
-  const coutArticle = pvAffiche * qty;
+  const prixFige = c ? (c.produitsPrixFiges||[]).find(x=>x.produitId===pId) : null;
+  const pvAffiche = prixFige ? prixFige.pvFige : prod.prix;
+  const coutProduit = pvAffiche * qty;
   const infoEl=document.getElementById('liv-info');
   infoEl.style.display='block';
   let warnHtml='';
   if(c){
     const solde=soldeClient(c);
-    const soldeColor = solde>=coutArticle?'var(--accent2)':'var(--danger)';
-    warnHtml=` &nbsp;<span style="font-weight:700;color:${soldeColor};">${solde>=coutArticle?'✓ Solde OK':'⛔ Solde insuffisant'} (${fmt(solde)} dispo.)</span>`;
+    const soldeColor = solde>=coutProduit?'var(--accent2)':'var(--danger)';
+    warnHtml=` &nbsp;<span style="font-weight:700;color:${soldeColor};">${solde>=coutProduit?'✓ Solde OK':'⛔ Solde insuffisant'} (${fmt(solde)} dispo.)</span>`;
   }
   const prixLabel = prixFige
     ? `<strong>${fmt(pvAffiche)}</strong> <span style="font-size:10px;color:var(--accent2);" title="Prix figé au contrat — protégé du changement de tarif">🔒 prix contrat</span>`
-    : `<strong>${fmt(art.pv)}</strong>`;
-  infoEl.innerHTML=`📦 <strong>${art.nom}</strong> — Stock : <strong style="color:${art.stock>0?'var(--accent2)':'var(--danger)'}">${art.stock} ${art.unite}</strong> — Prix : ${prixLabel}${warnHtml}`;
+    : `<strong>${fmt(prod.prix)}</strong>`;
+  const stockDispo = stockDisponibleProduit(prod);
+  infoEl.innerHTML=`📦 <strong>${prod.nom}</strong> — Stock dispo. : <strong style="color:${stockDispo>0?'var(--accent2)':'var(--danger)'}">${stockDispo}</strong> — Prix : ${prixLabel}${warnHtml}`;
 };
 window.calcLivMontant = function(){
-  const aId=document.getElementById('liv-article').value;
+  const pId=document.getElementById('liv-article').value;
   const qty=parseInt(document.getElementById('liv-qty').value)||1;
-  if(!aId)return;
-  const art=getArt(aId);
+  if(!pId)return;
+  const prod=getProd(pId);
   const cId=document.getElementById('liv-client').value;
   const c = cId ? getCl(cId) : null;
-  const prixFige = c ? (c.articlesPrixFiges||[]).find(x=>x.articleId===aId) : null;
-  const pv = prixFige ? prixFige.pvFige : art.pv;
+  const prixFige = c ? (c.produitsPrixFiges||[]).find(x=>x.produitId===pId) : null;
+  const pv = prixFige ? prixFige.pvFige : prod.prix;
   document.getElementById('liv-montant').value=pv*qty;
 };
 
@@ -9018,7 +9051,6 @@ window.openM = function(id){
     document.getElementById('liv-client-info').style.display = 'none';
     // Charger tous les clients
     livFiltrerClients();
-    document.getElementById('liv-article').innerHTML='<option value="">— Sélectionner —</option>'+DB.articles.map(a=>`<option value="${a._id}">${a.nom} (stock: ${a.stock})</option>`).join('');
     document.getElementById('liv-article').value='';
     const livArtCode=document.getElementById('liv-art-code'); if(livArtCode) livArtCode.value='';
     const livArtInfo=document.getElementById('liv-art-info'); if(livArtInfo) livArtInfo.style.display='none';
@@ -9774,7 +9806,7 @@ window.voirDetailComClient = function(cid){
     return`<tr><td>${p.date}</td><td class="tm">${p.heure||'—'}</td><td><span class="cotis-badge" style="font-size:10px">💰 ${fmt(p.cotisJour||s.m)}</span></td><td style="color:var(--accent2);font-weight:700">${fmt(p.montant)}</td><td>${ratio(p.montant,p.cotisJour||s.m)}</td><td style="font-size:12px;font-weight:700;color:${nivColor3};white-space:nowrap;">${nivLabel3}<span style="font-size:9px;color:var(--muted);font-weight:400;"> /${joursEnJM(duree3)}</span></td><td class="tm" style="font-size:10px">${p.note||'—'}</td></tr>`;
   }).join('')||'<tr><td colspan="7" class="emp">Aucun paiement</td></tr>';
   const livs=DB.livraisons.filter(l=>l.clientId===cid).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  document.getElementById('det-liv-list').innerHTML=livs.map(l=>`<tr><td>${l.date}</td><td class="fw6">${getArt(l.articleId).nom}</td><td>${l.qty}</td><td>${fmt(l.montant)}</td><td>${livStatut(l.statut)}</td></tr>`).join('')||'<tr><td colspan="5" class="emp">Aucune livraison</td></tr>';
+  document.getElementById('det-liv-list').innerHTML=livs.map(l=>`<tr><td>${l.date}</td><td class="fw6">${getProd(l.produitId).nom}</td><td>${l.qty}</td><td>${fmt(l.montant)}</td><td>${livStatut(l.statut)}</td></tr>`).join('')||'<tr><td colspan="5" class="emp">Aucune livraison</td></tr>';
   const adhPays=DB.adhesionPays.filter(a=>a.clientId===cid);
   document.getElementById('det-adh-content').innerHTML=`<div class="ib ${c.adhesionStatut==='paye'?'ib-green':'ib-red'}" style="margin-bottom:8px;"><strong>Adhésion : ${fmt(c.adhesion)}</strong> — ${c.adhesionStatut==='paye'?'✅ Payé':'❌ Non payé'}</div>${adhPays.length>0?`<div class="tw" style="margin:0"><table><thead><tr><th>Date</th><th>Montant</th><th>Note</th></tr></thead><tbody>${adhPays.map(a=>`<tr><td>${a.date}</td><td style="color:var(--accent2);font-weight:600">${fmt(a.montant)}</td><td class="tm" style="font-size:10px">${a.note||'—'}</td></tr>`).join('')}</tbody></table></div>`:'<div class="emp" style="padding:16px">Aucun paiement d\'adhésion</div>'}`;
   document.querySelectorAll('.det-tab').forEach(t=>t.classList.remove('active'));
@@ -9918,9 +9950,9 @@ window.saveComNouveauClient = async function(){
   // Adhésion fixe 200 FCFA — lire statut depuis les boutons radio
   const comNclAdhRadio = document.querySelector('input[name="com-ncl-adh-statut-r"]:checked');
   const comNclAdhStatut = comNclAdhRadio ? comNclAdhRadio.value : 'non_paye';
-  // Figer les prix des articles au moment de la création du contrat
-  const articlesPrixFigesNcl = _articlesAdded['com-ncl'].map(a=>({articleId:a._id, pvFige:a.pv, nom:a.nom}));
-  const newClientRef = await fbAdd('clients',{nom,tel,ville,quartier:qrt,contrat:ct,montantTotal:mt,duree:parseInt(document.getElementById('com-ncl-duree').value)||365,debut,note:document.getElementById('com-ncl-note').value,commercialId:comId,adhesion:200,adhesionStatut:comNclAdhStatut,codeClient,articlesPrixFiges:articlesPrixFigesNcl});
+  // Figer les prix des produits au moment de la création du contrat
+  const produitsPrixFigesNcl = _articlesAdded['com-ncl'].map(p=>({produitId:p._id, pvFige:p.prix, nom:p.nom}));
+  const newClientRef = await fbAdd('clients',{nom,tel,ville,quartier:qrt,contrat:ct,montantTotal:mt,duree:parseInt(document.getElementById('com-ncl-duree').value)||365,debut,note:document.getElementById('com-ncl-note').value,commercialId:comId,adhesion:200,adhesionStatut:comNclAdhStatut,codeClient,produitsPrixFiges:produitsPrixFigesNcl});
   // Si adhésion payée à la création → enregistrer dans adhesionPays pour le registre
   if(comNclAdhStatut === 'paye'){
     const now = new Date();
