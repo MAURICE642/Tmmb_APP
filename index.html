@@ -23,6 +23,13 @@
   form-action 'self';
 ">
 <title>TRIOMPHANT MMB SERVICE</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f1117">
+<link rel="icon" type="image/png" href="icons/icon-192x192.png">
+<link rel="apple-touch-icon" href="icons/icon-192x192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="MMB Service">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 
@@ -3483,6 +3490,17 @@ window.loadMoreCol = async function(col) {
   if (session && curPg) renderPg(curPg);
   notify(`${DB[col].length} enregistrements chargés`);
 };
+
+// ── Fonction de fusion commerciaux / commerciauxPrive ─────────
+// NOTE : 'commerciauxPrive' est actuellement un miroir en écriture
+// uniquement (étape 1 de l'audit, voir ligne ~3630). Les champs
+// tel/zone/codePrefix sont déjà présents directement sur 'commerciaux',
+// donc aucune fusion n'est nécessaire pour le moment. Ce stub évite
+// le crash "_mergeCommerciaux is not defined" tant que l'étape 2
+// (lecture exclusivement depuis commerciauxPrive) n'est pas implémentée.
+function _mergeCommerciaux() {
+  // no-op volontaire — voir note ci-dessus
+}
 
 // Conservé pour la compatibilité avec initDemoFirebase (appelé au premier login)
 async function loadFirebaseData() {
@@ -12973,6 +12991,15 @@ window.trReset = function(){
   if(btn){ btn.disabled=false; btn.textContent='🔄 Confirmer le transfert & résilier'; }
 };
 // ═══════════════ FIN TRANSFERT RÉSILIATION ═══════════════════
+
+// ═══════════════ ENREGISTREMENT SERVICE WORKER (PWA) ═════════
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js')
+      .then(reg => console.log('Service Worker enregistré :', reg.scope))
+      .catch(err => console.error('Échec enregistrement Service Worker :', err));
+  });
+}
 </script>
 </body>
 </html>
