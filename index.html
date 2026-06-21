@@ -3355,6 +3355,7 @@ async function initFB(cfg) {
     }
     db_fs = getFirestore(app);
     auth = getAuth(app);
+    _registerAuthStateListener(); // FIX BLOCAGE UI : enregistrer le listener maintenant que 'auth' existe
     // Auth Firebase réelle : la connexion se fait via doLogin() (email + mot de passe)
     // On ne fait plus de signInAnonymously ici.
     isOnline = true;
@@ -5085,19 +5086,34 @@ function _stopSessionTimer() {
 // onAuthStateChanged est déclenché par Firebase dès que le token est
 // révoqué (suppression du compte, désactivation, déconnexion forcée).
 // Plus besoin d'attendre l'expiration du token (1 heure).
-onAuthStateChanged(auth, async (firebaseUser) => {
-  if (!firebaseUser && session) {
-    // Firebase a révoqué la session côté serveur
-    notify('🔒 Session révoquée — veuillez vous reconnecter', 'err');
-    session = null;
-    _localKey = null;
-    _offlineQueue = [];
-    _stopSessionTimer();
-    document.getElementById('login-screen').classList.remove('hidden');
-    document.getElementById('login-pin').value = '';
-    fillLogin();
-  }
-});
+// FIX BLOCAGE UI : cet appel était fait directement au niveau racine du
+// script, donc exécuté immédiatement au chargement de la page — avant
+// même que 'auth' soit initialisé par initFB(). Cela provoquait un crash
+// synchrone qui interrompait tout le reste du script (ADMIN_NAV, COM_NAV,
+// getRoleNav, etc. n'étaient alors jamais définis → menu invisible après
+// connexion). On encapsule donc l'inscription dans une fonction, appelée
+// uniquement quand 'auth' existe réellement.
+let _authStateListenerRegistered = false;
+function _registerAuthStateListener() {
+  if (_authStateListenerRegistered || !auth) return;
+  _authStateListenerRegistered = true;
+  onAuthStateChanged(auth, async (firebaseUser) => {
+    if (!firebaseUser && session) {
+      // Firebase a révoqué la session côté serveur
+      notify('🔒 Session révoquée — veuillez vous reconnecter', 'err');
+      session = null;
+      _localKey = null;
+      _offlineQueue = [];
+      _stopSessionTimer();
+      document.getElementById('login-screen').classList.remove('hidden');
+      document.getElementById('login-pin').value = '';
+      fillLogin();
+    }
+  });
+}
+// Si 'auth' est déjà disponible à ce stade (cas rare), on s'enregistre tout
+// de suite ; sinon initFB() se chargera de l'appeler après getAuth(app).
+_registerAuthStateListener();
 
 // Rafraîchissement proactif du token toutes les 50 min (token Firebase = 1h)
 // Détecte aussi une révocation lors du rafraîchissement
