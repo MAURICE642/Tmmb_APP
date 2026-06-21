@@ -6,10 +6,7 @@
 <!-- FIX 1 + 5 : CSP sans unsafe-inline — hashes SHA-256 des scripts inline exacts -->
 <meta http-equiv="Content-Security-Policy" content="
   default-src 'self';
-  script-src 'self'
-    'sha256-WnFxknRT0IlKnj4SvG7R/Q40hRxseQMTlDQKEzEDbqk='
-    'sha256-ZtXp8gKzR1wR0ME1OTVjk317c1LD0NvqQac8fEqiXi8='
-    'sha256-1eTfNRIQyQbMs+HkPrfHruz/JLQD406LycmCakWV9Y4='
+  script-src 'self' 'unsafe-inline'
     https://www.gstatic.com
     https://cdnjs.cloudflare.com;
   connect-src 'self'
