@@ -3363,11 +3363,10 @@ async function initFB(cfg) {
     // Auth Firebase réelle : la connexion se fait via doLogin() (email + mot de passe)
     // On ne fait plus de signInAnonymously ici.
     isOnline = true;
-    document.getElementById('load-text').textContent = 'Connexion en cours...';
-    await loadFirebaseData(); // charge uniquement commerciaux + agences
+    // ✅ ORDRE CONNEXION CORRIGÉ : on n'essaie plus de charger les données
+    // avant authentification (évite la collision avec les règles Firestore isAuth()).
+    // Les collections sont chargées dans doLogin() après signInWithEmailAndPassword().
     document.getElementById('loading-screen').classList.add('hidden');
-    setupRealtimeListeners();
-    _loadOfflineQueue();
     showLogin();
   } catch(e) {
     document.getElementById('loading-screen').classList.add('hidden');
@@ -4975,11 +4974,14 @@ window.doLogin = async function(){
   try {
     let emailToUse = raw;
     if (!raw.includes('@')) {
+      // ✅ Les commerciaux ne sont chargés qu'après auth.
+      // On tente d'abord via la liste en mémoire (si déjà chargée),
+      // sinon on demande à l'utilisateur d'utiliser son email.
       const u = DB.commerciaux.find(c => c.nom.toLowerCase() === raw);
       if (u && u.email) {
         emailToUse = u.email.toLowerCase();
       } else {
-        throw new Error('Utilisateur introuvable. Utilisez votre adresse email.');
+        throw new Error('Veuillez utiliser votre adresse email pour vous connecter.');
       }
     }
 
@@ -5041,6 +5043,7 @@ window.doLogin = async function(){
     await ensureCollectionsLoaded(terrainCols);
     await saveLocalEncrypted(); // snapshot chiffré pour usage offline
   }
+  setupRealtimeListeners();
   await _loadOfflineQueue();
   _updateOfflineBadge();
   setupUI();
