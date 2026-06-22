@@ -3509,7 +3509,12 @@ function _mergeCommerciaux() {
 
 // Conservé pour la compatibilité avec initDemoFirebase (appelé au premier login)
 async function loadFirebaseData() {
-  await ensureCollectionsLoaded(['commerciaux', 'commerciauxPrive', 'agences']);
+  // FIX : ne charger QUE 'commerciaux' avant la connexion. 'commerciauxPrive'
+  // et 'agences' exigent un utilisateur authentifié (règles Firestore) et
+  // sont déjà rechargées correctement après connexion dans doLogin().
+  // Les charger ici provoquait "Missing or insufficient permissions" pour
+  // TOUT LE MONDE, avant même d'atteindre l'écran de connexion.
+  await ensureCollectionsLoaded(['commerciaux']);
   _mergeCommerciaux();
   if (DB.commerciaux.length === 0) await initDemoFirebase();
 }
