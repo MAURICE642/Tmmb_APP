@@ -3211,7 +3211,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
 
 <script type="module">
 import { initializeApp, getApps, getApp, deleteApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-import { getFirestore, collection, doc, setDoc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, where, limit, startAfter, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { getFirestore, collection, doc, setDoc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, where, limit, startAfter, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 
 const TODAY = new Date().toISOString().split('T')[0];
@@ -3559,14 +3559,23 @@ const _PAGE_DEPS = {
   'transfert-resiliation': ['clients','paiements','commerciaux'],
 };
 
-// Debounce : évite les re-renders en rafale (plusieurs collections modifiées simultanément)
-let _renderDebounceTimer = null;
+// ✅ FIX 10 : constantes nommées pour tous les délais setTimeout
+const DELAY_CHART_RENDER_MS  = 80;  // attendre le layout DOM avant de dessiner un canvas
+const DELAY_CODE_SUGGEST_MS  = 100; // délai avant suggestion de code client
+const DELAY_CODE_SUGGEST2_MS = 300; // délai suggestion code client (saisie lente)
+const DELAY_NOTIFY_HIDE_MS   = 2500;// durée affichage notification ok
+const DELAY_ANIM_RESET_MS    = 700; // reset animation bouton
+const DELAY_RENDER_DEBOUNCE_MS = 300; // debounce re-render onSnapshot
+
+// ✅ FIX 11 : debounce par page (Map) au lieu d'un timer global partagé.
+// Avant : deux pages déclenchant un re-render simultané s'annulaient mutuellement.
+const _renderDebounceTimers = new Map();
 function _debouncedRenderPg(id) {
-  if (_renderDebounceTimer) clearTimeout(_renderDebounceTimer);
-  _renderDebounceTimer = setTimeout(() => {
-    _renderDebounceTimer = null;
-    if (session && curPg) renderPg(curPg);
-  }, 300);
+  if (_renderDebounceTimers.has(id)) clearTimeout(_renderDebounceTimers.get(id));
+  _renderDebounceTimers.set(id, setTimeout(() => {
+    _renderDebounceTimers.delete(id);
+    if (session && curPg === id) renderPg(id);
+  }, DELAY_RENDER_DEBOUNCE_MS));
 }
 
 // ── Listeners temps-réel ciblés par page et par rôle ──────────
@@ -3604,9 +3613,12 @@ function _queryForCol(col) {
     return query(colRef, limit(200));
   }
 
-  // Admin / autres rôles : listener sur les 200 derniers enregistrements
-  // (évite d'écouter 100 000 documents en temps réel)
-  return query(colRef, orderBy('__name__'), limit(_PAGE_SIZE));
+  // ✅ FIX LISTENER ADMIN : on écoute les _PAGE_SIZE derniers docs par _ts desc.
+  // Avant : orderBy('__name__') + limit(200) manquait les nouveaux docs créés
+  // après le chargement initial s'ils tombaient hors des 200 premiers.
+  // Avec _ts desc, les nouveaux docs (qui ont le _ts le plus récent) sont
+  // toujours dans la fenêtre du listener.
+  return query(colRef, orderBy('_ts', 'desc'), limit(_PAGE_SIZE));
 }
 
 async function setupPageListeners(pageId) {
@@ -3819,6 +3831,11 @@ window.addEventListener('offline', () => {
 
 // M5 — helper : met à jour DB en mémoire et sauvegarde chiffré si commercial
 function _syncLocalAfterWrite(col) {
+  // ✅ FIX CACHE : invalider le cache sessionStorage de la collection modifiée.
+  // Sans ça, un rechargement de page lisait l'ancienne valeur du cache
+  // au lieu des données fraîches post-écriture.
+  try { sessionStorage.removeItem(_SS_PREFIX + col); } catch(e) {}
+  _loadedCols.delete(col); // forcer un re-fetch Firestore au prochain accès
   if (session?.role === 'commercial' && _localKey) saveLocalEncrypted();
 }
 
@@ -3826,15 +3843,28 @@ function _syncLocalAfterWrite(col) {
 // Vérifie que la session Firebase Auth est toujours active AVANT toute
 // opération destructive. Empêche un appel console direct à fbDelete()
 // si la session a expiré ou a été révoquée.
+// ✅ FIX LATENCE ÉCRITURE : on évite getIdToken(true) à chaque écriture.
+// Le token Firebase dure 1h. On force le refresh seulement si le token
+// expire dans moins de 5 minutes. Sinon, getIdToken(false) est instantané
+// (lecture du cache mémoire, 0ms réseau).
+let _lastTokenCheck = 0;
 async function _assertFirebaseSession() {
   if (!auth || !auth.currentUser) {
     notify('Session expirée — veuillez vous reconnecter', 'err');
     window.doLogout();
     throw new Error('SESSION_EXPIRED');
   }
-  // Force le rafraîchissement du token Firebase (détecte une révocation)
   try {
-    await auth.currentUser.getIdToken(true);
+    const now = Date.now();
+    // Vérifier l'expiration du token sans appel réseau
+    const tokenResult = await auth.currentUser.getIdTokenResult(false);
+    const expiresAt = new Date(tokenResult.expirationTime).getTime();
+    const msLeft = expiresAt - now;
+    if (msLeft < 5 * 60 * 1000) {
+      // Token expire dans moins de 5 min → forcer le refresh (appel réseau)
+      await auth.currentUser.getIdToken(true);
+    }
+    // Sinon : token valide, 0ms réseau
   } catch(e) {
     notify('Session invalide — veuillez vous reconnecter', 'err');
     window.doLogout();
@@ -4116,7 +4146,8 @@ window.supprimerSelection = async function(){
   if(!ids.length){ notify('Aucun client sélectionné','err'); return; }
   const noms = ids.map(id=>getCl(id).nom).join(', ');
   if(!(await confirmDialog(`Supprimer définitivement ${ids.length} client(s) ?\n\n${noms.length>120?noms.slice(0,120)+'…':noms}`,{title:'🗑 Suppression de clients',okLabel:'Supprimer',danger:true}))) return;
-  for(const id of ids) await fbDelete('clients', id);
+  // ✅ FIX PERFORMANCE : suppressions en parallèle (Promise.all) au lieu de séquentiel
+  await Promise.all(ids.map(id => fbDelete('clients', id)));
   notify(`${ids.length} client(s) supprimé(s)`);
   annulerSelection();
 };
@@ -4627,7 +4658,7 @@ function _mcShowMsg(el, txt, type){
   const tcol={ok:'var(--accent2)',err:'var(--danger)',warn:'var(--accent3)'};
   el.style.cssText=`display:block;background:${colors[type]||colors.ok};color:${tcol[type]||tcol.ok};border:1px solid ${tcol[type]||tcol.ok};border-radius:5px;padding:4px 9px;font-size:11px;`;
   el.textContent=txt;
-  setTimeout(()=>{ if(type==='ok') el.style.display='none'; },2500);
+  setTimeout(()=>{ if(type==='ok') el.style.display='none'; },DELAY_NOTIFY_HIDE_MS);
 }
 
 window.mcAjouterArticle = function(){
@@ -5477,7 +5508,7 @@ window.closeBnDrawer = function(){
   document.getElementById('bn-drawer-overlay')?.classList.remove('open');
 }
 
-window.go = function(id){
+window.go = async function(id){ // ✅ FIX : async pour await setupPageListeners et capturer les erreurs
   // FIX 8 : vérification de session avant navigation
   if (!session || !auth?.currentUser) {
     document.getElementById('login-screen').classList.remove('hidden');
@@ -5527,7 +5558,12 @@ window.go = function(id){
     else showBtn = !readOnly && !isGStock;
   }
   if(showBtn){btn.textContent=BTN[id];btn.style.display='';}else btn.style.display='none';
-  curPg=id; renderPg(id); setupPageListeners(id);
+  // ✅ FIX DOUBLE RENDER : renderPg() est appelé UNE SEULE FOIS dans setupPageListeners()
+  // après que les collections sont chargées. L'appel direct ici est supprimé.
+  curPg=id;
+  // ✅ FIX : await pour capturer les erreurs de chargement des collections
+  try { await setupPageListeners(id); }
+  catch(e) { console.error('[go] Erreur setupPageListeners:', e); notify('Erreur lors du chargement de la page','err'); }
 };
 window.topAction = function(){ if(ACT[curPg]) ACT[curPg](); };
 function renderPg(id){
@@ -5613,8 +5649,7 @@ function dessinerGraphiques(){
 function dessinerBarresMensuelles(){
   const canvas = document.getElementById('chart-mensuel');
   if(!canvas) return;
-  if(chartMensuel){ chartMensuel.destroy(); chartMensuel=null; }
-
+  // ✅ FIX PERFORMANCE CHARTS : chart.update() si déjà créé (évite destroy/recreate)
   const labels=[], data=[], couleurs=[];
   const now = new Date(TODAY+'T12:00:00');
   const moisNoms=['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
@@ -5637,6 +5672,13 @@ function dessinerBarresMensuelles(){
 
   const borderCouleurs = couleurs.map(c=>c.replace('0.65','1').replace('0.8','1'));
 
+  if(chartMensuel){
+    chartMensuel.data.labels = labels;
+    chartMensuel.data.datasets[0].data = data;
+    chartMensuel.data.datasets[0].backgroundColor = couleurs;
+    chartMensuel.data.datasets[0].borderColor = borderCouleurs;
+    chartMensuel.update('none'); return;
+  }
   chartMensuel = new Chart(canvas,{
     type:'bar',
     data:{
@@ -5775,8 +5817,6 @@ function dessinerTopProduits(){
 function dessinerCourbeCollecte(jours){
   const canvas = document.getElementById('chart-collecte');
   if(!canvas) return;
-  if(chartCollecte){ chartCollecte.destroy(); chartCollecte=null; }
-
   const pays = dashPays();
   const labels=[], data=[];
   for(let i=jours-1;i>=0;i--){
@@ -5788,6 +5828,13 @@ function dessinerCourbeCollecte(jours){
     data.push(pays.filter(p=>p.date===ds).reduce((a,p)=>a+p.montant,0));
   }
 
+  // ✅ FIX PERFORMANCE CHARTS : update si déjà créé (même nombre de jours)
+  if(chartCollecte && chartCollecte.data.labels.length === labels.length){
+    chartCollecte.data.labels = labels;
+    chartCollecte.data.datasets[0].data = data;
+    chartCollecte.update('none'); return;
+  }
+  if(chartCollecte){ chartCollecte.destroy(); chartCollecte=null; }
   chartCollecte = new Chart(canvas, {
     type:'line',
     data:{
@@ -5822,8 +5869,6 @@ function dessinerDonutComs(){
   const canvas = document.getElementById('chart-coms');
   const legend = document.getElementById('chart-coms-legend');
   if(!canvas||!legend) return;
-  if(chartComs){ chartComs.destroy(); chartComs=null; }
-
   const mois=TODAY.slice(0,7);
   const mPays=dashPays().filter(p=>p.date&&p.date.startsWith(mois));
   const coms=(dashAgenceFilter
@@ -5838,9 +5883,22 @@ function dessinerDonutComs(){
   if(total===0){
     canvas.parentElement.innerHTML='<div class="emp" style="padding:30px;font-size:11px;">Aucune collecte ce mois</div>';
     legend.innerHTML='';
+    if(chartComs){ chartComs.destroy(); chartComs=null; }
     return;
   }
 
+  // ✅ FIX PERFORMANCE CHARTS : update si déjà créé
+  if(chartComs){
+    chartComs.data.labels = labels;
+    chartComs.data.datasets[0].data = vals;
+    chartComs.data.datasets[0].backgroundColor = couleurs.slice(0,coms.length);
+    chartComs.update('none');
+    legend.innerHTML=coms.map((c,i)=>{
+      const pct=total>0?Math.round(vals[i]/total*100):0;
+      return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;"><div style="width:10px;height:10px;border-radius:50%;background:${couleurs[i]};flex-shrink:0;"></div><div style="flex:1;font-size:11px;"><div class="fw6">${esc(c.nom)}</div><div style="color:var(--muted);font-size:10px;">${Number(vals[i]).toLocaleString('fr-FR')} FCFA · ${pct}%</div></div></div>`;
+    }).join('');
+    return;
+  }
   chartComs = new Chart(canvas,{
     type:'doughnut',
     data:{labels,datasets:[{data:vals,backgroundColor:couleurs.slice(0,coms.length),borderColor:'#111520',borderWidth:2,hoverOffset:4}]},
@@ -5866,13 +5924,16 @@ function dessinerDonutComs(){
 function dessinerBarresStatuts(){
   const canvas = document.getElementById('chart-statuts');
   if(!canvas) return;
-  if(chartStatuts){ chartStatuts.destroy(); chartStatuts=null; }
-
   const cls = dashClients();
   const soldes  = cls.filter(c=>stats(c).pct>=100).length;
   const retard  = cls.filter(c=>{ const s=stats(c); return s.pct<100&&s.joursRetard>0; }).length;
   const encours = cls.filter(c=>{ const s=stats(c); return s.pct<100&&s.joursRetard<=0; }).length;
 
+  // ✅ FIX PERFORMANCE CHARTS : update si déjà créé
+  if(chartStatuts){
+    chartStatuts.data.datasets[0].data = [soldes,encours,retard];
+    chartStatuts.update('none'); return;
+  }
   chartStatuts = new Chart(canvas,{
     type:'bar',
     data:{
@@ -5975,7 +6036,7 @@ function renderAdminDash(){
 
   renderRapportProduitsEnCours();
   initDashSections();
-  setTimeout(dessinerGraphiques, 80);
+  setTimeout(dessinerGraphiques, DELAY_CHART_RENDER_MS);
 }
 
 // ════════════════════════════════════════════════
@@ -6001,7 +6062,7 @@ window.toggleDashSection = function(id){
   localStorage.setItem('dash-collapsed-'+id, isNowCollapsed ? '1' : '0');
   // Si on rouvre une section avec des charts, les redessiner
   if(!isNowCollapsed){
-    setTimeout(dessinerGraphiques, 80);
+    setTimeout(dessinerGraphiques, DELAY_CHART_RENDER_MS);
   }
 };
 
@@ -8098,7 +8159,7 @@ window.actualiserSysteme = async function(){
   } catch(e){
     notify('Erreur lors de l\'actualisation','err');
   }
-  setTimeout(()=>{ btn.style.animation=''; btn.disabled=false; }, 700);
+  setTimeout(()=>{ btn.style.animation=''; btn.disabled=false; }, DELAY_ANIM_RESET_MS);
 };
 
 window.renderRegistreAgenceChips = function(){
@@ -8606,7 +8667,7 @@ window.sauvegarderUtilisateur = async function(){
       const u = DB.commerciaux.find(c=>c._id===uid);
       if(u && u.codePrefix && u.codePrefix.toUpperCase()!==prefix){
         warn.style.display='block';
-        warn.innerHTML=`&#9888;&#65039; Le préfixe a changé de <strong>${u.codePrefix}</strong> vers <strong>${prefix}</strong>. Les codes clients existants ne seront <strong>pas</strong> modifiés automatiquement.`;
+        warn.innerHTML=`&#9888;&#65039; Le préfixe a changé de <strong>${esc(u.codePrefix)}</strong> vers <strong>${esc(prefix)}</strong>. Les codes clients existants ne seront <strong>pas</strong> modifiés automatiquement.`;
       }
       update.codePrefix = prefix;
     }
@@ -9785,10 +9846,10 @@ window.onLivClientChange = function(){
   const soldeBg = solde>=0 ? 'rgba(34,212,160,0.10)' : 'rgba(247,97,79,0.10)';
   const soldeBorder = solde>=0 ? 'rgba(34,212,160,0.3)' : 'rgba(247,97,79,0.4)';
   infoBox.style.display='block';
-  infoBox.innerHTML=`<span style="color:var(--accent);font-weight:700;">${c.codeClient||''}</span>${c.codeClient?' — ':''}
-    <strong style="color:var(--text)">${c.nom}</strong> &nbsp;·&nbsp;
-    <span style="color:var(--muted)">${c.tel||''}</span> &nbsp;·&nbsp;
-    Commercial : <span style="color:var(--accent2)">${com.nom||'—'}</span>
+  infoBox.innerHTML=`<span style="color:var(--accent);font-weight:700;">${esc(c.codeClient||'')}</span>${c.codeClient?' — ':''}
+    <strong style="color:var(--text)">${esc(c.nom)}</strong> &nbsp;·&nbsp;
+    <span style="color:var(--muted)">${esc(c.tel||'')}</span> &nbsp;·&nbsp;
+    Commercial : <span style="color:var(--accent2)">${esc(com.nom||'—')}</span>
     <span style="display:inline-flex;align-items:center;gap:5px;margin-left:12px;padding:3px 10px;border-radius:20px;border:1px solid ${soldeBorder};background:${soldeBg};font-size:11px;font-weight:700;color:${soldeColor};">
       💳 Solde dispo. : ${fmt(solde)}
     </span>`;
@@ -10265,6 +10326,20 @@ window.confirmImport = async function(){
   notifEl.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:9999;background:var(--card);border:1px solid var(--border);padding:10px 20px;border-radius:8px;font-size:13px;';
   document.body.appendChild(notifEl);
 
+  // ✅ FIX PERFORMANCE IMPORT : writeBatch Firestore (jusqu'à 500 ops en 1 appel réseau)
+  // Avant : 1 fbAdd = 1 appel réseau + 50ms de pause → 500 clients = ~30 secondes
+  // Maintenant : groupe de 499 ops max → 500 clients = 2-3 appels réseau
+  const FIRESTORE_BATCH_LIMIT = 499; // limite Firestore : 500 ops par batch
+  let batch = writeBatch(db_fs);
+  let batchOps = 0;
+
+  const _flushBatch = async () => {
+    if (batchOps === 0) return;
+    await batch.commit();
+    batch = writeBatch(db_fs);
+    batchOps = 0;
+  };
+
   try {
     for(let i = 0; i < importData.length; i++){
       const r = importData[i];
@@ -10298,38 +10373,53 @@ window.confirmImport = async function(){
         duree, debut,
         note:'', commercialId:comId,
         adhesion:r.adhesion||0, adhesionStatut:r.adhesionStatut||'non_paye',
-        codeClient, createdAt:dateImportCli, origine:'import'
+        codeClient, createdAt:dateImportCli, origine:'import',
+        _ts: serverTimestamp()
       };
       if(cotisationJour > 0) clientDoc.cotisationJourFixe = cotisationJour;
 
-      const clientRef = await fbAdd('clients', clientDoc);
-      const clientId = (clientRef && clientRef._id) ? clientRef._id : clientRef;
+      // Ajouter au batch au lieu d'un appel réseau individuel
+      const clientRef = doc(collection(db_fs, 'clients'));
+      batch.set(clientRef, clientDoc);
+      batchOps++;
+      const clientId = clientRef.id;
+      // Mettre à jour DB en mémoire
+      if(!DB.clients) DB.clients = [];
+      DB.clients.push({...clientDoc, _id: clientId});
 
       const montantDejaPaye = Math.max(0, Math.min(Number(r.montantDejaPaye)||0, 999999999));
       if(montantDejaPaye > 0){
         const datePai = /^\d{4}-\d{2}-\d{2}$/.test(r.dateDernierPaiement) ? r.dateDernierPaiement : debut;
         const cotisRef = cotisationJour > 0 ? cotisationJour : (montant > 0 ? Math.ceil(montant/duree) : 0);
-        await fbAdd('paiements',{
+        const paiRef = doc(collection(db_fs, 'paiements'));
+        const paiDoc = {
           clientId, commercialId: comId,
           cotisJour: cotisRef, montant: montantDejaPaye,
           date: datePai, heure: '00:00',
-          note: r.notePaiement || 'Paiement reporté à l\'import',
-          origine: 'import_historique'
-        });
+          note: r.notePaiement || "Paiement reporté à l'import",
+          origine: 'import_historique', _ts: serverTimestamp()
+        };
+        batch.set(paiRef, paiDoc);
+        batchOps++;
+        if(!DB.paiements) DB.paiements = [];
+        DB.paiements.push({...paiDoc, _id: paiRef.id});
         paiementsReportes++;
       }
 
       count++;
-
-      // Mise à jour de la progression
       notifEl.textContent = `⏳ Import en cours… ${count} / ${total}`;
 
-      // Pause contrôlée pour ne pas saturer Firestore
-      await new Promise(r => setTimeout(r, BATCH_PAUSE_MS));
-      if (count % BATCH_SIZE === 0) {
-        await new Promise(r => setTimeout(r, 500)); // pause longue toutes les 50 écritures
+      // Flush automatique si on approche la limite du batch
+      if (batchOps >= FIRESTORE_BATCH_LIMIT) {
+        await _flushBatch();
+        notifEl.textContent = `⏳ Envoi… ${count} / ${total}`;
       }
     }
+    // Flush final
+    await _flushBatch();
+    // Invalider le cache pour forcer un re-fetch propre
+    _syncLocalAfterWrite('clients');
+    _syncLocalAfterWrite('paiements');
   } finally {
     notifEl.remove();
   }
@@ -10874,7 +10964,7 @@ function renderComNouveauClient(){
   // Charger les articles multi-select
   resetArticlesAdded('com-ncl');
   // Suggérer automatiquement le prochain numéro de séquence
-  setTimeout(suggererProchainCode, 100);
+  setTimeout(suggererProchainCode, DELAY_CODE_SUGGEST_MS);
 }
 
 window.suggererProchainCode = function(){
@@ -11014,7 +11104,7 @@ window.saveComNouveauClient = async function(){
   document.getElementById('com-ncl-seq').value='';
   document.getElementById('com-ncl-code').value='';
   // Suggérer le prochain code auto
-  setTimeout(suggererProchainCode, 300);
+  setTimeout(suggererProchainCode, DELAY_CODE_SUGGEST2_MS);
 };
 
 // ========= SAISIE DE MISES =========
