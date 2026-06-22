@@ -3390,15 +3390,35 @@ const _SMALL_COLS = new Set(['commerciaux','agences','articles','produits','prim
 const _pageCursors = {};
 
 // Charger une collection en tenant compte du rôle
+// ✅ FIX LATENCE : cache sessionStorage pour éviter les re-fetch Firestore
+// entre navigations de pages. Invalidé à la déconnexion via doLogout().
+const _SS_PREFIX = 'gestcom_cache_';
+function _cacheWrite(col, data) {
+  try { sessionStorage.setItem(_SS_PREFIX + col, JSON.stringify(data)); } catch(e) {}
+}
+function _cacheRead(col) {
+  try {
+    const raw = sessionStorage.getItem(_SS_PREFIX + col);
+    return raw ? JSON.parse(raw) : null;
+  } catch(e) { return null; }
+}
+function _cacheClear() {
+  Object.keys(sessionStorage).filter(k => k.startsWith(_SS_PREFIX))
+    .forEach(k => sessionStorage.removeItem(k));
+}
+
 async function _loadCol(col) {
   if (!db_fs) return;
   const role = session ? session.role : null;
   const uid  = session ? session.userId : null;
 
-  // Collections légères → chargement complet
+  // Collections légères → chargement complet (avec cache sessionStorage)
   if (_SMALL_COLS.has(col)) {
+    const cached = _cacheRead(col);
+    if (cached) { DB[col] = cached; _loadedCols.add(col); return; }
     const snap = await getDocs(collection(db_fs, col));
     DB[col] = snap.docs.map(d => ({...d.data(), _id: d.id}));
+    _cacheWrite(col, DB[col]);
     _loadedCols.add(col);
     return;
   }
@@ -3480,11 +3500,9 @@ async function _loadCol(col) {
 async function ensureCollectionsLoaded(cols) {
   const missing = cols.filter(c => !_loadedCols.has(c));
   if (!missing.length) return;
-  // Charger en parallèle pour les petites collections, séquentiel pour les grosses
-  const small = missing.filter(c => _SMALL_COLS.has(c));
-  const big   = missing.filter(c => !_SMALL_COLS.has(c));
-  await Promise.all(small.map(c => _loadCol(c)));
-  for (const c of big) await _loadCol(c);
+  // ✅ FIX LATENCE : toutes les collections chargées en parallèle (Promise.all).
+  // Avant : les big cols étaient séquentielles (chacune attendait la précédente).
+  await Promise.all(missing.map(c => _loadCol(c)));
 }
 
 // Charger la page suivante d'une collection volumineuse (bouton admin "charger plus")
@@ -4990,10 +5008,22 @@ window.doLogin = async function(){
 
     await ensureCollectionsLoaded(['commerciaux', 'commerciauxPrive', 'agences']);
     _mergeCommerciaux();
-    const u = DB.commerciaux.find(c => c._id === firebaseUid || (c.email && c.email.toLowerCase() === emailToUse));
+    // ✅ FIX BASCULE DE RÔLE : on cherche UNIQUEMENT par UID Firebase (source de vérité).
+    // Chercher aussi par email causait des collisions si deux documents ont le même email.
+    let u = DB.commerciaux.find(c => c._id === firebaseUid);
+    // Fallback email uniquement si l'UID ne correspond à aucun document (migration)
+    if (!u) u = DB.commerciaux.find(c => c.email && c.email.toLowerCase() === emailToUse);
     if (!u) {
       await signOut(auth);
       throw new Error('Profil utilisateur introuvable dans la base. Contactez l\'administrateur.');
+    }
+    // ✅ FIX RÔLE MANQUANT : si le champ role est absent ou vide, bloquer la connexion.
+    // Sans cette garde, session.role vaut undefined et l'app traite l'utilisateur
+    // comme un commercial par défaut (comportement des conditions if/else).
+    const _VALID_ROLES = ['admin','commercial','secretaire','gestionnaire_stock','controleur'];
+    if (!u.role || !_VALID_ROLES.includes(u.role)) {
+      await signOut(auth);
+      throw new Error(`Rôle utilisateur invalide ou manquant ("${u.role || 'vide'}"). Contactez l'administrateur.`);
     }
 
     // Succès — réinitialiser les deux verrous
@@ -5057,6 +5087,10 @@ window.doLogout = function(){
   _localKey = null; // C2 — effacer la clé AES de la mémoire
   _offlineQueue = [];
   _stopSessionTimer();
+  // ✅ FIX LATENCE : vider le cache sessionStorage à la déconnexion
+  // pour qu'un autre utilisateur ne voie pas les données du précédent.
+  _cacheClear();
+  _loadedCols.clear();
   // Déconnexion Firebase Auth
   if (auth) { try { signOut(auth); } catch(e){} }
   document.getElementById('login-screen').classList.remove('hidden');
