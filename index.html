@@ -183,14 +183,18 @@
      ===================================================== -->
 <script>
   // ✅ CONFIGURATION FIREBASE — FLEXIMARKET SYSTEM
+  // SÉCURITÉ : ne JAMAIS coder les vraies clés Firebase en dur ici.
+  // La config saisie une fois via l'écran de configuration est chiffrée
+  // (AES-GCM) et persistée dans localStorage — donc cet écran ne s'affiche
+  // qu'au premier lancement sur chaque appareil/navigateur.
   const FIREBASE_CONFIG = {
-    apiKey:            "AIzaSyATa_tOvEbGROCIZ9xZgkAsr_--d2vYIjc",
-    authDomain:        "triomphant-v2.firebaseapp.com",
-    projectId:         "triomphant-v2",
-    storageBucket:     "triomphant-v2.firebasestorage.app",
-    messagingSenderId: "908578874554",
-    appId:             "1:908578874554:web:5c008fba39204ce6c24e83",
-    measurementId:     "G-STQHJF83X2"
+    apiKey:            "",
+    authDomain:        "",
+    projectId:         "",
+    storageBucket:     "",
+    messagingSenderId: "",
+    appId:             "",
+    measurementId:     ""
   };
   // ✅ FIN DE LA CONFIGURATION
   window.FIREBASE_CONFIG = FIREBASE_CONFIG;
@@ -4401,7 +4405,7 @@ window.ouvrirEditionClient = function(cid){
   document.getElementById('edit-cl-adhesion').value=c.adhesion||0;
   document.getElementById('edit-cl-adhesion-statut').value=c.adhesionStatut||'non_paye';
   document.getElementById('edit-cl-note').value=c.note||'';
-  document.getElementById('edit-cl-com').innerHTML=comsDansAgence().filter(x=>x.role!=='admin').map(x=>`<option value="${x._id}"${x._id===c.commercialId?' selected':''}>${x.nom}</option>`).join('');
+  document.getElementById('edit-cl-com').innerHTML=comsDansAgence().filter(x=>x.role!=='admin').map(x=>`<option value="${x._id}"${x._id===c.commercialId?' selected':''}>${esc(x.nom)}</option>`).join('');
   document.getElementById('edit-cl-calc-info').style.display='none';
   calcJourEdit();
   openM('m-edit-client');
@@ -5493,7 +5497,7 @@ function renderPg(id){
         ? comsDansAgence().filter(c=>c.role==='commercial')
         : comsDansAgence().filter(c=>c.role!=='admin');
       const prev=sel.value;
-      sel.innerHTML=`<option value="">— Sélectionner un commercial —</option>`+comsVisibles.map(c=>`<option value="${c._id}"${c._id===prev?' selected':''}>${c.nom}</option>`).join('');
+      sel.innerHTML=`<option value="">— Sélectionner un commercial —</option>`+comsVisibles.map(c=>`<option value="${c._id}"${c._id===prev?' selected':''}>${esc(c.nom)}</option>`).join('');
       sel.value=prev;
     }
     // Reset search
@@ -7761,7 +7765,7 @@ function renderTousCls(){
     : comsDansAgence().filter(c=>c.role!=='admin');
   // Conserver la valeur sélectionnée
   const prevVal = sel.value;
-  sel.innerHTML=`<option value="">— Sélectionner un commercial —</option>`+comsVisibles.map(c=>`<option value="${c._id}"${c._id===prevVal?' selected':''}>${c.nom}</option>`).join('');
+  sel.innerHTML=`<option value="">— Sélectionner un commercial —</option>`+comsVisibles.map(c=>`<option value="${c._id}"${c._id===prevVal?' selected':''}>${esc(c.nom)}</option>`).join('');
   sel.value = prevVal; // restaurer
 
   const q=(document.getElementById('search-clients')?.value||'').toLowerCase().trim();
@@ -7849,7 +7853,7 @@ function renderControle(){
   if(selCom){
     const prevVal = selCom.value;
     const comsVisibles = comsDansAgence().filter(c=>c.role!=='admin');
-    selCom.innerHTML = `<option value="">— Tous les commerciaux —</option>`+comsVisibles.map(c=>`<option value="${c._id}"${c._id===prevVal?' selected':''}>${c.nom}</option>`).join('');
+    selCom.innerHTML = `<option value="">— Tous les commerciaux —</option>`+comsVisibles.map(c=>`<option value="${c._id}"${c._id===prevVal?' selected':''}>${esc(c.nom)}</option>`).join('');
     selCom.value = prevVal;
   }
 
@@ -8981,7 +8985,7 @@ window.openPay = function(cid){
   const soldeBadge = contratSolde
     ? `<div style="margin-top:7px;background:rgba(34,212,160,0.12);border:1px solid rgba(34,212,160,0.4);border-radius:8px;padding:7px 11px;font-size:12px;color:var(--accent2);font-weight:700;">🏆 Contrat totalement soldé — aucune cotisation supplémentaire requise.<br><span style="font-size:11px;font-weight:400;color:var(--muted);">Modifiez le contrat pour autoriser de nouveaux encaissements.</span></div>`
     : '';
-  document.getElementById('pay-info').innerHTML=`<strong>${c.nom}</strong> · ${c.contrat}<br>Cotisation/jour : <strong>${fmt(s.m)}</strong> &nbsp;|&nbsp; Restant : <strong style="color:${contratSolde?'var(--accent2)':'var(--text)'}">${fmt(s.totalRestant)}</strong><br>${s.joursRetard>0?`⚠️ Retard : <strong style="color:var(--danger)">${s.joursRetard}j</strong> ≈ ${fmt(s.joursRetard*s.m)}`:'✅ À jour'}${soldeBadge}`;
+  document.getElementById('pay-info').innerHTML=`<strong>${esc(c.nom)}</strong> · ${esc(c.contrat)}<br>Cotisation/jour : <strong>${fmt(s.m)}</strong> &nbsp;|&nbsp; Restant : <strong style="color:${contratSolde?'var(--accent2)':'var(--text)'}">${fmt(s.totalRestant)}</strong><br>${s.joursRetard>0?`⚠️ Retard : <strong style="color:var(--danger)">${s.joursRetard}j</strong> ≈ ${fmt(s.joursRetard*s.m)}`:'✅ À jour'}${soldeBadge}`;
   document.getElementById('pay-multiples').innerHTML=`<span style="font-size:10px;color:var(--muted);align-self:center">Raccourcis :</span>`+[1,2,3,5].map(n=>`<button class="btn btn-ghost btn-xs" onclick="document.getElementById('pay-amt').value=${s.m*n}">${n}x (${fmt(s.m*n)})</button>`).join('');
   document.getElementById('pay-amt').value=contratSolde?0:s.m;
   document.getElementById('pay-note').value='';
@@ -9052,7 +9056,7 @@ window.savePay = async function(){
 
 window.openAdh = function(cid){
   adhCtx=cid;const c=getCl(cid);
-  document.getElementById('adhesion-info').innerHTML=`<strong>${c.nom}</strong><br>Adhésion : <strong>${fmt(c.adhesion)}</strong> — Statut : <strong style="color:${c.adhesionStatut==='paye'?'var(--accent2)':'var(--danger)'}">${c.adhesionStatut==='paye'?'Payé':'Non payé'}</strong>`;
+  document.getElementById('adhesion-info').innerHTML=`<strong>${esc(c.nom)}</strong><br>Adhésion : <strong>${fmt(c.adhesion)}</strong> — Statut : <strong style="color:${c.adhesionStatut==='paye'?'var(--accent2)':'var(--danger)'}">${c.adhesionStatut==='paye'?'Payé':'Non payé'}</strong>`;
   document.getElementById('adh-amt').value=c.adhesion;
   openM('m-adhesion');
 };
@@ -9111,9 +9115,9 @@ window.openDet = function(cid){
     return`<tr><td>${p.date}</td><td class="tm">${p.heure||'—'}</td><td><span class="cotis-badge" style="font-size:10px">💰 ${fmt(p.cotisJour||s.m)}</span></td><td style="color:var(--accent2);font-weight:700">${fmt(p.montant)}</td><td>${ratio(p.montant,p.cotisJour||s.m)}</td><td style="font-size:12px;font-weight:700;color:${nivColor2};white-space:nowrap;">${nivLabel2}<span style="font-size:9px;color:var(--muted);font-weight:400;"> /${joursEnJM(duree2)}</span></td><td class="tm" style="font-size:10px">${p.note||'—'}${locked?'<span style="margin-left:4px;color:var(--accent2);" title="Saisi par commercial — verrouillé">🔒</span>':''}</td></tr>`;
   }).join('')||'<tr><td colspan="7" class="emp">Aucun paiement</td></tr>';
   const livs=DB.livraisons.filter(l=>l.clientId===cid).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  document.getElementById('det-liv-list').innerHTML=livs.map(l=>`<tr><td>${l.date}</td><td class="fw6">${getProd(l.produitId).nom}</td><td>${l.qty}</td><td>${fmt(l.montant)}</td><td>${livStatut(l.statut)}</td></tr>`).join('')||'<tr><td colspan="5" class="emp">Aucune livraison</td></tr>';
+  document.getElementById('det-liv-list').innerHTML=livs.map(l=>`<tr><td>${l.date}</td><td class="fw6">${esc(getProd(l.produitId).nom)}</td><td>${l.qty}</td><td>${fmt(l.montant)}</td><td>${livStatut(l.statut)}</td></tr>`).join('')||'<tr><td colspan="5" class="emp">Aucune livraison</td></tr>';
   const adhPays=DB.adhesionPays.filter(a=>a.clientId===cid);
-  document.getElementById('det-adh-content').innerHTML=`<div class="ib ${c.adhesionStatut==='paye'?'ib-green':'ib-red'}" style="margin-bottom:8px;"><strong>Adhésion : ${fmt(c.adhesion)}</strong> — ${c.adhesionStatut==='paye'?'✅ Payé':'❌ Non payé'}${c.adhesionStatut!=='paye'&&session.role==='admin'?`<br><button class="btn btn-success btn-xs no-print" onclick="closeM('m-detail');openAdh('${cid}')" style="margin-top:5px">Encaisser</button>`:''}</div>${adhPays.length>0?`<div class="tw" style="margin:0"><table><thead><tr><th>Date</th><th>Montant</th><th>Note</th></tr></thead><tbody>${adhPays.map(a=>`<tr><td>${a.date}</td><td style="color:var(--accent2);font-weight:600">${fmt(a.montant)}</td><td class="tm" style="font-size:10px">${a.note||'—'}</td></tr>`).join('')}</tbody></table></div>`:'<div class="emp" style="padding:16px">Aucun paiement d\'adhésion</div>'}`;
+  document.getElementById('det-adh-content').innerHTML=`<div class="ib ${c.adhesionStatut==='paye'?'ib-green':'ib-red'}" style="margin-bottom:8px;"><strong>Adhésion : ${fmt(c.adhesion)}</strong> — ${c.adhesionStatut==='paye'?'✅ Payé':'❌ Non payé'}${c.adhesionStatut!=='paye'&&session.role==='admin'?`<br><button class="btn btn-success btn-xs no-print" onclick="closeM('m-detail');openAdh('${cid}')" style="margin-top:5px">Encaisser</button>`:''}</div>${adhPays.length>0?`<div class="tw" style="margin:0"><table><thead><tr><th>Date</th><th>Montant</th><th>Note</th></tr></thead><tbody>${adhPays.map(a=>`<tr><td>${a.date}</td><td style="color:var(--accent2);font-weight:600">${fmt(a.montant)}</td><td class="tm" style="font-size:10px">${esc(a.note||'—')}</td></tr>`).join('')}</tbody></table></div>`:'<div class="emp" style="padding:16px">Aucun paiement d\'adhésion</div>'}`;
   document.querySelectorAll('.det-tab').forEach(t=>t.classList.remove('active'));
   document.querySelector('.det-tab').classList.add('active');
   ['paiements','livraisons','adhesion'].forEach(t=>document.getElementById('det-'+t).style.display=t==='paiements'?'':'none');
@@ -9834,7 +9838,7 @@ window.onLivArtChange = function(){
     ? `<strong>${fmt(pvAffiche)}</strong> <span style="font-size:10px;color:var(--accent2);" title="Prix figé au contrat — protégé du changement de tarif">🔒 prix contrat</span>`
     : `<strong>${fmt(prod.prix)}</strong>`;
   const stockDispo = stockDisponibleProduit(prod);
-  infoEl.innerHTML=`📦 <strong>${prod.nom}</strong> — Stock dispo. : <strong style="color:${stockDispo>0?'var(--accent2)':'var(--danger)'}">${stockDispo}</strong> — Prix : ${prixLabel}${warnHtml}`;
+  infoEl.innerHTML=`📦 <strong>${esc(prod.nom)}</strong> — Stock dispo. : <strong style="color:${stockDispo>0?'var(--accent2)':'var(--danger)'}">${stockDispo}</strong> — Prix : ${prixLabel}${warnHtml}`;
 };
 window.calcLivMontant = function(){
   const pId=document.getElementById('liv-article').value;
@@ -9864,7 +9868,7 @@ window.openM = function(id){
     document.getElementById('cl-adhesion-statut').value='non_paye';
     const clAdhRNP=document.getElementById('cl-adh-non-paye'); if(clAdhRNP) clAdhRNP.checked=true;
     document.getElementById('cl-calc-info').style.display='none';
-    document.getElementById('cl-com').innerHTML='<option value="">— Sélectionner —</option>'+comsDansAgence().filter(c=>c.role!=='admin').map(c=>`<option value="${c._id}">${c.nom}</option>`).join('');
+    document.getElementById('cl-com').innerHTML='<option value="">— Sélectionner —</option>'+comsDansAgence().filter(c=>c.role!=='admin').map(c=>`<option value="${c._id}">${esc(c.nom)}</option>`).join('');
     // Charger les articles multi-select
     resetArticlesAdded('cl');
   }
@@ -10790,9 +10794,9 @@ window.voirDetailComClient = function(cid){
     return`<tr><td>${p.date}</td><td class="tm">${p.heure||'—'}</td><td><span class="cotis-badge" style="font-size:10px">💰 ${fmt(p.cotisJour||s.m)}</span></td><td style="color:var(--accent2);font-weight:700">${fmt(p.montant)}</td><td>${ratio(p.montant,p.cotisJour||s.m)}</td><td style="font-size:12px;font-weight:700;color:${nivColor3};white-space:nowrap;">${nivLabel3}<span style="font-size:9px;color:var(--muted);font-weight:400;"> /${joursEnJM(duree3)}</span></td><td class="tm" style="font-size:10px">${p.note||'—'}</td></tr>`;
   }).join('')||'<tr><td colspan="7" class="emp">Aucun paiement</td></tr>';
   const livs=DB.livraisons.filter(l=>l.clientId===cid).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  document.getElementById('det-liv-list').innerHTML=livs.map(l=>`<tr><td>${l.date}</td><td class="fw6">${getProd(l.produitId).nom}</td><td>${l.qty}</td><td>${fmt(l.montant)}</td><td>${livStatut(l.statut)}</td></tr>`).join('')||'<tr><td colspan="5" class="emp">Aucune livraison</td></tr>';
+  document.getElementById('det-liv-list').innerHTML=livs.map(l=>`<tr><td>${l.date}</td><td class="fw6">${esc(getProd(l.produitId).nom)}</td><td>${l.qty}</td><td>${fmt(l.montant)}</td><td>${livStatut(l.statut)}</td></tr>`).join('')||'<tr><td colspan="5" class="emp">Aucune livraison</td></tr>';
   const adhPays=DB.adhesionPays.filter(a=>a.clientId===cid);
-  document.getElementById('det-adh-content').innerHTML=`<div class="ib ${c.adhesionStatut==='paye'?'ib-green':'ib-red'}" style="margin-bottom:8px;"><strong>Adhésion : ${fmt(c.adhesion)}</strong> — ${c.adhesionStatut==='paye'?'✅ Payé':'❌ Non payé'}</div>${adhPays.length>0?`<div class="tw" style="margin:0"><table><thead><tr><th>Date</th><th>Montant</th><th>Note</th></tr></thead><tbody>${adhPays.map(a=>`<tr><td>${a.date}</td><td style="color:var(--accent2);font-weight:600">${fmt(a.montant)}</td><td class="tm" style="font-size:10px">${a.note||'—'}</td></tr>`).join('')}</tbody></table></div>`:'<div class="emp" style="padding:16px">Aucun paiement d\'adhésion</div>'}`;
+  document.getElementById('det-adh-content').innerHTML=`<div class="ib ${c.adhesionStatut==='paye'?'ib-green':'ib-red'}" style="margin-bottom:8px;"><strong>Adhésion : ${fmt(c.adhesion)}</strong> — ${c.adhesionStatut==='paye'?'✅ Payé':'❌ Non payé'}</div>${adhPays.length>0?`<div class="tw" style="margin:0"><table><thead><tr><th>Date</th><th>Montant</th><th>Note</th></tr></thead><tbody>${adhPays.map(a=>`<tr><td>${a.date}</td><td style="color:var(--accent2);font-weight:600">${fmt(a.montant)}</td><td class="tm" style="font-size:10px">${esc(a.note||'—')}</td></tr>`).join('')}</tbody></table></div>`:'<div class="emp" style="padding:16px">Aucun paiement d\'adhésion</div>'}`;
   document.querySelectorAll('.det-tab').forEach(t=>t.classList.remove('active'));
   document.querySelector('.det-tab').classList.add('active');
   ['paiements','livraisons','adhesion','calendrier'].forEach(t=>document.getElementById('det-'+t).style.display=t==='paiements'?'':'none');
@@ -10867,7 +10871,7 @@ window.onSeqInput = function(){
   const doublon = DB.clients.find(c => c.codeClient && c.codeClient.toUpperCase() === fullCode);
   if(doublon){
     const comDbl = getCom(doublon.commercialId);
-    if(status) status.innerHTML=`<span style="color:var(--danger);">&#10060; Code <strong>${fullCode}</strong> déjà utilisé par <strong>${doublon.nom}</strong> (${comDbl.nom}).</span>`;
+    if(status) status.innerHTML=`<span style="color:var(--danger);">&#10060; Code <strong>${fullCode}</strong> déjà utilisé par <strong>${esc(doublon.nom)}</strong> (${esc(comDbl.nom)}).</span>`;
     if(seqEl) seqEl.style.borderColor='var(--danger)';
   } else {
     if(status) status.innerHTML=`<span style="color:var(--accent2);">&#10003; Code <strong style="color:var(--accent)">${fullCode}</strong> disponible</span>`;
@@ -10884,7 +10888,7 @@ window.verifierCodeClient = function(input){
   const doublon = DB.clients.find(c => c.codeClient && c.codeClient.toUpperCase() === code);
   if(doublon){
     const comDbl = getCom(doublon.commercialId);
-    if(status) status.innerHTML=`<span style="color:var(--danger);">&#10060; Code déjà utilisé par <strong>${doublon.nom}</strong> (${comDbl.nom}).</span>`;
+    if(status) status.innerHTML=`<span style="color:var(--danger);">&#10060; Code déjà utilisé par <strong>${esc(doublon.nom)}</strong> (${esc(comDbl.nom)}).</span>`;
     input.style.borderColor='var(--danger)';
   } else {
     if(status) status.innerHTML=`<span style="color:var(--accent2);">&#10003; Code disponible</span>`;
@@ -11024,7 +11028,7 @@ function renderSaisieMises(){
       if(saisieForm) saisieForm.style.display = 'none';
       if(infoLecture){
         infoLecture.style.display = 'block';
-        infoLecture.innerHTML = `🔒 <strong>Points versés</strong> — Vos points du jour ont été marqués comme versés par <strong>${versementAujourdhui.marqueParNom}</strong> à ${versementAujourdhui.heureMarquage||''}. Vous pourrez saisir à nouveau demain.`;
+        infoLecture.innerHTML = `🔒 <strong>Points versés</strong> — Vos points du jour ont été marqués comme versés par <strong>${esc(versementAujourdhui.marqueParNom)}</strong> à ${versementAujourdhui.heureMarquage||''}. Vous pourrez saisir à nouveau demain.`;
         infoLecture.style.background = 'rgba(34,212,160,0.08)';
         infoLecture.style.border = '1px solid rgba(34,212,160,0.3)';
         infoLecture.style.color = 'var(--accent2)';
@@ -11095,7 +11099,7 @@ window.selectMiseClient = function(id){
   document.getElementById('mise-search-results').style.display = 'none';
   document.getElementById('mise-search-id').value = c.codeClient || c.nom;
   document.getElementById('mc-nom').textContent = c.nom;
-  document.getElementById('mc-meta').innerHTML = `${c.codeClient?`<span style="background:rgba(201,168,76,0.2);border:1px solid rgba(201,168,76,0.5);border-radius:5px;padding:1px 7px;font-size:11px;color:var(--accent);font-weight:700;margin-right:6px;">${c.codeClient}</span>`:''}${c.tel||'-'} &nbsp;&middot;&nbsp; ${c.ville||'-'}${c.quartier?' - '+c.quartier:''} &nbsp;&middot;&nbsp; Commercial : ${com.nom}`;
+  document.getElementById('mc-meta').innerHTML = `${c.codeClient?`<span style="background:rgba(201,168,76,0.2);border:1px solid rgba(201,168,76,0.5);border-radius:5px;padding:1px 7px;font-size:11px;color:var(--accent);font-weight:700;margin-right:6px;">${c.codeClient}</span>`:''}${esc(c.tel||'-')} &nbsp;&middot;&nbsp; ${esc(c.ville||'-')}${c.quartier?' - '+esc(c.quartier):''} &nbsp;&middot;&nbsp; Commercial : ${esc(com.nom)}`;
   document.getElementById('mc-pct-badge').innerHTML =
     s.pct>=100 ? '<span class="sb sg">Solde</span>' :
     s.joursRetard>0 ? `<span class="sb sr">Retard ${s.joursRetard}j</span>` :
@@ -11545,7 +11549,7 @@ function renderSaisieAdhesions(){
     selCom.innerHTML = (session.role==='admin'
       ? '<option value="">Tous les commerciaux</option>'
       : '') +
-      comsVisibles.map(c=>`<option value="${c._id}"${c._id===prev?' selected':''}>${c.nom}</option>`).join('');
+      comsVisibles.map(c=>`<option value="${c._id}"${c._id===prev?' selected':''}>${esc(c.nom)}</option>`).join('');
     selCom.value = prev;
     // Pour le commercial, forcer son propre filtre
     if(session.role === 'commercial') selCom.value = session.userId;
