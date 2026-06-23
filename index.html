@@ -3224,6 +3224,10 @@ let db_fs = null, auth = null;
 let session = null, payCtx = null, adhCtx = null;
 let isOnline = false;
 
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  MODULE: CONFIG                                               ║
+// ║  Extraction: node extract-modules.js → js/config.js          ║
+// ╚══════════════════════════════════════════════════════════════╝
 // ========= LOCAL CACHE =========
 let DB = {
   agences: [],
@@ -3376,6 +3380,10 @@ async function initFB(cfg) {
   }
 }
 
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  MODULE: FIREBASE_CORE                                        ║
+// ║  Extraction: node extract-modules.js → js/firebase_core.js   ║
+// ╚══════════════════════════════════════════════════════════════╝
 // ========= FIREBASE DATA =========
 // Collections déjà chargées en mémoire
 const _loadedCols = new Set();
@@ -3513,15 +3521,43 @@ window.loadMoreCol = async function(col) {
   notify(`${DB[col].length} enregistrements chargés`);
 };
 
-// ── Fonction de fusion commerciaux / commerciauxPrive ─────────
-// NOTE : 'commerciauxPrive' est actuellement un miroir en écriture
-// uniquement (étape 1 de l'audit, voir ligne ~3630). Les champs
-// tel/zone/codePrefix sont déjà présents directement sur 'commerciaux',
-// donc aucune fusion n'est nécessaire pour le moment. Ce stub évite
-// le crash "_mergeCommerciaux is not defined" tant que l'étape 2
-// (lecture exclusivement depuis commerciauxPrive) n'est pas implémentée.
+// ── Fusion commerciaux + commerciauxPrive ───────────────────────
+// commerciauxPrive contient les champs sensibles (tel, zone, codePrefix, clientSeq)
+// commerciaux contient les champs publics (nom, role, email, agenceId)
+// Après chargement des deux collections, on fusionne sur l'_id commun.
+// Les champs de commerciauxPrive écrasent ceux de commerciaux si présents.
 function _mergeCommerciaux() {
-  // no-op volontaire — voir note ci-dessus
+  if (!DB.commerciaux) return;
+  // ✅ FIX _mergeCommerciaux : fusion complète des deux collections.
+  // commerciaux (public)  : nom, role, email, agenceId
+  // commerciauxPrive (privé) : tel, zone, codePrefix, clientSeq
+  // Règle : commerciauxPrive a la priorité sur les champs sensibles.
+  // Si commerciauxPrive n'est pas encore chargé, on garde les champs
+  // publics tels quels (évite une régression si appelé trop tôt).
+  if (!DB.commerciauxPrive || DB.commerciauxPrive.length === 0) return;
+  const priveMap = new Map(DB.commerciauxPrive.map(p => [p._id, p]));
+  DB.commerciaux = DB.commerciaux.map(c => {
+    const prive = priveMap.get(c._id);
+    if (!prive) return c; // pas de données privées pour ce commercial
+    // Merge : tous les champs publics + champs sensibles de commerciauxPrive
+    // Les champs privés ont la priorité (??= : on ne les écrase pas si déjà définis)
+    return {
+      ...c,                                          // nom, role, email, agenceId (public)
+      tel:        prive.tel        ?? c.tel        ?? '',
+      zone:       prive.zone       ?? c.zone       ?? '',
+      codePrefix: prive.codePrefix ?? c.codePrefix ?? '',
+      clientSeq:  prive.clientSeq  ?? c.clientSeq  ?? 0,
+      // Propager tout champ supplémentaire présent dans commerciauxPrive
+      // (ex: champs futurs ajoutés sans modifier cette fonction)
+      ...Object.fromEntries(
+        Object.entries(prive)
+          .filter(([k]) => !['_id','nom','role','email','agenceId'].includes(k))
+          .map(([k,v]) => [k, v ?? c[k]])
+      ),
+    };
+  });
+  // ✅ Mettre à jour le cache sessionStorage après fusion
+  _cacheWrite('commerciaux', DB.commerciaux);
 }
 
 // Conservé pour la compatibilité avec initDemoFirebase (appelé au premier login)
@@ -3753,64 +3789,123 @@ async function _enqueueOp(op, col, data, id) {
 }
 
 // Rejoue la file vers Firebase au retour du réseau
+// ✅ GESTION CONFLITS OFFLINE : retry exponentiel + détection conflit update
+// Stratégie : last-write-wins avec détection du document supprimé entre-temps.
+// Un 'update' sur un doc inexistant (supprimé par un autre utilisateur) est
+// traité comme un conflit non-bloquant : on logue et on passe à l'opération suivante.
+// Un 'add' avec _offlineId déjà présent dans Firestore est dédoublonné proprement.
+const _REPLAY_MAX_RETRIES = 3;
+const _REPLAY_BACKOFF_MS  = [1000, 3000, 8000]; // délais entre tentatives
+
 async function _replayOfflineQueue() {
   if (!_offlineQueue.length || !db_fs) return;
   const queue = [..._offlineQueue];
   setSyncStatus(false);
   notify('🔄 Synchronisation en cours (' + queue.length + ' opération(s))…');
   const colsAffected = new Set();
-  let errors = 0;
-  for (const op of queue) {
-    try {
-      if (op.op === 'add') {
-        const { _id, ...clean } = op.data;
-        // M2 — Anti-doublon : si offlineId présent, vérifier que le document
-        // n'existe pas déjà dans Firestore (cas réseau coupé après accept Firebase)
-        let alreadyExists = false;
-        if (op.offlineId) {
-          const q = query(collection(db_fs, op.col),
-            ...[{ field: '_offlineId', op: '==', val: op.offlineId }]
-              .map(f => { try { const {where} = window.__fbQ||{}; return where ? where(f.field,f.op,f.val) : null; } catch(e){return null;} })
-              .filter(Boolean)
-          );
-          // Utiliser getDocs avec filtre _offlineId si where est disponible,
-          // sinon vérification côté client sur le snapshot local
-          const localDup = DB[op.col]?.some(d => d._offlineId === op.offlineId && d._id !== op.data._id);
-          alreadyExists = localDup;
+  let errors = 0, conflicts = 0;
+
+  for (let qi = 0; qi < queue.length; qi++) {
+    const op = queue[qi];
+    let success = false;
+
+    for (let attempt = 0; attempt <= _REPLAY_MAX_RETRIES; attempt++) {
+      try {
+        if (op.op === 'add') {
+          const { _id, ...clean } = op.data;
+          // Anti-doublon : chercher un doc existant avec le même _offlineId
+          let alreadyExists = false;
+          if (op.offlineId) {
+            try {
+              const dupSnap = await getDocs(query(
+                collection(db_fs, op.col),
+                where('_offlineId', '==', op.offlineId),
+                limit(1)
+              ));
+              alreadyExists = !dupSnap.empty;
+            } catch(e) {
+              // where sur _offlineId peut échouer si pas indexé — fallback local
+              alreadyExists = DB[op.col]?.some(d => d._offlineId === op.offlineId);
+            }
+          }
+          if (!alreadyExists) {
+            await addDoc(collection(db_fs, op.col), {
+              ...clean, _offlineId: op.offlineId || null, _ts: serverTimestamp()
+            });
+          }
+
+        } else if (op.op === 'update') {
+          // ✅ FIX CONFLIT OFFLINE : détection last-write-wins via _ts
+          // Si le document a été modifié par quelqu'un d'autre pendant l'offline
+          // (son _ts Firestore > notre timestamp d'enqueue), on loggue le conflit
+          // mais on applique quand même notre update (last-write-wins).
+          // Le message de sync indique le nombre de conflits détectés.
+          const docRef = doc(db_fs, op.col, op.id);
+          const snap = await getDoc(docRef);
+          if (!snap.exists()) {
+            // Document supprimé entre-temps → conflit non-bloquant, on skip
+            console.warn('[offline] Conflit update — doc supprimé:', op.col, op.id);
+            conflicts++;
+          } else {
+            // Détecter si modifié par un autre utilisateur pendant l'offline
+            const serverTs = snap.data()._ts?.toMillis?.() || 0;
+            if (serverTs > op.ts) {
+              // Conflit détecté — doc modifié côté serveur après notre enqueue
+              console.warn('[offline] Conflit _ts détecté sur', op.col, op.id,
+                '— serverTs:', serverTs, 'opTs:', op.ts, '— last-write-wins appliqué');
+              conflicts++;
+            }
+            // Appliquer quand même (stratégie last-write-wins)
+            await updateDoc(docRef, {...op.data, _ts: serverTimestamp()});
+          }
+
+        } else if (op.op === 'delete') {
+          const docRef = doc(db_fs, op.col, op.id);
+          const snap = await getDoc(docRef);
+          if (snap.exists()) {
+            await deleteDoc(docRef);
+          }
+          // Si déjà supprimé → ok, on considère l'op réussie
         }
-        if (!alreadyExists) {
-          await addDoc(collection(db_fs, op.col), {
-            ...clean,
-            _offlineId: op.offlineId || null,
-            _ts: serverTimestamp()
-          });
+
+        // Succès ou conflit traité : retirer de la queue
+        _offlineQueue.splice(_offlineQueue.findIndex(o => o === op), 1);
+        _saveOfflineQueue();
+        colsAffected.add(op.col);
+        success = true;
+        break;
+
+      } catch(e) {
+        if (attempt < _REPLAY_MAX_RETRIES) {
+          // Retry avec backoff exponentiel
+          await new Promise(r => setTimeout(r, _REPLAY_BACKOFF_MS[attempt]));
+        } else {
+          console.error('[offline] Échec définitif après ' + _REPLAY_MAX_RETRIES + ' tentatives:', op, e);
+          errors++;
         }
-      } else if (op.op === 'update') {
-        await updateDoc(doc(db_fs, op.col, op.id), op.data);
-      } else if (op.op === 'delete') {
-        await deleteDoc(doc(db_fs, op.col, op.id));
       }
-      _offlineQueue.shift();
-      _saveOfflineQueue();
-      colsAffected.add(op.col);
-    } catch(e) {
-      errors++;
-      break; // on s'arrête au premier échec, on réessaiera plus tard
     }
   }
-  // Recharger les collections affectées depuis Firebase
+
+  // Recharger les collections affectées depuis Firebase + invalider le cache
   for (const col of colsAffected) {
     try {
+      _loadedCols.delete(col);
+      try { sessionStorage.removeItem(_SS_PREFIX + col); } catch(e) {}
       const snap = await getDocs(collection(db_fs, col));
       DB[col] = snap.docs.map(d => ({...d.data(), _id: d.id}));
+      _cacheWrite(col, DB[col]);
       _loadedCols.add(col);
-    } catch(e) {}
+    } catch(e) { console.error('[offline] Rechargement collection échoué:', col, e); }
   }
+
   setSyncStatus(true);
-  if (errors === 0) {
+  if (errors === 0 && conflicts === 0) {
     notify('✅ Synchronisation terminée — ' + colsAffected.size + ' collection(s) mise(s) à jour');
+  } else if (conflicts > 0 && errors === 0) {
+    notify('✅ Synchronisation terminée avec ' + conflicts + ' conflit(s) résolus (document(s) modifié(s) par un autre utilisateur)');
   } else {
-    notify('⚠️ Synchronisation partielle — ' + _offlineQueue.length + ' opération(s) restante(s)', 'err');
+    notify('⚠️ Synchronisation partielle — ' + errors + ' opération(s) échouée(s), ' + _offlineQueue.length + ' restante(s)', 'err');
   }
   if (session && curPg) renderPg(curPg);
 }
@@ -3928,6 +4023,10 @@ async function fbSetSameId(col, id, data) {
   await setDoc(doc(db_fs, col, id), {...data, _ts: serverTimestamp()}, {merge:true});
 }
 
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  MODULE: OFFLINE                                              ║
+// ║  Extraction: node extract-modules.js → js/offline.js         ║
+// ╚══════════════════════════════════════════════════════════════╝
 // ========= LOCAL FALLBACK =========
 // ═══════════════════════════════════════════════════════════════
 // C2 — Chiffrement AES-GCM du localStorage par clé dérivée du PIN
@@ -4006,7 +4105,7 @@ async function _decryptOfflineQueue(stored) {
 function loadLocalData() {
   // Données chargées en clair uniquement si _localKey n'est pas encore disponible
   // (mode local sans login — données demo non sensibles)
-  try { const d = localStorage.getItem('gestcom_local'); if(d) DB = JSON.parse(d); } catch(e){}
+  try { const d = localStorage.getItem('gestcom_local'); if(d) DB = JSON.parse(d); } catch(e){ console.warn('[local] Données locales corrompues, réinitialisation:', e); }
   if (!DB.mises) DB.mises = [];
   if (!DB.agences) DB.agences = [];
   if (!DB.primesPaliers) DB.primesPaliers = [];
@@ -4056,6 +4155,10 @@ function localAdd(col, data) { const item = {...data, _id: _nextLid()}; DB[col].
 function localUpdate(col, id, data) { const i = DB[col].findIndex(x => x._id === id); if(i>=0) DB[col][i] = {...DB[col][i], ...data}; saveLocalEncrypted(); }
 function localDelete(col, id) { DB[col] = DB[col].filter(x => x._id !== id); saveLocalEncrypted(); }
 
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  MODULE: UTILS                                                ║
+// ║  Extraction: node extract-modules.js → js/utils.js           ║
+// ╚══════════════════════════════════════════════════════════════╝
 // ========= DEMO DATA =========
 // ⚠️ SÉCURITÉ : Les PINs de démonstration sont générés avec PBKDF2+sel au démarrage.
 // En production, changez tous les PINs via l'interface d'administration immédiatement
@@ -4106,6 +4209,10 @@ async function initDemoLocal() {
   saveLocal();
 }
 
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  MODULE: CLIENTS                                              ║
+// ║  Extraction: node extract-modules.js → js/clients.js         ║
+// ╚══════════════════════════════════════════════════════════════╝
 // ========= SÉLECTION MULTIPLE CLIENTS =========
 function mettreAJourSelectionBar(){
   const cases = document.querySelectorAll('.cl-row-check');
@@ -4283,11 +4390,11 @@ window.ouvrirFicheClient = function(cid){
 
   // Livraisons
   const livs=DB.livraisons.filter(l=>l.clientId===cid).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  document.getElementById('fiche-cl-liv-list').innerHTML=livs.map(l=>`<tr><td>${l.date}</td><td class="fw6">${esc(getProd(l.produitId).nom)}</td><td>${l.qty}</td><td>${fmt(l.montant)}</td><td>${livStatut(l.statut)}</td></tr>`).join('')||'<tr><td colspan="5" class="emp">Aucune livraison</td></tr>';
+  document.getElementById('fiche-cl-liv-list').innerHTML=livs.map(l=>`<tr><td>${esc(l.date)}</td><td class="fw6">${esc(getProd(l.produitId).nom)}</td><td>${esc(String(l.qty||""))}</td><td>${fmt(l.montant)}</td><td>${livStatut(l.statut)}</td></tr>`).join('')||'<tr><td colspan="5" class="emp">Aucune livraison</td></tr>';
 
   // Adhésion
   const adhPays=DB.adhesionPays.filter(a=>a.clientId===cid);
-  document.getElementById('fiche-cl-adh-content').innerHTML=`<div class="ib ${c.adhesionStatut==='paye'?'ib-green':'ib-red'}" style="margin-bottom:8px;"><strong>Adhésion : ${fmt(c.adhesion)}</strong> — ${c.adhesionStatut==='paye'?'✅ Payé':'❌ Non payé'}</div>${adhPays.length>0?`<table style="width:100%;border-collapse:collapse;">${adhPays.map(a=>`<tr style="border-top:1px solid var(--border)"><td style="padding:6px;font-size:12px">${a.date}</td><td style="padding:6px;color:var(--accent2);font-weight:600">${fmt(a.montant)}</td><td style="padding:6px;font-size:11px;color:var(--muted)">${a.note||'—'}</td></tr>`).join('')}</table>`:'<div class="emp" style="padding:12px">Aucun paiement d\'adhésion</div>'}`;
+  document.getElementById('fiche-cl-adh-content').innerHTML=`<div class="ib ${c.adhesionStatut==='paye'?'ib-green':'ib-red'}" style="margin-bottom:8px;"><strong>Adhésion : ${fmt(c.adhesion)}</strong> — ${c.adhesionStatut==='paye'?'✅ Payé':'❌ Non payé'}</div>${adhPays.length>0?`<table style="width:100%;border-collapse:collapse;">${adhPays.map(a=>`<tr style="border-top:1px solid var(--border)"><td style="padding:6px;font-size:12px">${esc(a.date)}</td><td style="padding:6px;color:var(--accent2);font-weight:600">${fmt(a.montant)}</td><td style="padding:6px;font-size:11px;color:var(--muted)">${esc(a.note||'—')}</td></tr>`).join('')}</table>`:'<div class="emp" style="padding:12px">Aucun paiement d\'adhésion</div>'}`;
 
   // Reset onglets
   document.querySelectorAll('.fiche-cl-tab').forEach(t=>t.classList.remove('active'));
@@ -4921,6 +5028,10 @@ function esc(s){
 }
 window.esc = esc;
 
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  MODULE: AUTH                                                 ║
+// ║  Extraction: node extract-modules.js → js/auth.js            ║
+// ╚══════════════════════════════════════════════════════════════╝
 // ========= LOGIN =========
 function showLogin(){
   fillLogin();
@@ -5213,6 +5324,10 @@ function _startTokenRefresh() {
   document.addEventListener(evt, () => { if (session) _resetSessionTimer(); }, { passive: true });
 });
 
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  MODULE: NAV                                                  ║
+// ║  Extraction: node extract-modules.js → js/nav.js             ║
+// ╚══════════════════════════════════════════════════════════════╝
 // ========= NAV =========
 const ADMIN_NAV=`<div class="nav-sec">Principal</div>
 <div class="nav-item" id="nav-admin-dashboard" onclick="go('admin-dashboard')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Tableau de bord</div>
@@ -5598,6 +5713,10 @@ function renderPg(id){
 }
 
 // ========= RENDERS =========
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  MODULE: DASHBOARD                                            ║
+// ║  Extraction: node extract-modules.js → js/dashboard.js       ║
+// ╚══════════════════════════════════════════════════════════════╝
 // ========= GRAPHIQUES DASHBOARD =========
 let chartCollecte = null, chartComs = null, chartStatuts = null, chartMensuel = null, chartProduits = null;
 let dashProdMode = 'qty'; // 'qty' | 'montant'
@@ -6032,7 +6151,7 @@ function renderAdminDash(){
   const alertArts=DB.articles.filter(a=>a.stock<=a.stockMin);
   document.getElementById('ad-stock-alert').innerHTML=alertArts.slice(0,5).map(a=>`<tr><td class="fw6">${esc(a.nom)}</td><td style="font-weight:700;color:${a.stock<=0?'var(--danger)':'var(--accent3)'}">${a.stock} ${esc(a.unite)}</td><td>${stockStatut(a)}</td></tr>`).join('')||'<tr><td colspan="3" class="emp">✅ Tous les stocks OK</td></tr>';
   const livsAtt=DB.livraisons.filter(l=>l.statut==='en_attente');
-  document.getElementById('ad-livraisons-att').innerHTML=livsAtt.slice(0,5).map(l=>`<tr><td class="fw6">${esc(getCl(l.clientId).nom)}</td><td style="font-size:11px">${esc(getProd(l.produitId).nom)}</td><td>${l.date}</td><td>${livStatut(l.statut)}</td></tr>`).join('')||'<tr><td colspan="4" class="emp">Aucune livraison en attente</td></tr>';
+  document.getElementById('ad-livraisons-att').innerHTML=livsAtt.slice(0,5).map(l=>`<tr><td class="fw6">${esc(getCl(l.clientId).nom)}</td><td style="font-size:11px">${esc(getProd(l.produitId).nom)}</td><td>${esc(l.date)}</td><td>${livStatut(l.statut)}</td></tr>`).join('')||'<tr><td colspan="4" class="emp">Aucune livraison en attente</td></tr>';
 
   renderRapportProduitsEnCours();
   initDashSections();
@@ -6222,6 +6341,10 @@ window.exportDetailProdCoursCSV = function(){
   a.download=`clients_en_cours_${label}_${TODAY}.csv`; a.click();
 };
 
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  MODULE: PRODUITS                                             ║
+// ║  Extraction: node extract-modules.js → js/produits.js        ║
+// ╚══════════════════════════════════════════════════════════════╝
 // ========= PRODUITS =========
 let prodFiltreActif = '';
 let prodSelArtId = null; // article sélectionné dans la recherche
@@ -6357,7 +6480,7 @@ window.ouvrirModalProduit = function(id) {
   window._prodImageUrl = p?.imageUrl || '';
   // Datalist catégories
   const dl = document.getElementById('prod-cat-list');
-  if (dl) dl.innerHTML = [...new Set(DB.produits.map(x=>x.cat||'').filter(Boolean))].map(c=>`<option value="${c}">`).join('');
+  if (dl) dl.innerHTML = [...new Set(DB.produits.map(x=>x.cat||'').filter(Boolean))].map(c=>`<option value="${esc(c)}">`).join('');
   // Composition
   prodComposition = (p?.composition || []).map(c => ({...c}));
   prodSelArtId = null;
@@ -6730,7 +6853,7 @@ function prepareProdImportPreview() {
       importProdData.flatMap(r => r.composition.filter(c => !c.found).map(c => `"${c.nomArt}"`))
     )];
     warningEl.style.display = 'block';
-    warningEl.innerHTML = `⚠️ Articles introuvables (seront ignorés dans la composition) : ${noms.join(', ')}<br>
+    warningEl.innerHTML = `⚠️ Articles introuvables (seront ignorés dans la composition) : ${noms.map(n=>esc(n)).join(', ')}<br>
       <span style="color:var(--muted);">Vérifiez l'orthographe exacte dans la base Articles ou ajoutez-les d'abord.</span>`;
   } else {
     warningEl.style.display = 'none';
@@ -6949,7 +7072,7 @@ function renderCatalogue(){
       </div>
       <div class="cat-card-body">
         <div class="cat-card-cat">${a.cat||'—'} · <span class="tag" style="font-size:9px;">${a.ref||'—'}</span></div>
-        <div class="cat-card-nom">${a.nom}</div>
+        <div class="cat-card-nom">${esc(a.nom)}</div>
         ${a.desc?`<div class="cat-card-desc">${a.desc}</div>`:''}
         <div class="cat-card-footer">
           <div class="cat-card-prix">${fmt(a.pv)}</div>
@@ -7725,7 +7848,7 @@ function renderLivraisons(){
   const prevCom = selCom?.value || '';
   if(selCom){
     selCom.innerHTML = '<option value="">Tous les commerciaux</option>' +
-      comsSource.map(c => `<option value="${c._id}"${c._id===prevCom?' selected':''}>${c.nom}${c.zone?' — '+c.zone:''}</option>`).join('');
+      comsSource.map(c => `<option value="${esc(c._id)}"${c._id===prevCom?' selected':''}>${esc(c.nom)}${c.zone?' — '+esc(c.zone):''}</option>`).join('');
   }
 
   // ── Peupler select produits (une seule fois) ──
@@ -8068,7 +8191,7 @@ function renderHist(){
     const comsVisibles = comsDansAgence().filter(c=>c.role==='commercial');
     // Repeupler à chaque fois pour refléter les changements
     comSel.innerHTML = '<option value="">Tous les commerciaux</option>' +
-      comsVisibles.map(c=>`<option value="${c._id}">${c.nom}${c.zone?' — '+c.zone:''}</option>`).join('');
+      comsVisibles.map(c=>`<option value="${esc(c._id)}">${esc(c.nom)}${c.zone?' — '+esc(c.zone):''}</option>`).join('');
     // Restaurer la sélection si encore valide
     if(comSel._lastVal) comSel.value = comSel._lastVal;
     comSel.onchange = function(){ comSel._lastVal = this.value; renderHist(); };
@@ -8408,12 +8531,16 @@ function renderRegistre(){
   document.getElementById('reg-content').innerHTML=html;
 }
 
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  MODULE: ADMIN                                                ║
+// ║  Extraction: node extract-modules.js → js/admin.js           ║
+// ╚══════════════════════════════════════════════════════════════╝
 // ========= AGENCES =========
 function remplirSelectAgences(selectId, valActuelle){
   const sel = document.getElementById(selectId);
   if(!sel) return;
   sel.innerHTML = '<option value="">— Sélectionner une agence —</option>' +
-    DB.agences.map(a=>`<option value="${a._id}"${a._id===valActuelle?' selected':''}>${a.nom} — ${a.ville||''}</option>`).join('');
+    DB.agences.map(a=>`<option value="${esc(a._id)}"${a._id===valActuelle?' selected':''}>${esc(a.nom)} — ${esc(a.ville||'')}</option>`).join('');
 }
 
 function renderAgences(){
@@ -8435,7 +8562,7 @@ function renderAgences(){
       <!-- Header agence -->
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">
         <div>
-          <div style="font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:800;color:var(--accent);">🏢 ${ag.nom}</div>
+          <div style="font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:800;color:var(--accent);">🏢 ${esc(ag.nom)}</div>
           <div style="font-size:11px;color:var(--muted);margin-top:2px;">📍 ${ag.ville||'—'} ${ag.description?'· '+ag.description:''}</div>
         </div>
         <div style="display:flex;gap:5px;">
@@ -8465,7 +8592,7 @@ function renderAgences(){
           membres.map(m=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);">
             <div style="width:28px;height:28px;border-radius:50%;background:${roleColors[m.role]||'rgba(201,168,76,0.09)'};display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;">${roleIcons[m.role]||'👤'}</div>
             <div style="flex:1;min-width:0;">
-              <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${m.nom}</div>
+              <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(m.nom)}</div>
               <div style="font-size:10px;color:var(--muted);">${getRoleLabel(m.role)}${m.codePrefix?' · Préfixe : <strong style="color:var(--accent)">'+m.codePrefix+'</strong>':''}</div>
             </div>
           </div>`).join('')}
@@ -8694,12 +8821,12 @@ window.ouvrirTransfertClients = function(sourceId){
   if(!source) return;
   document.getElementById('tr-source-id').value = sourceId;
   document.getElementById('tr-source-info').innerHTML =
-    `&#128100; <strong>${source.nom}</strong> — ${DB.clients.filter(c=>c.commercialId===sourceId).length} client(s) au total`;
+    `&#128100; <strong>${esc(source.nom)}</strong> — ${DB.clients.filter(c=>c.commercialId===sourceId).length} client(s) au total`;
   // Remplir liste destination (autres commerciaux)
   const dest = document.getElementById('tr-dest');
   dest.innerHTML = '<option value="">— Sélectionner un commercial —</option>' +
     DB.commerciaux.filter(c=>c.role==='commercial'&&c._id!==sourceId)
-      .map(c=>`<option value="${c._id}">${c.nom}${c.codePrefix?' ['+c.codePrefix+']':''}</option>`).join('');
+      .map(c=>`<option value="${esc(c._id)}">${esc(c.nom)}${c.codePrefix?' ['+esc(c.codePrefix)+']':''}</option>`).join('');
   // Remplir liste clients
   const clients = DB.clients.filter(c=>c.commercialId===sourceId);
   const listEl = document.getElementById('tr-clients-list');
@@ -9218,9 +9345,9 @@ window.openDet = function(cid){
     return`<tr><td>${p.date}</td><td class="tm">${p.heure||'—'}</td><td><span class="cotis-badge" style="font-size:10px">💰 ${fmt(p.cotisJour||s.m)}</span></td><td style="color:var(--accent2);font-weight:700">${fmt(p.montant)}</td><td>${ratio(p.montant,p.cotisJour||s.m)}</td><td style="font-size:12px;font-weight:700;color:${nivColor2};white-space:nowrap;">${nivLabel2}<span style="font-size:9px;color:var(--muted);font-weight:400;"> /${joursEnJM(duree2)}</span></td><td class="tm" style="font-size:10px">${p.note||'—'}${locked?'<span style="margin-left:4px;color:var(--accent2);" title="Saisi par commercial — verrouillé">🔒</span>':''}</td></tr>`;
   }).join('')||'<tr><td colspan="7" class="emp">Aucun paiement</td></tr>';
   const livs=DB.livraisons.filter(l=>l.clientId===cid).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  document.getElementById('det-liv-list').innerHTML=livs.map(l=>`<tr><td>${l.date}</td><td class="fw6">${esc(getProd(l.produitId).nom)}</td><td>${l.qty}</td><td>${fmt(l.montant)}</td><td>${livStatut(l.statut)}</td></tr>`).join('')||'<tr><td colspan="5" class="emp">Aucune livraison</td></tr>';
+  document.getElementById('det-liv-list').innerHTML=livs.map(l=>`<tr><td>${esc(l.date)}</td><td class="fw6">${esc(getProd(l.produitId).nom)}</td><td>${esc(String(l.qty||""))}</td><td>${fmt(l.montant)}</td><td>${livStatut(l.statut)}</td></tr>`).join('')||'<tr><td colspan="5" class="emp">Aucune livraison</td></tr>';
   const adhPays=DB.adhesionPays.filter(a=>a.clientId===cid);
-  document.getElementById('det-adh-content').innerHTML=`<div class="ib ${c.adhesionStatut==='paye'?'ib-green':'ib-red'}" style="margin-bottom:8px;"><strong>Adhésion : ${fmt(c.adhesion)}</strong> — ${c.adhesionStatut==='paye'?'✅ Payé':'❌ Non payé'}${c.adhesionStatut!=='paye'&&session.role==='admin'?`<br><button class="btn btn-success btn-xs no-print" onclick="closeM('m-detail');openAdh('${cid}')" style="margin-top:5px">Encaisser</button>`:''}</div>${adhPays.length>0?`<div class="tw" style="margin:0"><table><thead><tr><th>Date</th><th>Montant</th><th>Note</th></tr></thead><tbody>${adhPays.map(a=>`<tr><td>${a.date}</td><td style="color:var(--accent2);font-weight:600">${fmt(a.montant)}</td><td class="tm" style="font-size:10px">${esc(a.note||'—')}</td></tr>`).join('')}</tbody></table></div>`:'<div class="emp" style="padding:16px">Aucun paiement d\'adhésion</div>'}`;
+  document.getElementById('det-adh-content').innerHTML=`<div class="ib ${c.adhesionStatut==='paye'?'ib-green':'ib-red'}" style="margin-bottom:8px;"><strong>Adhésion : ${fmt(c.adhesion)}</strong> — ${c.adhesionStatut==='paye'?'✅ Payé':'❌ Non payé'}${c.adhesionStatut!=='paye'&&session.role==='admin'?`<br><button class="btn btn-success btn-xs no-print" onclick="closeM('m-detail');openAdh('${cid}')" style="margin-top:5px">Encaisser</button>`:''}</div>${adhPays.length>0?`<div class="tw" style="margin:0"><table><thead><tr><th>Date</th><th>Montant</th><th>Note</th></tr></thead><tbody>${adhPays.map(a=>`<tr><td>${esc(a.date)}</td><td style="color:var(--accent2);font-weight:600">${fmt(a.montant)}</td><td class="tm" style="font-size:10px">${esc(a.note||'—')}</td></tr>`).join('')}</tbody></table></div>`:'<div class="emp" style="padding:16px">Aucun paiement d\'adhésion</div>'}`;
   document.querySelectorAll('.det-tab').forEach(t=>t.classList.remove('active'));
   document.querySelector('.det-tab').classList.add('active');
   ['paiements','livraisons','adhesion'].forEach(t=>document.getElementById('det-'+t).style.display=t==='paiements'?'':'none');
@@ -9675,7 +9802,7 @@ window.delCom = async function(id){
   if(!(await confirmDialog('Supprimer cet utilisateur ?',{title:'🗑 Suppression utilisateur',okLabel:'Supprimer',danger:true}))) return;
   await fbDelete('commerciaux',id);
   // Supprimer aussi les données privées associées
-  try { await fbDelete('commerciauxPrive', id); } catch(e){}
+  try { await fbDelete('commerciauxPrive', id); } catch(e){ console.warn('[commerciauxPrive] Suppression échouée pour id:', id, e); }
   fillLogin();
   notify('Utilisateur supprimé');
 };
@@ -10926,9 +11053,9 @@ window.voirDetailComClient = function(cid){
     return`<tr><td>${p.date}</td><td class="tm">${p.heure||'—'}</td><td><span class="cotis-badge" style="font-size:10px">💰 ${fmt(p.cotisJour||s.m)}</span></td><td style="color:var(--accent2);font-weight:700">${fmt(p.montant)}</td><td>${ratio(p.montant,p.cotisJour||s.m)}</td><td style="font-size:12px;font-weight:700;color:${nivColor3};white-space:nowrap;">${nivLabel3}<span style="font-size:9px;color:var(--muted);font-weight:400;"> /${joursEnJM(duree3)}</span></td><td class="tm" style="font-size:10px">${p.note||'—'}</td></tr>`;
   }).join('')||'<tr><td colspan="7" class="emp">Aucun paiement</td></tr>';
   const livs=DB.livraisons.filter(l=>l.clientId===cid).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  document.getElementById('det-liv-list').innerHTML=livs.map(l=>`<tr><td>${l.date}</td><td class="fw6">${esc(getProd(l.produitId).nom)}</td><td>${l.qty}</td><td>${fmt(l.montant)}</td><td>${livStatut(l.statut)}</td></tr>`).join('')||'<tr><td colspan="5" class="emp">Aucune livraison</td></tr>';
+  document.getElementById('det-liv-list').innerHTML=livs.map(l=>`<tr><td>${esc(l.date)}</td><td class="fw6">${esc(getProd(l.produitId).nom)}</td><td>${esc(String(l.qty||""))}</td><td>${fmt(l.montant)}</td><td>${livStatut(l.statut)}</td></tr>`).join('')||'<tr><td colspan="5" class="emp">Aucune livraison</td></tr>';
   const adhPays=DB.adhesionPays.filter(a=>a.clientId===cid);
-  document.getElementById('det-adh-content').innerHTML=`<div class="ib ${c.adhesionStatut==='paye'?'ib-green':'ib-red'}" style="margin-bottom:8px;"><strong>Adhésion : ${fmt(c.adhesion)}</strong> — ${c.adhesionStatut==='paye'?'✅ Payé':'❌ Non payé'}</div>${adhPays.length>0?`<div class="tw" style="margin:0"><table><thead><tr><th>Date</th><th>Montant</th><th>Note</th></tr></thead><tbody>${adhPays.map(a=>`<tr><td>${a.date}</td><td style="color:var(--accent2);font-weight:600">${fmt(a.montant)}</td><td class="tm" style="font-size:10px">${esc(a.note||'—')}</td></tr>`).join('')}</tbody></table></div>`:'<div class="emp" style="padding:16px">Aucun paiement d\'adhésion</div>'}`;
+  document.getElementById('det-adh-content').innerHTML=`<div class="ib ${c.adhesionStatut==='paye'?'ib-green':'ib-red'}" style="margin-bottom:8px;"><strong>Adhésion : ${fmt(c.adhesion)}</strong> — ${c.adhesionStatut==='paye'?'✅ Payé':'❌ Non payé'}</div>${adhPays.length>0?`<div class="tw" style="margin:0"><table><thead><tr><th>Date</th><th>Montant</th><th>Note</th></tr></thead><tbody>${adhPays.map(a=>`<tr><td>${esc(a.date)}</td><td style="color:var(--accent2);font-weight:600">${fmt(a.montant)}</td><td class="tm" style="font-size:10px">${esc(a.note||'—')}</td></tr>`).join('')}</tbody></table></div>`:'<div class="emp" style="padding:16px">Aucun paiement d\'adhésion</div>'}`;
   document.querySelectorAll('.det-tab').forEach(t=>t.classList.remove('active'));
   document.querySelector('.det-tab').classList.add('active');
   ['paiements','livraisons','adhesion','calendrier'].forEach(t=>document.getElementById('det-'+t).style.display=t==='paiements'?'':'none');
@@ -11107,6 +11234,10 @@ window.saveComNouveauClient = async function(){
   setTimeout(suggererProchainCode, DELAY_CODE_SUGGEST2_MS);
 };
 
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  MODULE: PAIEMENTS                                            ║
+// ║  Extraction: node extract-modules.js → js/paiements.js       ║
+// ╚══════════════════════════════════════════════════════════════╝
 // ========= SAISIE DE MISES =========
 async function genererCodeClient(comId){
   const com = DB.commerciaux.find(c=>c._id===comId);
@@ -11231,7 +11362,7 @@ window.selectMiseClient = function(id){
   document.getElementById('mise-search-results').style.display = 'none';
   document.getElementById('mise-search-id').value = c.codeClient || c.nom;
   document.getElementById('mc-nom').textContent = c.nom;
-  document.getElementById('mc-meta').innerHTML = `${c.codeClient?`<span style="background:rgba(201,168,76,0.2);border:1px solid rgba(201,168,76,0.5);border-radius:5px;padding:1px 7px;font-size:11px;color:var(--accent);font-weight:700;margin-right:6px;">${c.codeClient}</span>`:''}${esc(c.tel||'-')} &nbsp;&middot;&nbsp; ${esc(c.ville||'-')}${c.quartier?' - '+esc(c.quartier):''} &nbsp;&middot;&nbsp; Commercial : ${esc(com.nom)}`;
+  document.getElementById('mc-meta').innerHTML = `${c.codeClient?`<span style="background:rgba(201,168,76,0.2);border:1px solid rgba(201,168,76,0.5);border-radius:5px;padding:1px 7px;font-size:11px;color:var(--accent);font-weight:700;margin-right:6px;">${esc(c.codeClient)}</span>`:''}${esc(c.tel||'-')} &nbsp;&middot;&nbsp; ${esc(c.ville||'-')}${c.quartier?' - '+esc(c.quartier):''} &nbsp;&middot;&nbsp; Commercial : ${esc(com.nom)}`;
   document.getElementById('mc-pct-badge').innerHTML =
     s.pct>=100 ? '<span class="sb sg">Solde</span>' :
     s.joursRetard>0 ? `<span class="sb sr">Retard ${s.joursRetard}j</span>` :
@@ -11867,6 +11998,10 @@ window.enregistrerAdhesionMise = async function(){
   if(typeof renderFiche === 'function') renderFiche();
 };
 
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  MODULE: BOOT                                                 ║
+// ║  Extraction: node extract-modules.js → js/boot.js            ║
+// ╚══════════════════════════════════════════════════════════════╝
 // ========= RESPONSIVE — SIDEBAR MOBILE =========
 function toggleSidebar(){
   const sidebar = document.getElementById('sidebar');
