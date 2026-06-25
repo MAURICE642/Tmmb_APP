@@ -188,13 +188,13 @@
   // (AES-GCM) et persistée dans localStorage — donc cet écran ne s'affiche
   // qu'au premier lancement sur chaque appareil/navigateur.
   const FIREBASE_CONFIG = {
-    apiKey:            "AIzaSyATa_tOvEbGROCIZ9xZgkAsr_--d2vYIjc",
-    authDomain:        "triomphant-v2.firebaseapp.com",
-    projectId:         "triomphant-v2",
-    storageBucket:     "triomphant-v2.firebasestorage.app",
-    messagingSenderId: "908578874554",
-    appId:             "1:908578874554:web:5c008fba39204ce6c24e83",
-    measurementId:     "G-STQHJF83X2"
+    apiKey:            "",
+    authDomain:        "",
+    projectId:         "",
+    storageBucket:     "",
+    messagingSenderId: "",
+    appId:             "",
+    measurementId:     ""
   };
   // ✅ FIN DE LA CONFIGURATION
   window.FIREBASE_CONFIG = FIREBASE_CONFIG;
@@ -4131,7 +4131,30 @@ async function loadLocalDataEncrypted() {
 // FIX 3 : saveLocal() en clair supprimee - toujours chiffre ou rien
 function saveLocal() { /* desactivee : evite le stockage en clair de 30 000 clients */ }
 
-async function saveLocalEncrypted() {
+// FIX PERF : debounce + report hors du tick courant.
+// Avant : chaque fbAdd/fbUpdate déclenchait immédiatement un JSON.stringify(DB) + chiffrement
+// AES-GCM de TOUTE la base (toutes collections confondues), ce qui bloquait un instant l'UI
+// pile au moment où on attend le retour "client/mise enregistré ✓".
+// Maintenant : les appels rapprochés sont regroupés (un seul chiffrement après une pause de 600ms)
+// et l'exécution est repoussée via setTimeout(0) pour laisser l'UI se repeindre d'abord.
+let _saveLocalEncTimer = null;
+function saveLocalEncrypted() {
+  if (_saveLocalEncTimer) clearTimeout(_saveLocalEncTimer);
+  _saveLocalEncTimer = setTimeout(() => { _saveLocalEncTimer = null; _doSaveLocalEncrypted(); }, 600);
+}
+// FIX PERF (sécurité) : si l'app se ferme ou passe en arrière-plan pendant qu'un
+// chiffrement est en attente (debounce), on le force immédiatement pour ne pas
+// perdre la dernière sauvegarde locale.
+function _flushSaveLocalEncrypted() {
+  if (_saveLocalEncTimer) {
+    clearTimeout(_saveLocalEncTimer);
+    _saveLocalEncTimer = null;
+    _doSaveLocalEncrypted();
+  }
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') _flushSaveLocalEncrypted(); });
+window.addEventListener('beforeunload', _flushSaveLocalEncrypted);
+async function _doSaveLocalEncrypted() {
   if (!_localKey) { return; } // FIX 3 : pas de cle = pas de persistance locale
   try {
     const enc = await _encryptLocal(DB);
@@ -5213,7 +5236,7 @@ window.doLogin = async function(){
   if (session.role === 'commercial' && isOnline) {
     const terrainCols = ['clients','paiements','mises','adhesionPays','commerciaux','agences','primesPaliers'];
     await ensureCollectionsLoaded(terrainCols);
-    await saveLocalEncrypted(); // snapshot chiffré pour usage offline
+    await _doSaveLocalEncrypted(); // snapshot chiffré pour usage offline (immédiat, pas debouncé)
   }
   setupRealtimeListeners();
   await _loadOfflineQueue();
@@ -8269,10 +8292,11 @@ window.actualiserSysteme = async function(){
   try {
     if(isOnline){
       const cols = ['agences','commerciaux','clients','paiements','articles','stockMvts','livraisons','adhesionPays','mises'];
-      for(const col of cols){
-        const snap = await getDocs(collection(db_fs, col));
-        DB[col] = snap.docs.map(d => ({...d.data(), _id: d.id}));
-      }
+      // FIX PERF : chargement en parallèle (Promise.all) au lieu d'un for...await séquentiel.
+      // Avant : chaque collection attendait la précédente → temps total = somme des latences réseau.
+      // Maintenant : toutes les requêtes partent en même temps → temps total ≈ la plus lente des 9.
+      const snaps = await Promise.all(cols.map(col => getDocs(collection(db_fs, col))));
+      cols.forEach((col, i) => { DB[col] = snaps[i].docs.map(d => ({...d.data(), _id: d.id})); });
       setSyncStatus(true);
     } else {
       loadLocalData();
@@ -11584,7 +11608,7 @@ function afficherRecu(data){
 <style>
   *{box-sizing:border-box;margin:0;padding:0;}
   html{font-size:18px;}
-  body{font-family:'Courier New',monospace;background:#e8eaf0;display:flex;flex-direction:column;align-items:center;padding:16px 10px 32px;gap:14px;min-height:100vh;}
+  body{font-family:'Aptos','Segoe UI',sans-serif;background:#e8eaf0;display:flex;flex-direction:column;align-items:center;padding:16px 10px 32px;gap:14px;min-height:100vh;}
   .ticket{background:#fff;width:100%;max-width:620px;border-radius:12px;box-shadow:0 8px 36px rgba(0,0,0,0.26);page-break-inside:avoid;}
   .hdr{background:#0c0e12;color:#c9a84c;padding:24px 22px 18px;text-align:center;border-bottom:3px solid #c9a84c;border-radius:12px 12px 0 0;}
   .hdr-name{font-size:1.35rem;font-weight:700;letter-spacing:1px;}
@@ -11621,6 +11645,8 @@ function afficherRecu(data){
     @page{margin:4mm;size:auto;}
     html,body{
       width:100% !important;
+      height:auto !important;
+      min-height:0 !important;
       background:#fff !important;
       padding:0 !important;
       gap:0 !important;
@@ -11791,7 +11817,14 @@ window.enregistrerMiseSaisie = async function(){
     const dateAdminInput = document.getElementById('mise-date-admin');
     if(dateAdminInput) dateAdminInput.value = TODAY;
   }
-  selectMiseClient(miseClientCtx);
+  // ✅ Pour les commerciaux : formulaire entièrement vierge après confirmation
+  // (déselectionne le client, vide la recherche) — évite tout risque de double saisie
+  // sur le même client. Admin/secrétaire gardent le client sélectionné (saisies en série).
+  if(session.role === 'commercial'){
+    renderSaisieMises();
+  } else {
+    selectMiseClient(miseClientCtx);
+  }
 };
 
 // ========= SAISIE DES ADHÉSIONS =========
@@ -11992,7 +12025,14 @@ window.enregistrerAdhesionMise = async function(){
     pct: 100
   });
   document.getElementById('mise-adh-note').value = '';
-  miseAdhRefresh(miseClientCtx);
+  document.getElementById('mise-adh-montant').value = '';
+  // ✅ Pour les commerciaux : formulaire entièrement vierge après confirmation.
+  // Admin garde le client sélectionné (peut enchaîner d'autres opérations sur ce client).
+  if(session.role === 'commercial'){
+    renderSaisieMises();
+  } else {
+    miseAdhRefresh(miseClientCtx);
+  }
   // ── Rafraîchir registre et fiche du jour immédiatement ──
   if(typeof renderRegistre === 'function') renderRegistre();
   if(typeof renderFiche === 'function') renderFiche();
