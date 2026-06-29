@@ -188,13 +188,13 @@
   // (AES-GCM) et persistée dans localStorage — donc cet écran ne s'affiche
   // qu'au premier lancement sur chaque appareil/navigateur.
   const FIREBASE_CONFIG = {
-    apiKey:            "AIzaSyATa_tOvEbGROCIZ9xZgkAsr_--d2vYIjc",
-    authDomain:        "triomphant-v2.firebaseapp.com",
-    projectId:         "triomphant-v2",
-    storageBucket:     "triomphant-v2.firebasestorage.app",
-    messagingSenderId: "908578874554",
-    appId:             "1:908578874554:web:5c008fba39204ce6c24e83",
-    measurementId:     "G-STQHJF83X2"
+    apiKey:            "",
+    authDomain:        "",
+    projectId:         "",
+    storageBucket:     "",
+    messagingSenderId: "",
+    appId:             "",
+    measurementId:     ""
   };
   // ✅ FIN DE LA CONFIGURATION
   window.FIREBASE_CONFIG = FIREBASE_CONFIG;
@@ -8468,7 +8468,7 @@ function renderRegistre(){
   if(effectiveAgenceId) allComs = allComs.filter(c=>c.agenceId===effectiveAgenceId);
   const comIds = new Set(allComs.map(c=>c._id));
 
-  const pays = DB.paiements.filter(p=>p.date===date && comIds.has(p.commercialId));
+  const pays = DB.paiements.filter(p=>p.date===date && p.origine!=='import_historique' && comIds.has(p.commercialId));
   const totalCotis=pays.reduce((a,p)=>a+p.montant,0);
   const coms = allComs;
 
@@ -9096,7 +9096,7 @@ function renderFiche(){
   }
   const com=getCom(comId);
   const cls=DB.clients.filter(c=>c.commercialId===comId);
-  const pays=DB.paiements.filter(p=>p.date===fd&&cls.some(c=>c._id===p.clientId));
+  const pays=DB.paiements.filter(p=>p.date===fd&&p.origine!=='import_historique'&&cls.some(c=>c._id===p.clientId));
   let clientsPayeurs=cls.filter(c=>pays.some(p=>p.clientId===c._id));
   // Trier par heure de saisie du paiement (du plus ancien au plus récent)
   clientsPayeurs = clientsPayeurs.slice().sort((c1,c2)=>{
@@ -9108,7 +9108,7 @@ function renderFiche(){
   const dateStr=new Date(fd+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 
   // Nouveaux clients enregistrés ce jour par ce commercial
-  const nouveauxClients = cls.filter(c=>c.debut===fd || c.createdAt===fd);
+  const nouveauxClients = cls.filter(c=>(c.debut===fd || c.createdAt===fd) && c.origine!=='import');
   // Adhésions encaissées ce jour (table adhesionPays), triées par heure de saisie croissante
   const clientIdsComm = new Set(cls.map(c=>c._id));
   const adhJourFiche = (DB.adhesionPays||[]).filter(a=>a.date===fd && clientIdsComm.has(a.clientId))
@@ -10580,20 +10580,6 @@ window.confirmImport = async function(){
   notifEl.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:9999;background:var(--card);border:1px solid var(--border);padding:10px 20px;border-radius:8px;font-size:13px;';
   document.body.appendChild(notifEl);
 
-  // ✅ FIX PERFORMANCE IMPORT : writeBatch Firestore (jusqu'à 500 ops en 1 appel réseau)
-  // Avant : 1 fbAdd = 1 appel réseau + 50ms de pause → 500 clients = ~30 secondes
-  // Maintenant : groupe de 499 ops max → 500 clients = 2-3 appels réseau
-  const FIRESTORE_BATCH_LIMIT = 499; // limite Firestore : 500 ops par batch
-  let batch = writeBatch(db_fs);
-  let batchOps = 0;
-
-  const _flushBatch = async () => {
-    if (batchOps === 0) return;
-    await batch.commit();
-    batch = writeBatch(db_fs);
-    batchOps = 0;
-  };
-
   try {
     for(let i = 0; i < importData.length; i++){
       const r = importData[i];
@@ -10627,50 +10613,31 @@ window.confirmImport = async function(){
         duree, debut,
         note:'', commercialId:comId,
         adhesion:r.adhesion||0, adhesionStatut:r.adhesionStatut||'non_paye',
-        codeClient, createdAt:dateImportCli, origine:'import',
-        _ts: serverTimestamp()
+        codeClient, createdAt:dateImportCli, origine:'import'
       };
       if(cotisationJour > 0) clientDoc.cotisationJourFixe = cotisationJour;
 
-      // Ajouter au batch au lieu d'un appel réseau individuel
-      const clientRef = doc(collection(db_fs, 'clients'));
-      batch.set(clientRef, clientDoc);
-      batchOps++;
-      const clientId = clientRef.id;
-      // Mettre à jour DB en mémoire
-      if(!DB.clients) DB.clients = [];
-      DB.clients.push({...clientDoc, _id: clientId});
+      // Enregistrement individuel via fbAdd
+      const clientRef = await fbAdd('clients', clientDoc);
+      const clientId = clientRef.id || clientRef;
 
       const montantDejaPaye = Math.max(0, Math.min(Number(r.montantDejaPaye)||0, 999999999));
       if(montantDejaPaye > 0){
         const datePai = /^\d{4}-\d{2}-\d{2}$/.test(r.dateDernierPaiement) ? r.dateDernierPaiement : debut;
         const cotisRef = cotisationJour > 0 ? cotisationJour : (montant > 0 ? Math.ceil(montant/duree) : 0);
-        const paiRef = doc(collection(db_fs, 'paiements'));
-        const paiDoc = {
+        await fbAdd('paiements', {
           clientId, commercialId: comId,
           cotisJour: cotisRef, montant: montantDejaPaye,
           date: datePai, heure: '00:00',
           note: r.notePaiement || "Paiement reporté à l'import",
-          origine: 'import_historique', _ts: serverTimestamp()
-        };
-        batch.set(paiRef, paiDoc);
-        batchOps++;
-        if(!DB.paiements) DB.paiements = [];
-        DB.paiements.push({...paiDoc, _id: paiRef.id});
+          origine: 'import_historique'
+        });
         paiementsReportes++;
       }
 
       count++;
       notifEl.textContent = `⏳ Import en cours… ${count} / ${total}`;
-
-      // Flush automatique si on approche la limite du batch
-      if (batchOps >= FIRESTORE_BATCH_LIMIT) {
-        await _flushBatch();
-        notifEl.textContent = `⏳ Envoi… ${count} / ${total}`;
-      }
     }
-    // Flush final
-    await _flushBatch();
     // Invalider le cache pour forcer un re-fetch propre
     _syncLocalAfterWrite('clients');
     _syncLocalAfterWrite('paiements');
