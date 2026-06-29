@@ -188,13 +188,13 @@
   // (AES-GCM) et persistée dans localStorage — donc cet écran ne s'affiche
   // qu'au premier lancement sur chaque appareil/navigateur.
   const FIREBASE_CONFIG = {
-    apiKey:            "AIzaSyATa_tOvEbGROCIZ9xZgkAsr_--d2vYIjc",
-    authDomain:        "triomphant-v2.firebaseapp.com",
-    projectId:         "triomphant-v2",
-    storageBucket:     "triomphant-v2.firebasestorage.app",
-    messagingSenderId: "908578874554",
-    appId:             "1:908578874554:web:5c008fba39204ce6c24e83",
-    measurementId:     "G-STQHJF83X2"
+    apiKey:            "",
+    authDomain:        "",
+    projectId:         "",
+    storageBucket:     "",
+    messagingSenderId: "",
+    appId:             "",
+    measurementId:     ""
   };
   // ✅ FIN DE LA CONFIGURATION
   window.FIREBASE_CONFIG = FIREBASE_CONFIG;
@@ -3246,6 +3246,14 @@ let DB = {
   transferts: []
 };
 
+// ── PERF : compteur de version pour invalider les index mémo (stats/cumulLivraisons) ──
+// Incrémenté à chaque mutation de DB.paiements / DB.livraisons (ajout, modif, suppression,
+// snapshot Firestore). Permet à stats() d'éviter un .filter() sur TOUTE la collection
+// pour CHAQUE client affiché (gain majeur sur la page "Tous les clients").
+const _dbVer = { paiements: 0, livraisons: 0 };
+function _touchVer(col){ if(_dbVer[col] !== undefined) _dbVer[col]++; }
+
+
 // ========= SETUP & CONFIG =========
 window.useLocalMode = function() {
   isOnline = false;
@@ -3391,8 +3399,26 @@ const _loadedCols = new Set();
 // ── Taille de page pour les collections volumineuses (admin) ──
 const _PAGE_SIZE = 2000; // augmenté de 200 à 2000 — supprime la limite pratique d'import
 
+// ── PERF / COÛT : fenêtre du listener temps réel admin (collections volumineuses) ──
+// Le chargement initial complet (pagination "charger plus") utilise _PAGE_SIZE (2000)
+// pour parcourir tout l'historique. Le LISTENER temps réel, lui, n'a besoin de
+// surveiller qu'une fenêtre récente pour détecter les nouveaux docs/modifs — il
+// n'a pas besoin de relire 2000 docs à chaque connexion. Réduire cette fenêtre
+// réduit fortement les lectures Firestore facturées à chaque login admin, sans
+// rien retirer au chargement complet par pagination.
+const _LISTENER_WINDOW = 200;
+
 // Collections "légères" — toujours chargées en entier (peu de documents)
 const _SMALL_COLS = new Set(['commerciaux','agences','articles','produits','primesPaliers']);
+
+// ── COÛT : collections sans listener temps réel ──
+// Pour ces collections, pas d'abonnement onSnapshot persistant : les données
+// sont simplement (re)chargées via getDocs() à chaque ouverture de la page qui
+// en a besoin. Adapté aux données peu consultées / peu critiques en temps réel
+// (ex. historique des transferts), pour éviter le coût d'un listener ouvert
+// toute la session pour une collection rarement modifiée pendant qu'on regarde
+// d'autres pages.
+const _NO_REALTIME_COLS = new Set(['transferts']);
 
 // Curseurs de pagination pour l'admin (collections volumineuses)
 const _pageCursors = {};
@@ -3477,6 +3503,16 @@ async function _loadCol(col) {
 
   } else {
     // Admin / Secrétaire / Contrôleur / Gestionnaire stock
+    // ── PERF / COÛT : si cette collection a déjà été entièrement chargée
+    // pendant cette session navigateur (cache sessionStorage), on la restaure
+    // depuis le cache au lieu de relire toutes les pages Firestore — gain
+    // important lors d'un rafraîchissement de page (F5) en cours de session.
+    // Le cache est invalidé par les mécanismes existants (logout, bouton
+    // "recharger" qui fait sessionStorage.removeItem(_SS_PREFIX+col)).
+    if (!_pageCursors[col] && (!DB[col] || !DB[col].length)) {
+      const cached = _cacheRead(col);
+      if (cached) { DB[col] = cached; _loadedCols.add(col); return; }
+    }
     // Chargement paginé (2000 à la fois) — les données précédentes sont conservées
     if (!DB[col]) DB[col] = [];
     let q;
@@ -3498,9 +3534,10 @@ async function _loadCol(col) {
       // Il y a peut-être plus de données — sauvegarder le curseur
       _pageCursors[col] = snap.docs[snap.docs.length - 1];
     } else {
-      // Tout est chargé
+      // Tout est chargé — on met en cache pour éviter de relire au prochain F5
       delete _pageCursors[col];
       _loadedCols.add(col);
+      _cacheWrite(col, DB[col]);
     }
   }
 }
@@ -3592,7 +3629,7 @@ const _PAGE_DEPS = {
   'saisie-adhesions':   ['adhesionPays','clients','commerciaux'],
   'com-clients':        ['clients','paiements','commerciaux'],
   'com-nouveau-client': ['commerciaux','agences'],
-  'transfert-resiliation': ['clients','paiements','commerciaux'],
+  'transfert-resiliation': ['clients','paiements','commerciaux','transferts'],
 };
 
 // ✅ FIX 10 : constantes nommées pour tous les délais setTimeout
@@ -3636,6 +3673,7 @@ function _unsubscribeAll() {
 // Retourne la query Firestore filtrée selon le rôle pour un listener temps-réel
 function _queryForCol(col) {
   if (!db_fs || !session) return null;
+  if (_NO_REALTIME_COLS.has(col)) return null; // pas de listener pour cette collection
   const colRef = collection(db_fs, col);
   const uid  = session.userId;
   const role = session.role;
@@ -3660,12 +3698,15 @@ function _queryForCol(col) {
     return query(colRef, limit(200));
   }
 
-  // ✅ FIX LISTENER ADMIN : on écoute les _PAGE_SIZE derniers docs par _ts desc.
+  // ✅ FIX LISTENER ADMIN : on écoute les _LISTENER_WINDOW derniers docs par _ts desc.
   // Avant : orderBy('__name__') + limit(200) manquait les nouveaux docs créés
   // après le chargement initial s'ils tombaient hors des 200 premiers.
   // Avec _ts desc, les nouveaux docs (qui ont le _ts le plus récent) sont
   // toujours dans la fenêtre du listener.
-  return query(colRef, orderBy('_ts', 'desc'), limit(_PAGE_SIZE));
+  // (Fenêtre réduite à _LISTENER_WINDOW, distincte de _PAGE_SIZE utilisé pour
+  // le chargement complet par pagination — le listener n'a pas besoin de
+  // relire 2000 docs pour simplement détecter les nouveaux/modifiés.)
+  return query(colRef, orderBy('_ts', 'desc'), limit(_LISTENER_WINDOW));
 }
 
 // ✅ FIX LECTURES FIRESTORE (v2) : vrai si la requête du listener temps-réel
@@ -3684,6 +3725,7 @@ function _queryForCol(col) {
 //   clients, alors que _loadCol() couvre tous les clients par tranches de 30).
 function _listenerCoversFullLoad(col) {
   if (!session) return false;
+  if (_NO_REALTIME_COLS.has(col)) return false;
   if (_SMALL_COLS.has(col)) return true;
   if (session.role === 'commercial' && col !== 'livraisons') return true;
   return false;
@@ -3699,6 +3741,18 @@ async function setupPageListeners(pageId) {
   // pas d'une collection ne coûte donc plus aucune lecture pour celle-ci.
 
   if (!cols.length) { if (session && curPg === pageId) renderPg(pageId); return; }
+
+  // Collections sans listener temps réel : comme rien ne les tient à jour en
+  // arrière-plan, on les invalide pour forcer une relecture fraîche chaque
+  // fois qu'on ouvre une page qui en dépend (au lieu d'une seule fois pour
+  // toute la session). Le coût de lecture n'est payé que sur cette page-là.
+  cols.forEach(col => {
+    if (_NO_REALTIME_COLS.has(col)) {
+      _loadedCols.delete(col);
+      delete _pageCursors[col];
+      try { sessionStorage.removeItem(_SS_PREFIX + col); } catch(e){}
+    }
+  });
 
   // Collections qui ont besoin d'un getDocs() préalable (pagination admin/
   // secrétaire, ou 'livraisons' côté commercial) — les autres (légères, ou
@@ -3731,6 +3785,7 @@ async function setupPageListeners(pageId) {
           if (idx >= 0) DB[col][idx] = d;
           else { DB[col] = DB[col]||[]; DB[col].push(d); }
         }
+        _touchVer(col);
       });
       setSyncStatus(true);
       _loadedCols.add(col); // les données de cette collection sont maintenant fiables en mémoire
@@ -4044,6 +4099,7 @@ async function fbAdd(col, data) {
   const item = {...data, _id: ref.id};
   const idx = DB[col]?.findIndex(d => d._id === ref.id);
   if (idx === -1 || idx === undefined) DB[col]?.push(item);
+  _touchVer(col);
   _syncLocalAfterWrite(col);
   setSyncStatus(true);
   return item;
@@ -4061,6 +4117,7 @@ async function fbUpdate(col, id, data) {
   await updateDoc(doc(db_fs, col, id), data);
   const i = DB[col]?.findIndex(x => x._id === id);
   if (i >= 0) DB[col][i] = {...DB[col][i], ...data};
+  _touchVer(col);
   _syncLocalAfterWrite(col);
   setSyncStatus(true);
 }
@@ -4076,6 +4133,7 @@ async function fbDelete(col, id) {
   setSyncStatus(false);
   await deleteDoc(doc(db_fs, col, id));
   if (DB[col]) DB[col] = DB[col].filter(x => x._id !== id);
+  _touchVer(col);
   _syncLocalAfterWrite(col);
   setSyncStatus(true);
 }
@@ -4238,9 +4296,9 @@ function _nextLid() {
   try { localStorage.setItem('gestcom_lid', String(_lid)); } catch(e) {}
   return String(_lid);
 }
-function localAdd(col, data) { const item = {...data, _id: _nextLid()}; DB[col].push(item); saveLocalEncrypted(); return item; }
-function localUpdate(col, id, data) { const i = DB[col].findIndex(x => x._id === id); if(i>=0) DB[col][i] = {...DB[col][i], ...data}; saveLocalEncrypted(); }
-function localDelete(col, id) { DB[col] = DB[col].filter(x => x._id !== id); saveLocalEncrypted(); }
+function localAdd(col, data) { const item = {...data, _id: _nextLid()}; DB[col].push(item); _touchVer(col); saveLocalEncrypted(); return item; }
+function localUpdate(col, id, data) { const i = DB[col].findIndex(x => x._id === id); if(i>=0) DB[col][i] = {...DB[col][i], ...data}; _touchVer(col); saveLocalEncrypted(); }
+function localDelete(col, id) { DB[col] = DB[col].filter(x => x._id !== id); _touchVer(col); saveLocalEncrypted(); }
 
 // ╔══════════════════════════════════════════════════════════════╗
 // ║  MODULE: UTILS                                                ║
@@ -5047,35 +5105,62 @@ function comsDansAgence(){
 function clientsDansAgence(){
   const aid = sessionAgenceId();
   if(!aid) return DB.clients; // admin voit tout
-  const comIds = comsDansAgence().map(c=>c._id);
-  return DB.clients.filter(c=>comIds.includes(c.commercialId));
+  const comIds = new Set(comsDansAgence().map(c=>c._id));
+  return DB.clients.filter(c=>comIds.has(c.commercialId));
 }
 // Filtre les paiements visibles par la session
 function paiementsDansAgence(){
   const aid = sessionAgenceId();
   if(!aid) return DB.paiements;
-  const comIds = comsDansAgence().map(c=>c._id);
-  return DB.paiements.filter(p=>comIds.includes(p.commercialId));
+  const comIds = new Set(comsDansAgence().map(c=>c._id));
+  return DB.paiements.filter(p=>comIds.has(p.commercialId));
 }
 // Filtre les livraisons visibles par la session
 function livraisonsDansAgence(){
   const aid = sessionAgenceId();
   if(!aid) return DB.livraisons;
-  const clIds = clientsDansAgence().map(c=>c._id);
-  return DB.livraisons.filter(l=>clIds.includes(l.clientId));
+  const clIds = new Set(clientsDansAgence().map(c=>c._id));
+  return DB.livraisons.filter(l=>clIds.has(l.clientId));
 }
 function jm(cl){ if(cl.cotisationJourFixe>0) return cl.cotisationJourFixe; return cl.montantTotal?Math.ceil(cl.montantTotal/cl.duree):0; }
 
 // Calcule le cumul des livraisons (articles livrés) à déduire du solde client
+// ── PERF : index mémorisés clientId → [enregistrements] ──
+// Évite de refaire un .filter() sur TOUTE la collection paiements/livraisons
+// pour CHAQUE client (coût O(clients × paiements) sur la page "Tous les clients").
+// L'index est reconstruit uniquement quand _dbVer change (cf. _touchVer ci-dessus).
+let _payIdxCache = null, _payIdxVer = -1;
+function _payIndex(){
+  if(_payIdxCache && _payIdxVer === _dbVer.paiements) return _payIdxCache;
+  const m = new Map();
+  for(const p of DB.paiements){
+    if(!m.has(p.clientId)) m.set(p.clientId, []);
+    m.get(p.clientId).push(p);
+  }
+  _payIdxCache = m; _payIdxVer = _dbVer.paiements;
+  return m;
+}
+let _livIdxCache = null, _livIdxVer = -1;
+function _livIndex(){
+  if(_livIdxCache && _livIdxVer === _dbVer.livraisons) return _livIdxCache;
+  const m = new Map();
+  for(const l of DB.livraisons){
+    if(!m.has(l.clientId)) m.set(l.clientId, []);
+    m.get(l.clientId).push(l);
+  }
+  _livIdxCache = m; _livIdxVer = _dbVer.livraisons;
+  return m;
+}
+
 function cumulLivraisons(clientId){
-  return DB.livraisons
-    .filter(l=>l.clientId===clientId && l.statut!=='annule')
-    .reduce((a,l)=>a+(Number(l.montant)||0),0);
+  const arr = _livIndex().get(clientId) || [];
+  return arr.filter(l=>l.statut!=='annule').reduce((a,l)=>a+(Number(l.montant)||0),0);
 }
 
 // Solde disponible du client = total payé - cumul livraisons reçues
 function soldeClient(cl){
-  const totalPaye = DB.paiements.filter(p=>p.clientId===cl._id).reduce((a,p)=>a+p.montant,0);
+  const pays = _payIndex().get(cl._id) || [];
+  const totalPaye = pays.reduce((a,p)=>a+p.montant,0);
   const totalLiv   = cumulLivraisons(cl._id);
   return totalPaye - totalLiv;
 }
@@ -5084,7 +5169,7 @@ function stats(cl){
   const m = jm(cl);
   const start = new Date(cl.debut), end = new Date(TODAY);
   const joursEcoules = Math.max(0, Math.floor((end-start)/86400000)+1);
-  const pays = DB.paiements.filter(p=>p.clientId===cl._id);
+  const pays = _payIndex().get(cl._id) || [];
   const totalPaye = pays.reduce((a,p)=>a+p.montant,0);
   const totalLivraisons = cumulLivraisons(cl._id);
   const soldeNet = totalPaye - totalLivraisons;
@@ -5784,12 +5869,22 @@ function renderPg(id){
       sel.innerHTML=`<option value="">— Sélectionner un commercial —</option>`+comsVisibles.map(c=>`<option value="${c._id}"${c._id===prev?' selected':''}>${esc(c.nom)}</option>`).join('');
       sel.value=prev;
     }
-    // Reset search
-    const si=document.getElementById('search-clients'); if(si) si.value='';
-    // Afficher prompt, cacher tableau
-    const pr=document.getElementById('cl-prompt'); if(pr) pr.style.display='flex';
-    const tw=document.getElementById('tw-clients'); if(tw) tw.style.display='none';
-    const ct=document.getElementById('search-clients-count'); if(ct) ct.textContent='';
+    // Si un commercial était déjà sélectionné (ou une recherche en cours), on
+    // conserve l'état précédent et on réaffiche directement le tableau au lieu
+    // de revenir systématiquement à l'écran d'invite.
+    const q = (document.getElementById('search-clients')?.value || '').trim();
+    const hasFilter = (sel && sel.value) || q.length >= 2;
+    const pr=document.getElementById('cl-prompt');
+    const tw=document.getElementById('tw-clients');
+    if(hasFilter){
+      if(pr) pr.style.display='none';
+      if(tw) tw.style.display='';
+      renderTousCls();
+    } else {
+      if(pr) pr.style.display='flex';
+      if(tw) tw.style.display='none';
+      const ct=document.getElementById('search-clients-count'); if(ct) ct.textContent='';
+    }
   },controle:renderControle,livraisons:renderLivraisons,articles:renderArticles,produits:renderProduits,catalogue:renderCatalogue,stock:renderStock,commerciaux:renderComs,agences:renderAgences,recouvrement:renderRec,fiche:renderFiche,'saisie-mises':renderSaisieMises,'saisie-adhesions':renderSaisieAdhesions,'com-clients':renderComClients,'com-nouveau-client':renderComNouveauClient,'transfert-resiliation':renderTransfertResiliation};
   if(id==='controle' && !['admin','controleur'].includes(session?.role)){ notify('Accès non autorisé','err'); return; }
   if(m[id]) m[id]();
