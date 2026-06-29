@@ -188,13 +188,13 @@
   // (AES-GCM) et persistée dans localStorage — donc cet écran ne s'affiche
   // qu'au premier lancement sur chaque appareil/navigateur.
   const FIREBASE_CONFIG = {
-    apiKey:            "AIzaSyATa_tOvEbGROCIZ9xZgkAsr_--d2vYIjc",
-    authDomain:        "triomphant-v2.firebaseapp.com",
-    projectId:         "triomphant-v2",
-    storageBucket:     "triomphant-v2.firebasestorage.app",
-    messagingSenderId: "908578874554",
-    appId:             "1:908578874554:web:5c008fba39204ce6c24e83",
-    measurementId:     "G-STQHJF83X2"
+    apiKey:            "",
+    authDomain:        "",
+    projectId:         "",
+    storageBucket:     "",
+    messagingSenderId: "",
+    appId:             "",
+    measurementId:     ""
   };
   // ✅ FIN DE LA CONFIGURATION
   window.FIREBASE_CONFIG = FIREBASE_CONFIG;
@@ -2707,7 +2707,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
       <button class="btn btn-ghost btn-sm det-tab" onclick="switchDetTab('adhesion',this)">🎫 Adhésion</button>
       <button class="btn btn-ghost btn-sm det-tab" onclick="switchDetTab('calendrier',this)">📅 Calendrier</button>
     </div>
-    <div id="det-paiements"><div class="tw" style="max-height:200px;overflow-y:auto;margin-bottom:0;"><table><thead><tr><th>Date</th><th>Heure</th><th>Cotis./j</th><th>Payé</th><th>Ratio</th><th style="color:var(--accent);white-space:nowrap;">📊 Niveau après</th><th>Note</th></tr></thead><tbody id="det-pays-list"></tbody></table></div></div>
+    <div id="det-paiements"><div class="tw" style="max-height:200px;overflow-y:auto;margin-bottom:0;"><table><thead><tr><th>Date</th><th>Heure</th><th>Cotis./j</th><th>Payé</th><th>Ratio</th><th style="color:var(--accent);white-space:nowrap;">📊 Niveau après</th><th>Note</th><th id="det-pays-th-actions" style="display:none;"></th></tr></thead><tbody id="det-pays-list"></tbody></table></div></div>
     <div id="det-livraisons" style="display:none;"><div class="tw" style="max-height:200px;overflow-y:auto;margin-bottom:0;"><table><thead><tr><th>Date</th><th>Produit</th><th>Qté</th><th>Montant</th><th>Statut</th></tr></thead><tbody id="det-liv-list"></tbody></table></div></div>
     <div id="det-adhesion" style="display:none;"><div id="det-adh-content" style="padding:12px;"></div></div>
     <div id="det-calendrier" style="display:none;"><div id="det-cal-content" style="padding:4px 0;"></div></div>
@@ -9483,8 +9483,13 @@ window.openDet = function(cid){
     const niv2 = niveauxMap2.get(key2);
     const nivLabel2 = niv2!==undefined ? joursEnJM(niv2) : '—';
     const nivColor2 = niv2!==undefined && niv2>=duree2 ? 'var(--accent2)' : 'var(--accent)';
-    return`<tr><td>${p.date}</td><td class="tm">${p.heure||'—'}</td><td><span class="cotis-badge" style="font-size:10px">💰 ${fmt(p.cotisJour||s.m)}</span></td><td style="color:var(--accent2);font-weight:700">${fmt(p.montant)}</td><td>${ratio(p.montant,p.cotisJour||s.m)}</td><td style="font-size:12px;font-weight:700;color:${nivColor2};white-space:nowrap;">${nivLabel2}<span style="font-size:9px;color:var(--muted);font-weight:400;"> /${joursEnJM(duree2)}</span></td><td class="tm" style="font-size:10px">${p.note||'—'}${locked?'<span style="margin-left:4px;color:var(--accent2);" title="Saisi par commercial — verrouillé">🔒</span>':''}</td></tr>`;
-  }).join('')||'<tr><td colspan="7" class="emp">Aucun paiement</td></tr>';
+    const btnDelPai2 = (session&&session.role==='admin'&&!p.verrouille)
+      ? `<td style="text-align:center;"><button onclick="delPaiement('${p._id}')" title="Supprimer ce paiement" style="background:rgba(224,92,82,0.12);border:1px solid rgba(224,92,82,0.35);border-radius:6px;padding:2px 7px;color:var(--danger);font-size:11px;cursor:pointer;" onmouseover="this.style.background='rgba(224,92,82,0.28)'" onmouseout="this.style.background='rgba(224,92,82,0.12)'">🗑</button></td>`
+      : (session&&session.role==='admin' ? '<td style="text-align:center;"><span title="Verrouillé" style="opacity:0.4;">🔒</span></td>' : '<td></td>');
+    return`<tr><td>${p.date}</td><td class="tm">${p.heure||'—'}</td><td><span class="cotis-badge" style="font-size:10px">💰 ${fmt(p.cotisJour||s.m)}</span></td><td style="color:var(--accent2);font-weight:700">${fmt(p.montant)}</td><td>${ratio(p.montant,p.cotisJour||s.m)}</td><td style="font-size:12px;font-weight:700;color:${nivColor2};white-space:nowrap;">${nivLabel2}<span style="font-size:9px;color:var(--muted);font-weight:400;"> /${joursEnJM(duree2)}</span></td><td class="tm" style="font-size:10px">${p.note||'—'}${locked?'<span style="margin-left:4px;color:var(--accent2);" title="Saisi par commercial — verrouillé">🔒</span>':''}</td>${btnDelPai2}</tr>`;
+  }).join('')||`<tr><td colspan="${session&&session.role==='admin'?8:7}" class="emp">Aucun paiement</td></tr>`;
+  const detPaysTh = document.getElementById('det-pays-th-actions');
+  if(detPaysTh) detPaysTh.style.display = (session&&session.role==='admin') ? '' : 'none';
   const livs=DB.livraisons.filter(l=>l.clientId===cid).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   document.getElementById('det-liv-list').innerHTML=livs.map(l=>`<tr><td>${esc(l.date)}</td><td class="fw6">${esc(getProd(l.produitId).nom)}</td><td>${esc(String(l.qty||""))}</td><td>${fmt(l.montant)}</td><td>${livStatut(l.statut)}</td></tr>`).join('')||'<tr><td colspan="5" class="emp">Aucune livraison</td></tr>';
   const adhPays=DB.adhesionPays.filter(a=>a.clientId===cid);
