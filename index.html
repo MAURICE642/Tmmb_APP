@@ -188,13 +188,13 @@
   // (AES-GCM) et persistée dans localStorage — donc cet écran ne s'affiche
   // qu'au premier lancement sur chaque appareil/navigateur.
   const FIREBASE_CONFIG = {
-    apiKey:            "AIzaSyATa_tOvEbGROCIZ9xZgkAsr_--d2vYIjc",
-    authDomain:        "triomphant-v2.firebaseapp.com",
-    projectId:         "triomphant-v2",
-    storageBucket:     "triomphant-v2.firebasestorage.app",
-    messagingSenderId: "908578874554",
-    appId:             "1:908578874554:web:5c008fba39204ce6c24e83",
-    measurementId:     "G-STQHJF83X2"
+    apiKey:            "",
+    authDomain:        "",
+    projectId:         "",
+    storageBucket:     "",
+    messagingSenderId: "",
+    appId:             "",
+    measurementId:     ""
   };
   // ✅ FIN DE LA CONFIGURATION
   window.FIREBASE_CONFIG = FIREBASE_CONFIG;
@@ -1630,7 +1630,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
       </div>
     </div>
     <div id="h-visu-label" style="font-size:11px;color:var(--muted);margin-bottom:8px;padding:0 2px;"></div>
-    <div class="tw"><table><thead><tr><th>Date</th><th>Client</th><th>Contrat</th><th>Cotis./j</th><th>Montant payé</th><th>Ratio</th><th>Commercial</th></tr></thead><tbody id="tb-hist"></tbody></table></div>
+    <div class="tw"><table><thead><tr><th>Date</th><th>Client</th><th>Contrat</th><th>Cotis./j</th><th>Montant payé</th><th>Ratio</th><th>Commercial</th><th id="tb-hist-actions-th" style="display:none;">Actions</th></tr></thead><tbody id="tb-hist"></tbody></table></div>
   </div>
 
   <!-- ADMIN: UTILISATEURS -->
@@ -3389,7 +3389,7 @@ async function initFB(cfg) {
 const _loadedCols = new Set();
 
 // ── Taille de page pour les collections volumineuses (admin) ──
-const _PAGE_SIZE = 200;
+const _PAGE_SIZE = 2000; // augmenté de 200 à 2000 — supprime la limite pratique d'import
 
 // Collections "légères" — toujours chargées en entier (peu de documents)
 const _SMALL_COLS = new Set(['commerciaux','agences','articles','produits','primesPaliers']);
@@ -3477,7 +3477,7 @@ async function _loadCol(col) {
 
   } else {
     // Admin / Secrétaire / Contrôleur / Gestionnaire stock
-    // Chargement paginé (200 à la fois) — les données précédentes sont conservées
+    // Chargement paginé (2000 à la fois) — les données précédentes sont conservées
     if (!DB[col]) DB[col] = [];
     let q;
     const cursor = _pageCursors[col];
@@ -8305,16 +8305,50 @@ function renderHist(){
     <div class="kpi-card kc-green"><div class="kpi-lbl">Total ${fd?'ce jour':'global'}</div><div class="kpi-val kv-green">${fmt(tot)}</div><div class="kpi-sub">${pays.length} paiement(s)</div></div>
     <div class="kpi-card kc-blue"><div class="kpi-lbl">Collecté aujourd'hui</div><div class="kpi-val kv-blue">${fmt(tp.reduce((a,p)=>a+p.montant,0))}</div><div class="kpi-sub">${tp.length} paiement(s)</div></div>
     <div class="kpi-card kc-yellow"><div class="kpi-lbl">Clients payants</div><div class="kpi-val kv-yellow">${new Set(pays.map(p=>p.clientId)).size}</div></div>`;
+  const isAdminHist = session && session.role === 'admin';
+  const thActions = document.getElementById('tb-hist-actions-th');
+  if(thActions) thActions.style.display = isAdminHist ? '' : 'none';
   document.getElementById('tb-hist').innerHTML=pays.map(p=>{
     const c=getCl(p.clientId),com=getCom(p.commercialId),cotis=p.cotisJour||jm(c);
+    const verrouille = p.verrouille === true;
+    const btnSuppr = isAdminHist
+      ? `<td style="text-align:center;">${verrouille
+          ? `<span title="Paiement verrouillé (transfert)" style="font-size:14px;opacity:0.4;cursor:not-allowed;">🔒</span>`
+          : `<button onclick="delPaiement('${p._id}')" title="Supprimer ce paiement" style="background:rgba(224,92,82,0.12);border:1px solid rgba(224,92,82,0.35);border-radius:6px;padding:3px 8px;color:var(--danger);font-size:12px;cursor:pointer;transition:background 0.15s;" onmouseover="this.style.background='rgba(224,92,82,0.28)'" onmouseout="this.style.background='rgba(224,92,82,0.12)'">🗑</button>`
+        }</td>`
+      : '';
+    const colspan = isAdminHist ? 8 : 7;
     return`<tr><td>${p.date||'—'}<span class="tm" style="font-size:10px;margin-left:4px">${esc(p.heure||'')}</span></td>
     <td class="fw6">${esc(c.nom)}</td><td style="font-size:11px">${esc(c.contrat||'—')}</td>
     <td><span class="cotis-badge" style="font-size:10px">&#128176; ${fmt(cotis)}</span></td>
     <td style="color:var(--accent2);font-weight:700">${fmt(p.montant)}</td>
     <td>${ratio(p.montant,cotis)}</td>
-    <td><span class="tag">${esc(com.nom)}</span></td></tr>`;
-  }).join('')||`<tr><td colspan="7" class="emp">${fd?'Aucun paiement ce jour':'Aucun paiement enregistr&eacute;'}</td></tr>`;
+    <td><span class="tag">${esc(com.nom)}</span></td>${btnSuppr}</tr>`;
+  }).join('')||`<tr><td colspan="${isAdminHist?8:7}" class="emp">${fd?'Aucun paiement ce jour':'Aucun paiement enregistr&eacute;'}</td></tr>`;
 }
+
+// ═══════════════ SUPPRESSION PAIEMENT (admin) ═══════════════
+window.delPaiement = async function(id){
+  if(!session || session.role !== 'admin'){ notify('Accès refusé — réservé aux administrateurs','err'); return; }
+  const p = (DB.paiements||[]).find(x=>x._id===id);
+  if(!p){ notify('Paiement introuvable','err'); return; }
+  if(p.verrouille === true){ notify("Ce paiement est verrouillé (issu d'un transfert) et ne peut pas être supprimé.",'err'); return; }
+  const c = getCl(p.clientId);
+  const com = getCom(p.commercialId);
+  const ok = await confirmDialog(
+    `Client : ${c.nom||'—'}\nCommercial : ${com.nom||'—'}\nDate : ${p.date||'—'} ${p.heure||''}\nMontant : ${fmt(p.montant)}\n${p.note?'Note : '+p.note+'\n':''}\nCette suppression est définitive et irréversible.`,
+    {title:'🗑 Supprimer ce paiement ?', okLabel:'Supprimer', danger:true}
+  );
+  if(!ok) return;
+  try {
+    await fbDelete('paiements', id);
+    notify('✅ Paiement supprimé');
+    renderHist();
+  } catch(e){
+    notify('Erreur lors de la suppression : '+e.message,'err');
+  }
+};
+// ════════════════════════════════════════════════════════════
 
 window.changerDateHist = function(delta){
   const el = document.getElementById('h-date');
@@ -11322,18 +11356,26 @@ window.saveComNouveauClient = async function(){
 async function genererCodeClient(comId){
   const com = DB.commerciaux.find(c=>c._id===comId);
   const prefix = com && com.codePrefix ? com.codePrefix : 'CL';
-  // Compter les clients existants de ce commercial
-  const clientsCom = DB.clients.filter(c=>c.commercialId===comId);
+  // Utiliser tous les clients en mémoire + les codes déjà générés dans cette session
+  // pour éviter les doublons lors de gros imports
+  const allClients = DB.clients || [];
   let maxSeq = 0;
-  clientsCom.forEach(c=>{
+  allClients.forEach(c=>{
     if(c.codeClient){
-      const parts = c.codeClient.split('-');
+      const parts = c.codeClient.toUpperCase().split('-');
       const n = parseInt(parts[parts.length-1]);
       if(!isNaN(n) && n>maxSeq) maxSeq = n;
     }
   });
-  const seq = maxSeq + 1;
-  return `${prefix}-${String(seq).padStart(4,'0')}`;
+  // Incrémenter jusqu'à trouver un code libre (robuste aux trous de séquence)
+  let seq = maxSeq + 1;
+  const usedCodes = new Set(allClients.map(c=>(c.codeClient||'').toUpperCase()).filter(Boolean));
+  let candidate = `${prefix}-${String(seq).padStart(4,'0')}`;
+  while(usedCodes.has(candidate)){
+    seq++;
+    candidate = `${prefix}-${String(seq).padStart(4,'0')}`;
+  }
+  return candidate;
 }
 
 window.rechercherParCodeClient = function(){
