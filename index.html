@@ -188,13 +188,13 @@
   // (AES-GCM) et persistée dans localStorage — donc cet écran ne s'affiche
   // qu'au premier lancement sur chaque appareil/navigateur.
   const FIREBASE_CONFIG = {
-    apiKey:            "AIzaSyATa_tOvEbGROCIZ9xZgkAsr_--d2vYIjc",
-    authDomain:        "triomphant-v2.firebaseapp.com",
-    projectId:         "triomphant-v2",
-    storageBucket:     "triomphant-v2.firebasestorage.app",
-    messagingSenderId: "908578874554",
-    appId:             "1:908578874554:web:5c008fba39204ce6c24e83",
-    measurementId:     "G-STQHJF83X2"
+    apiKey:            "",
+    authDomain:        "",
+    projectId:         "",
+    storageBucket:     "",
+    messagingSenderId: "",
+    appId:             "",
+    measurementId:     ""
   };
   // ✅ FIN DE LA CONFIGURATION
   window.FIREBASE_CONFIG = FIREBASE_CONFIG;
@@ -3615,14 +3615,17 @@ function _debouncedRenderPg(id) {
 }
 
 // ── Listeners temps-réel persistants, indexés par collection ──
-// ✅ FIX LECTURES FIRESTORE : avant, chaque navigation détruisait TOUS les
-// listeners actifs et en recréait de nouveaux — y compris pour des collections
-// déjà écoutées sur la page précédente (clients/paiements/commerciaux sont
-// utilisés par presque toutes les pages). Chaque nouvel abonnement onSnapshot
-// facture une lecture par document de son premier snapshot, même si les
-// données sont déjà en mémoire. On garde maintenant un seul listener par
-// collection, ouvert une fois par session, et on ne coupe que ceux dont
-// plus aucune page active n'a besoin.
+// ✅ FIX LECTURES FIRESTORE (v2) : un listener, une fois ouvert pour une
+// collection, reste actif pour TOUTE la durée de la session — il n'est plus
+// jamais coupé lors de la navigation entre pages (seul doLogout() les ferme
+// tous via _unsubscribeAll()). Avant, on ne gardait que les listeners utiles
+// à la page courante et on coupait les autres : avec des dépendances de pages
+// très disjointes (ex: 'articles' n'apparaît que dans 4 pages sur 19), cela
+// provoquait une destruction/recréation permanente — donc une relecture
+// complète de la collection — à chaque fois qu'on quittait puis revenait sur
+// une page. Garder tous les listeners ouverts ne coûte qu'une lecture initiale
+// par collection (une seule fois par session), au lieu de dizaines de
+// relectures au fil d'une navigation normale.
 let _activeListeners = new Map(); // col -> fonction de désinscription
 
 function _unsubscribeAll() {
@@ -3665,20 +3668,44 @@ function _queryForCol(col) {
   return query(colRef, orderBy('_ts', 'desc'), limit(_PAGE_SIZE));
 }
 
+// ✅ FIX LECTURES FIRESTORE (v2) : vrai si la requête du listener temps-réel
+// (_queryForCol) couvre exactement les mêmes données qu'un chargement complet
+// pour cette collection — donc pas besoin d'un getDocs() séparé en plus de
+// l'abonnement : son premier snapshot suffit comme chargement initial.
+// - Collections "légères" (_SMALL_COLS) : le listener lit toute la collection,
+//   tout comme getDocs(collection(...)) — identique.
+// - Rôle 'commercial' (hors 'livraisons') : le listener et _loadCol()
+//   appliquent exactement le même filtre where(commercialId/operateurId==uid)
+//   — identique.
+// - Faux pour les grosses collections en pagination admin/secrétaire/
+//   contrôleur/gestionnaire_stock (orderBy __name__ + curseur "charger plus",
+//   incompatible avec la fenêtre orderBy(_ts desc) du listener) et pour
+//   'livraisons' côté commercial (le listener ne couvre que les 30 premiers
+//   clients, alors que _loadCol() couvre tous les clients par tranches de 30).
+function _listenerCoversFullLoad(col) {
+  if (!session) return false;
+  if (_SMALL_COLS.has(col)) return true;
+  if (session.role === 'commercial' && col !== 'livraisons') return true;
+  return false;
+}
+
 async function setupPageListeners(pageId) {
   const cols = _PAGE_DEPS[pageId] || [];
   if (!db_fs) return;
 
-  // Couper uniquement les listeners dont aucune collection requise par cette page
-  // n'a besoin — les autres restent ouverts (pas de relecture inutile).
-  const neededCols = new Set(cols);
-  for (const [col, unsub] of _activeListeners) {
-    if (!neededCols.has(col)) { try { unsub(); } catch(_){} _activeListeners.delete(col); }
-  }
+  // ✅ FIX LECTURES FIRESTORE (v2) : plus de désinscription ici — les
+  // listeners ouverts restent actifs jusqu'à la déconnexion (voir
+  // _unsubscribeAll() dans doLogout()). Naviguer vers une page qui ne dépend
+  // pas d'une collection ne coûte donc plus aucune lecture pour celle-ci.
 
   if (!cols.length) { if (session && curPg === pageId) renderPg(pageId); return; }
 
-  await ensureCollectionsLoaded(cols);
+  // Collections qui ont besoin d'un getDocs() préalable (pagination admin/
+  // secrétaire, ou 'livraisons' côté commercial) — les autres (légères, ou
+  // filtrées par rôle commercial) seront chargées directement par le premier
+  // snapshot de leur listener, ci-dessous, sans lecture redondante.
+  const colsNeedingEagerLoad = cols.filter(c => _loadedCols.has(c) || !_listenerCoversFullLoad(c));
+  await ensureCollectionsLoaded(colsNeedingEagerLoad);
   if (session && curPg === pageId) renderPg(pageId);
 
   cols.forEach(col => {
@@ -3686,6 +3713,11 @@ async function setupPageListeners(pageId) {
 
     const q = _queryForCol(col);
     if (!q) return; // pas de listener pour ce col (ex: livraisons sans clients)
+
+    // Si cette collection n'a pas été chargée par getDocs() ci-dessus, ce
+    // listener est son UNIQUE source de données : son premier snapshot doit
+    // déclencher le rendu initial (sinon la page resterait vide).
+    const isSoleLoadSource = !_loadedCols.has(col);
 
     let _firstSnap = true;
     const unsub = onSnapshot(q, snap => {
@@ -3701,8 +3733,13 @@ async function setupPageListeners(pageId) {
         }
       });
       setSyncStatus(true);
+      _loadedCols.add(col); // les données de cette collection sont maintenant fiables en mémoire
 
-      if (_firstSnap) { _firstSnap = false; return; }
+      if (_firstSnap) {
+        _firstSnap = false;
+        if (isSoleLoadSource && session && curPg === pageId) renderPg(pageId);
+        return;
+      }
 
       const modalOuvert = document.querySelector('.modal-overlay.open, .md.open, [id^="m-"][style*="flex"], [id^="m-"][style*="block"]');
       if (modalOuvert) return;
@@ -3906,13 +3943,19 @@ async function _replayOfflineQueue() {
     }
   }
 
-  // Recharger les collections affectées depuis Firebase + invalider le cache
-  // ✅ FIX LECTURES FIRESTORE : avant, ce rechargement lisait CHAQUE collection
-  // affectée en entier (getDocs brut, sans filtre ni limite), même pour un
-  // commercial qui ne devrait relire que ses propres documents. _loadCol()
-  // applique le même filtre par rôle et la même pagination (limit 200) que
-  // le chargement normal d'une page.
+  // Recharger les collections affectées — mais seulement celles qui n'ont
+  // PAS de listener temps-réel actif ET FIABLE. ✅ FIX LECTURES FIRESTORE (v2) :
+  // avec des listeners désormais persistants pour toute la session, une
+  // collection déjà écoutée par un listener qui couvre TOUTES ses données
+  // (_listenerCoversFullLoad) reçoit automatiquement les écritures qu'on
+  // vient de rejouer (Firestore notifie aussi l'auteur de ses propres
+  // écritures) — un nouveau getDocs() complet serait alors une lecture en
+  // pure perte. En revanche, pour 'livraisons' côté commercial, le listener
+  // ne couvre que les 30 premiers clients : on doit garder le rechargement
+  // complet par _loadCol() pour ne pas perdre les écritures sur les clients
+  // au-delà du 30e (même chose pour les grosses collections paginées admin).
   for (const col of colsAffected) {
+    if (_activeListeners.has(col) && _listenerCoversFullLoad(col)) continue; // déjà synchronisé en temps réel, en intégralité
     try {
       _loadedCols.delete(col);
       try { sessionStorage.removeItem(_SS_PREFIX + col); } catch(e) {}
@@ -8328,9 +8371,15 @@ window.actualiserSysteme = async function(){
   try {
     if(isOnline){
       const cols = _PAGE_DEPS[curPg] || [];
-      // Invalider le cache pour forcer une relecture fraîche de CES collections uniquement
-      cols.forEach(c => { _loadedCols.delete(c); try { sessionStorage.removeItem(_SS_PREFIX + c); } catch(e){} });
-      await ensureCollectionsLoaded(cols);
+      // ✅ FIX LECTURES FIRESTORE (v2) : on ne saute la relecture que pour les
+      // collections couvertes EN INTÉGRALITÉ par leur listener actif
+      // (_listenerCoversFullLoad) — toujours à jour, inutile de payer un
+      // nouveau getDocs(). Pour 'livraisons' côté commercial (listener limité
+      // aux 30 premiers clients) ou les grosses collections paginées admin,
+      // on garde la relecture forcée comme avant.
+      const colsToReload = cols.filter(c => !(_activeListeners.has(c) && _listenerCoversFullLoad(c)));
+      colsToReload.forEach(c => { _loadedCols.delete(c); try { sessionStorage.removeItem(_SS_PREFIX + c); } catch(e){} });
+      await ensureCollectionsLoaded(colsToReload);
       setSyncStatus(true);
     } else {
       loadLocalData();
