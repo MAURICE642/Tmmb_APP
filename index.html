@@ -3211,7 +3211,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
 
 <script type="module">
 import { initializeApp, getApps, getApp, deleteApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-import { getFirestore, collection, doc, setDoc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, where, limit, startAfter, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { getFirestore, collection, doc, setDoc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, where, limit, startAfter, serverTimestamp, writeBatch, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 
 const TODAY = new Date().toISOString().split('T')[0];
@@ -3397,7 +3397,12 @@ async function initFB(cfg) {
 const _loadedCols = new Set();
 
 // ── Taille de page pour les collections volumineuses (admin) ──
-const _PAGE_SIZE = 2000; // augmenté de 200 à 2000 — supprime la limite pratique d'import
+// ✅ FIX COÛT : réduit de 2000 à 500. Le chargement initial automatique
+// (ouverture de page) est donc 4x moins coûteux en lectures facturées.
+// Pour les collections qui dépassent 500 documents, le bouton admin
+// "charger plus" (loadMoreCol) permet de charger les pages suivantes à la
+// demande, sans payer ce coût pour tout le monde à chaque ouverture de page.
+const _PAGE_SIZE = 500;
 
 // ── PERF / COÛT : fenêtre du listener temps réel admin (collections volumineuses) ──
 // Le chargement initial complet (pagination "charger plus") utilise _PAGE_SIZE (2000)
@@ -3420,25 +3425,91 @@ const _SMALL_COLS = new Set(['commerciaux','agences','articles','produits','prim
 // d'autres pages.
 const _NO_REALTIME_COLS = new Set(['transferts']);
 
+// ── COÛT : collections sans listener temps réel, MAIS UNIQUEMENT pour le
+// staff (admin/secrétaire/contrôleur/gestionnaire_stock) ──
+// 'pointsJour' et 'versements' sont des collections volumineuses dont le
+// staff n'a pas besoin d'un suivi seconde par seconde (contrairement à
+// 'clients'/'paiements'). Sur 'admin-dashboard' notamment, chaque listener
+// ouvert facture une lecture supplémentaire à CHAQUE écriture faite par
+// N'IMPORTE QUEL commercial pendant que l'admin est connecté (effet de
+// fan-out propre à onSnapshot) — réduire le nombre de listeners permanents
+// réduit directement la taille des pics observés lors des heures de pointe.
+// Pour les commerciaux, ces deux collections restent en temps réel (ils ont
+// besoin de voir leurs propres saisies se refléter immédiatement) — voir
+// l'utilisation conditionnelle au rôle ci-dessous dans _queryForCol /
+// _listenerCoversFullLoad.
+const _NO_REALTIME_FOR_STAFF = new Set(['pointsJour','versements']);
+
 // Curseurs de pagination pour l'admin (collections volumineuses)
 const _pageCursors = {};
 
+// ✅ FIX DOUBLE LECTURE : timestamp _ts le plus récent déjà chargé en mémoire
+// (via getDocs) pour chaque collection volumineuse côté admin/secrétaire/etc.
+// Sert à éviter que le listener temps réel ne relise (et refacture) les mêmes
+// documents que ceux déjà obtenus par le chargement paginé initial : au lieu
+// de toujours relire une fenêtre fixe des _LISTENER_WINDOW derniers documents,
+// le listener ne lira que les documents créés/modifiés APRÈS ce timestamp.
+const _maxTsLoaded = {};
+
+function _trackMaxTs(col, docs) {
+  for (const d of docs) {
+    const ts = d._ts && typeof d._ts.toMillis === 'function' ? d._ts.toMillis() : null;
+    if (ts === null) continue;
+    if (!_maxTsLoaded[col] || ts > _maxTsLoaded[col]) _maxTsLoaded[col] = ts;
+  }
+}
+
 // Charger une collection en tenant compte du rôle
-// ✅ FIX LATENCE : cache sessionStorage pour éviter les re-fetch Firestore
-// entre navigations de pages. Invalidé à la déconnexion via doLogout().
+// ✅ FIX LATENCE + COÛT : cache localStorage avec durée de vie (TTL), au lieu
+// de sessionStorage. sessionStorage est perdu à chaque nouvel onglet/nouvelle
+// connexion, donc 2 admins (ou 1 admin sur 2 onglets) repayaient le getDocs()
+// complet chacun. localStorage est partagé entre onglets et survit aux
+// reconnexions rapprochées : tant que le TTL n'est pas expiré, on réutilise
+// les données déjà lues sans repayer de lecture Firestore. Le TTL borne le
+// risque de données obsolètes (au-delà, on relit). Toujours invalidé à la
+// déconnexion via doLogout() (_cacheClear).
 const _SS_PREFIX = 'gestcom_cache_';
+const _CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutes
 function _cacheWrite(col, data) {
-  try { sessionStorage.setItem(_SS_PREFIX + col, JSON.stringify(data)); } catch(e) {}
+  try {
+    localStorage.setItem(_SS_PREFIX + col, JSON.stringify({ t: Date.now(), d: data }));
+  } catch(e) {}
 }
 function _cacheRead(col) {
   try {
-    const raw = sessionStorage.getItem(_SS_PREFIX + col);
-    return raw ? JSON.parse(raw) : null;
+    const raw = localStorage.getItem(_SS_PREFIX + col);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    // Compat anciens caches sessionStorage (format brut sans { t, d })
+    if (!parsed || typeof parsed !== 'object' || !('t' in parsed)) return null;
+    if (Date.now() - parsed.t > _CACHE_TTL_MS) {
+      localStorage.removeItem(_SS_PREFIX + col); // expiré : on nettoie et on relit
+      return null;
+    }
+    return parsed.d;
   } catch(e) { return null; }
 }
 function _cacheClear() {
-  Object.keys(sessionStorage).filter(k => k.startsWith(_SS_PREFIX))
-    .forEach(k => sessionStorage.removeItem(k));
+  Object.keys(localStorage).filter(k => k.startsWith(_SS_PREFIX))
+    .forEach(k => localStorage.removeItem(k));
+  // Nettoie aussi l'ancien sessionStorage au cas où (migration douce)
+  try {
+    Object.keys(sessionStorage).filter(k => k.startsWith(_SS_PREFIX))
+      .forEach(k => sessionStorage.removeItem(k));
+  } catch(e) {}
+}
+// ✅ FIX COÛT : vérifie si le cache d'une collection est encore valide (TTL
+// non expiré) SANS le consommer ni le supprimer — sert à décider si on doit
+// forcer une relecture Firestore (collections _NO_REALTIME_COLS) ou si on
+// peut réutiliser ce qui est déjà en mémoire/cache.
+function _isCacheFresh(col) {
+  try {
+    const raw = localStorage.getItem(_SS_PREFIX + col);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || !('t' in parsed)) return false;
+    return (Date.now() - parsed.t) <= _CACHE_TTL_MS;
+  } catch(e) { return false; }
 }
 
 async function _loadCol(col) {
@@ -3446,7 +3517,7 @@ async function _loadCol(col) {
   const role = session ? session.role : null;
   const uid  = session ? session.userId : null;
 
-  // Collections légères → chargement complet (avec cache sessionStorage)
+  // Collections légères → chargement complet (avec cache localStorage avec TTL)
   if (_SMALL_COLS.has(col)) {
     const cached = _cacheRead(col);
     if (cached) { DB[col] = cached; _loadedCols.add(col); return; }
@@ -3461,6 +3532,11 @@ async function _loadCol(col) {
   const colRef = collection(db_fs, col);
 
   if (role === 'commercial') {
+    // ✅ FIX COÛT : cache TTL réutilisé pour les requêtes simples du
+    // commercial (auparavant aucune mise en cache ici → relecture Firestore
+    // garantie à chaque navigation, notamment pour 'transferts' qui était
+    // invalidé de force à chaque ouverture de page).
+    const _commercialCacheKey = col + ':' + uid;
     // Commercial → uniquement SES données
     let q;
     if (col === 'clients') {
@@ -3497,18 +3573,21 @@ async function _loadCol(col) {
     } else {
       q = query(colRef, limit(_PAGE_SIZE));
     }
+    const cached = _cacheRead(_commercialCacheKey);
+    if (cached) { DB[col] = cached; _loadedCols.add(col); return; }
     const snap = await getDocs(q);
     DB[col] = snap.docs.map(d => ({...d.data(), _id: d.id}));
+    _cacheWrite(_commercialCacheKey, DB[col]);
     _loadedCols.add(col);
 
   } else {
     // Admin / Secrétaire / Contrôleur / Gestionnaire stock
     // ── PERF / COÛT : si cette collection a déjà été entièrement chargée
-    // pendant cette session navigateur (cache sessionStorage), on la restaure
+    // pendant cette session navigateur (cache localStorage avec TTL), on la restaure
     // depuis le cache au lieu de relire toutes les pages Firestore — gain
     // important lors d'un rafraîchissement de page (F5) en cours de session.
     // Le cache est invalidé par les mécanismes existants (logout, bouton
-    // "recharger" qui fait sessionStorage.removeItem(_SS_PREFIX+col)).
+    // "recharger" qui fait localStorage.removeItem(_SS_PREFIX+col)).
     if (!_pageCursors[col] && (!DB[col] || !DB[col].length)) {
       const cached = _cacheRead(col);
       if (cached) { DB[col] = cached; _loadedCols.add(col); return; }
@@ -3524,6 +3603,7 @@ async function _loadCol(col) {
     }
     const snap = await getDocs(q);
     const newDocs = snap.docs.map(d => ({...d.data(), _id: d.id}));
+    _trackMaxTs(col, newDocs); // ✅ FIX DOUBLE LECTURE : mémorise le _ts max déjà lu
 
     // Fusionner sans doublons
     const existing = new Map(DB[col].map(d => [d._id, d]));
@@ -3593,7 +3673,7 @@ function _mergeCommerciaux() {
       ),
     };
   });
-  // ✅ Mettre à jour le cache sessionStorage après fusion
+  // ✅ Mettre à jour le cache localStorage après fusion
   _cacheWrite('commerciaux', DB.commerciaux);
 }
 
@@ -3674,6 +3754,7 @@ function _unsubscribeAll() {
 function _queryForCol(col) {
   if (!db_fs || !session) return null;
   if (_NO_REALTIME_COLS.has(col)) return null; // pas de listener pour cette collection
+  if (_NO_REALTIME_FOR_STAFF.has(col) && session.role !== 'commercial') return null; // pas de listener temps réel pour le staff sur ces collections (cache TTL à la place)
   const colRef = collection(db_fs, col);
   const uid  = session.userId;
   const role = session.role;
@@ -3706,6 +3787,19 @@ function _queryForCol(col) {
   // (Fenêtre réduite à _LISTENER_WINDOW, distincte de _PAGE_SIZE utilisé pour
   // le chargement complet par pagination — le listener n'a pas besoin de
   // relire 2000 docs pour simplement détecter les nouveaux/modifiés.)
+  //
+  // ✅ FIX DOUBLE LECTURE (v2) : si le chargement paginé (getDocs) a déjà eu
+  // lieu pour cette collection, on connaît le _ts le plus récent déjà en
+  // mémoire (_maxTsLoaded). Dans ce cas, on n'a plus besoin de relire les
+  // _LISTENER_WINDOW derniers documents (qui sont déjà connus) : on écoute
+  // uniquement les documents STRICTEMENT PLUS RÉCENTS que ce timestamp. Le
+  // premier snapshot du listener ne coûte alors quasiment aucune lecture
+  // facturée (au lieu de jusqu'à 200), au lieu de dupliquer le travail déjà
+  // payé par le getDocs() de chargement initial.
+  if (_maxTsLoaded[col]) {
+    const cutoff = Timestamp.fromMillis(_maxTsLoaded[col]);
+    return query(colRef, where('_ts', '>', cutoff), orderBy('_ts', 'asc'));
+  }
   return query(colRef, orderBy('_ts', 'desc'), limit(_LISTENER_WINDOW));
 }
 
@@ -3726,6 +3820,7 @@ function _queryForCol(col) {
 function _listenerCoversFullLoad(col) {
   if (!session) return false;
   if (_NO_REALTIME_COLS.has(col)) return false;
+  if (_NO_REALTIME_FOR_STAFF.has(col) && session.role !== 'commercial') return false;
   if (_SMALL_COLS.has(col)) return true;
   if (session.role === 'commercial' && col !== 'livraisons') return true;
   return false;
@@ -3743,14 +3838,26 @@ async function setupPageListeners(pageId) {
   if (!cols.length) { if (session && curPg === pageId) renderPg(pageId); return; }
 
   // Collections sans listener temps réel : comme rien ne les tient à jour en
-  // arrière-plan, on les invalide pour forcer une relecture fraîche chaque
-  // fois qu'on ouvre une page qui en dépend (au lieu d'une seule fois pour
-  // toute la session). Le coût de lecture n'est payé que sur cette page-là.
+  // arrière-plan, on les considère périmées après _CACHE_TTL_MS et on force
+  // alors une relecture fraîche à la prochaine ouverture de page qui en a
+  // besoin.
+  // ✅ FIX COÛT (v2) : avant, on invalidait INCONDITIONNELLEMENT à chaque
+  // ouverture de page, y compris en cliquant plusieurs fois entre deux pages
+  // en quelques secondes — ce qui payait une lecture Firestore complète à
+  // chaque clic. Désormais on ne force la relecture QUE si le cache a
+  // réellement dépassé son TTL (_isCacheFresh), sinon on réutilise ce qui
+  // est déjà en mémoire/cache sans aucune lecture supplémentaire.
   cols.forEach(col => {
-    if (_NO_REALTIME_COLS.has(col)) {
+    const isNoRealtimeForThisRole = _NO_REALTIME_COLS.has(col)
+      || (_NO_REALTIME_FOR_STAFF.has(col) && session && session.role !== 'commercial');
+    if (!isNoRealtimeForThisRole) return;
+    // La clé de cache diffère selon le rôle : voir _loadCol (commercial
+    // utilise une clé 'col:uid' pour isoler ses propres données en cache).
+    const cacheKey = (session && session.role === 'commercial') ? (col + ':' + session.userId) : col;
+    if (!_isCacheFresh(cacheKey)) {
       _loadedCols.delete(col);
       delete _pageCursors[col];
-      try { sessionStorage.removeItem(_SS_PREFIX + col); } catch(e){}
+      DB[col] = [];
     }
   });
 
@@ -4013,7 +4120,7 @@ async function _replayOfflineQueue() {
     if (_activeListeners.has(col) && _listenerCoversFullLoad(col)) continue; // déjà synchronisé en temps réel, en intégralité
     try {
       _loadedCols.delete(col);
-      try { sessionStorage.removeItem(_SS_PREFIX + col); } catch(e) {}
+      try { localStorage.removeItem(_SS_PREFIX + col); } catch(e) {}
       await _loadCol(col);
     } catch(e) { console.error('[offline] Rechargement collection échoué:', col, e); }
   }
@@ -4045,10 +4152,14 @@ window.addEventListener('offline', () => {
 
 // M5 — helper : met à jour DB en mémoire et sauvegarde chiffré si commercial
 function _syncLocalAfterWrite(col) {
-  // ✅ FIX CACHE : invalider le cache sessionStorage de la collection modifiée.
+  // ✅ FIX CACHE : invalider le cache localStorage de la collection modifiée.
   // Sans ça, un rechargement de page lisait l'ancienne valeur du cache
-  // au lieu des données fraîches post-écriture.
-  try { sessionStorage.removeItem(_SS_PREFIX + col); } catch(e) {}
+  // au lieu des données fraîches post-écriture. On invalide les deux formes
+  // de clé possibles (admin: 'col', commercial: 'col:uid' — voir _loadCol).
+  try {
+    localStorage.removeItem(_SS_PREFIX + col);
+    if (session && session.userId) localStorage.removeItem(_SS_PREFIX + col + ':' + session.userId);
+  } catch(e) {}
   _loadedCols.delete(col); // forcer un re-fetch Firestore au prochain accès
   if (session?.role === 'commercial' && _localKey) saveLocalEncrypted();
 }
@@ -5405,7 +5516,7 @@ window.doLogout = function(){
   _localKey = null; // C2 — effacer la clé AES de la mémoire
   _offlineQueue = [];
   _stopSessionTimer();
-  // ✅ FIX LATENCE : vider le cache sessionStorage à la déconnexion
+  // ✅ FIX LATENCE : vider le cache localStorage à la déconnexion
   // pour qu'un autre utilisateur ne voie pas les données du précédent.
   _cacheClear();
   _loadedCols.clear();
@@ -8507,7 +8618,13 @@ window.actualiserSysteme = async function(){
       // aux 30 premiers clients) ou les grosses collections paginées admin,
       // on garde la relecture forcée comme avant.
       const colsToReload = cols.filter(c => !(_activeListeners.has(c) && _listenerCoversFullLoad(c)));
-      colsToReload.forEach(c => { _loadedCols.delete(c); try { sessionStorage.removeItem(_SS_PREFIX + c); } catch(e){} });
+      colsToReload.forEach(c => {
+        _loadedCols.delete(c);
+        try {
+          localStorage.removeItem(_SS_PREFIX + c);
+          if (session && session.userId) localStorage.removeItem(_SS_PREFIX + c + ':' + session.userId);
+        } catch(e){}
+      });
       await ensureCollectionsLoaded(colsToReload);
       setSyncStatus(true);
     } else {
