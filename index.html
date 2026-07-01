@@ -3211,7 +3211,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
 
 <script type="module">
 import { initializeApp, getApps, getApp, deleteApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-import { getFirestore, collection, doc, setDoc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, where, limit, startAfter, serverTimestamp, writeBatch, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { getFirestore, collection, doc, setDoc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, where, limit, startAfter, serverTimestamp, writeBatch, Timestamp, getAggregateFromServer, sum } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 
 const TODAY = new Date().toISOString().split('T')[0];
@@ -3622,6 +3622,88 @@ async function _loadCol(col) {
   }
 }
 
+// ── FIX FIABILITÉ VUES "DU JOUR" ────────────────────────────────
+// Problème résolu : 'registre' et 'fiche du jour' filtraient DB.paiements /
+// DB.adhesionPays, des tableaux qui ne contiennent que les pages déjà
+// chargées en mémoire (pagination par _PAGE_SIZE sur des collections pouvant
+// dépasser le million de documents). Un paiement du jour pouvait donc être
+// absent de la vue tant qu'il n'avait pas été rattrapé par le chargement
+// paginé complet — d'où des données "pas conformes tout de suite".
+// Solution : interroger Firestore directement avec where('date','==',date).
+// Le volume renvoyé pour UN seul jour reste petit (quelques centaines de
+// documents au plus, même à 25 commerciaux actifs), donc c'est rapide et peu
+// coûteux, et surtout TOUJOURS exact — indépendamment de la taille totale de
+// la collection ou de ce qui a déjà été chargé en mémoire.
+// ── FIX PERFORMANCE : totaux du dashboard admin ─────────────────
+// Avant : totalGlobal ("CA total recouvré") = somme de TOUS les paiements
+// présents en mémoire, ce qui suppose la collection entière (jusqu'à 1M de
+// documents) chargée côté client. Après : requête d'agrégation Firestore
+// (SUM calculé côté serveur) qui ne transfère qu'un seul nombre.
+// NB : nécessite éventuellement un index composite si Firestore le demande
+// au premier lancement (un lien de création directe apparaît dans l'erreur
+// console) — à tester en environnement de dev avant la mise en prod.
+function _chunkArray(arr, size) {
+  const out = [];
+  for (let i=0;i<arr.length;i+=size) out.push(arr.slice(i,i+size));
+  return out;
+}
+async function _sumPaiementsMontant(commercialIds, dateFrom, dateTo) {
+  if (!db_fs) {
+    let arr = DB.paiements || [];
+    if (commercialIds) arr = arr.filter(p=>commercialIds.includes(p.commercialId));
+    if (dateFrom) arr = arr.filter(p=>p.date>=dateFrom);
+    if (dateTo) arr = arr.filter(p=>p.date<=dateTo);
+    return arr.reduce((a,p)=>a+(p.montant||0),0);
+  }
+  const colRef = collection(db_fs, 'paiements');
+  // Firestore limite les clauses 'in' à 30 valeurs : on découpe en tranches.
+  const idChunks = commercialIds ? _chunkArray(commercialIds, 30) : [null];
+  let total = 0;
+  for (const chunk of idChunks) {
+    const constraints = [];
+    if (chunk) constraints.push(where('commercialId','in', chunk));
+    if (dateFrom) constraints.push(where('date','>=', dateFrom));
+    if (dateTo) constraints.push(where('date','<=', dateTo));
+    const q = constraints.length ? query(colRef, ...constraints) : query(colRef);
+    const snap = await getAggregateFromServer(q, { total: sum('montant') });
+    total += snap.data().total || 0;
+  }
+  return total;
+}
+// Récupère les documents 'paiements' d'une plage de dates (ex: le mois en
+// cours) et les fusionne dans DB.paiements — utile quand on a besoin du
+// détail (pas juste d'un total), ex: répartition par commercial.
+async function _fetchPaiementsDateRange(dateFrom, dateTo) {
+  if (!db_fs) return (DB.paiements||[]).filter(p=>p.date>=dateFrom && p.date<=dateTo);
+  const colRef = collection(db_fs, 'paiements');
+  const snap = await getDocs(query(colRef, where('date','>=', dateFrom), where('date','<=', dateTo)));
+  const docs = snap.docs.map(d => ({...d.data(), _id: d.id}));
+  if (!DB.paiements) DB.paiements = [];
+  const existing = new Map(DB.paiements.map(d => [d._id, d]));
+  docs.forEach(d => existing.set(d._id, d));
+  DB.paiements = [...existing.values()];
+  return docs;
+}
+
+let _dateQueryToken = 0;
+let _ficheDateQueryToken = 0;
+async function _fetchColByDate(col, date) {
+  if (!db_fs) {
+    // Mode démo / hors-ligne (pas de Firestore) : on retombe sur la mémoire.
+    return (DB[col]||[]).filter(d => d.date === date);
+  }
+  const colRef = collection(db_fs, col);
+  const snap = await getDocs(query(colRef, where('date','==', date)));
+  const docs = snap.docs.map(d => ({...d.data(), _id: d.id}));
+  // Fusion (sans doublons) dans DB[col] : le reste de l'appli qui lit
+  // DB[col] bénéficie aussi de données fraîches pour cette date.
+  if (!DB[col]) DB[col] = [];
+  const existing = new Map(DB[col].map(d => [d._id, d]));
+  docs.forEach(d => existing.set(d._id, d));
+  DB[col] = [...existing.values()];
+  return docs;
+}
+
 async function ensureCollectionsLoaded(cols) {
   const missing = cols.filter(c => !_loadedCols.has(c));
   if (!missing.length) return;
@@ -3692,7 +3774,7 @@ async function loadFirebaseData() {
 // Mapping : quelles collections déclenchent un re-rendu par page
 const _PAGE_DEPS = {
   'admin-dashboard':    ['clients','paiements','mises','adhesionPays','commerciaux','agences','primesPaliers','pointsJour','versements'],
-  'tous-clients':       ['clients','paiements','commerciaux'],
+  'tous-clients':       ['paiements','commerciaux'],
   'controle':           ['clients','commerciaux'],
   'articles':           ['articles'],
   'produits':           ['produits','articles'],
@@ -3704,7 +3786,7 @@ const _PAGE_DEPS = {
   'commerciaux':        ['commerciaux','agences'],
   'agences':            ['agences','commerciaux'],
   'recouvrement':       ['clients','paiements','commerciaux'],
-  'fiche':              ['clients','paiements','livraisons','adhesionPays','mises','versements'],
+  'fiche':              ['paiements','livraisons','adhesionPays','mises','versements'],
   'saisie-mises':       ['mises','clients','commerciaux','primesPaliers','versements'],
   'saisie-adhesions':   ['adhesionPays','clients','commerciaux'],
   'com-clients':        ['clients','paiements','commerciaux'],
@@ -3796,9 +3878,23 @@ function _queryForCol(col) {
   // premier snapshot du listener ne coûte alors quasiment aucune lecture
   // facturée (au lieu de jusqu'à 200), au lieu de dupliquer le travail déjà
   // payé par le getDocs() de chargement initial.
-  if (_maxTsLoaded[col]) {
+  // ✅ FIX SYNCHRO (v3) — BUG TROUVÉ : _maxTsLoaded[col] était calculé à
+  // partir de la PREMIÈRE PAGE seulement (pagination par __name__, un ordre
+  // arbitraire sans rapport avec le temps), pas de la collection entière.
+  // Pour une grosse collection (ex: paiements à 1M docs) où l'admin n'a
+  // encore chargé que 500 docs sur 1 000 000, ce "max" n'est qu'un
+  // timestamp pris au hasard — souvent bien plus ancien que le vrai document
+  // le plus récent. Le résultat : la requête where('_ts','>',cutoff) SANS
+  // LIMITE pouvait alors tenter de suivre en temps réel des centaines de
+  // milliers de documents d'un coup → ralentissement sévère de la synchro
+  // et du navigateur.
+  // Correction : on ne fait confiance à _maxTsLoaded que si la collection a
+  // été chargée EN ENTIER (_loadedCols.has(col) — donc que le max est bien
+  // le vrai maximum, pas celui d'un échantillon), et on borne systématiquement
+  // la requête par _LISTENER_WINDOW dans tous les cas.
+  if (_maxTsLoaded[col] && _loadedCols.has(col)) {
     const cutoff = Timestamp.fromMillis(_maxTsLoaded[col]);
-    return query(colRef, where('_ts', '>', cutoff), orderBy('_ts', 'asc'));
+    return query(colRef, where('_ts', '>', cutoff), orderBy('_ts', 'desc'), limit(_LISTENER_WINDOW));
   }
   return query(colRef, orderBy('_ts', 'desc'), limit(_LISTENER_WINDOW));
 }
@@ -4876,6 +4972,13 @@ window.sauvegarderEditionClient = async function(){
     const doublon=DB.clients.find(c=>c._id!==cid&&c.codeClient&&c.codeClient.toUpperCase()===newCode);
     if(doublon){notify(`Code "${newCode}" déjà utilisé par ${doublon.nom}`,'err');return;}
   }
+  // ✅ FIX : les clients importés peuvent porter un champ caché
+  // 'cotisationJourFixe' (fixé une fois à l'import) que jm() priorise
+  // toujours sur montantTotal/duree. Ce formulaire modifie justement
+  // montantTotal/duree — sans effacer cotisationJourFixe, la nouvelle
+  // cotisation calculée ici (affichée dans l'aperçu ci-dessus) ne
+  // s'appliquerait jamais réellement. On l'efface donc à chaque
+  // modification du contrat pour que le nouveau montant/durée fasse foi.
   await fbUpdate('clients',cid,{
     codeClient:newCode, nom, tel,
     ville:document.getElementById('edit-cl-ville').value,
@@ -4885,7 +4988,8 @@ window.sauvegarderEditionClient = async function(){
     debut, note:document.getElementById('edit-cl-note').value,
     commercialId:document.getElementById('edit-cl-com').value,
     adhesion:parseFloat(document.getElementById('edit-cl-adhesion').value)||0,
-    adhesionStatut:document.getElementById('edit-cl-adhesion-statut').value
+    adhesionStatut:document.getElementById('edit-cl-adhesion-statut').value,
+    cotisationJourFixe: null
   });
   closeM('m-edit-client');
   notify(`Client ${nom} mis à jour ✓`);
@@ -6376,7 +6480,44 @@ function dessinerBarresStatuts(){
   });
 }
 
-function renderAdminDash(){
+let _dashQueryToken = 0;
+async function renderAdminDash(){
+  // ── FIX : les totaux ("CA total recouvré", collecte du mois) ne doivent
+  // plus dépendre de la collection paiements entièrement chargée en mémoire
+  // (jusqu'à 1M de documents). On va chercher : le total global via une
+  // agrégation serveur (1 seul nombre transféré), et le détail du mois en
+  // cours via une requête à plage de dates (volume raisonnable, avec le
+  // détail nécessaire pour la répartition par commercial).
+  const myDashToken = ++_dashQueryToken;
+  const comIdsForAgence = dashAgenceFilter
+    ? DB.commerciaux.filter(c=>c.agenceId===dashAgenceFilter).map(c=>c._id)
+    : null;
+  // ── FIX GRAPHIQUES : dessinerBarresMensuelles (12 derniers mois) et
+  // dessinerCourbeCollecte (dashPeriod derniers jours) filtraient DB.paiements
+  // en mémoire, qui ne contenait par défaut que la première page (500 docs
+  // arbitraires) pour admin/secrétaire — donc des graphiques faux ou vides
+  // dès que la collection dépasse cette taille. On charge maintenant la
+  // fenêtre de dates réellement nécessaire (12 mois glissants, ou plus si
+  // dashPeriod est réglé plus large) directement depuis Firestore.
+  const _joursHistorique = Math.max(366, dashPeriod);
+  const _dateDebutHisto = new Date(TODAY+'T12:00:00');
+  _dateDebutHisto.setDate(_dateDebutHisto.getDate() - _joursHistorique);
+  const dateDebutHisto = _dateDebutHisto.toISOString().split('T')[0];
+
+  const mois0 = TODAY.slice(0,7);
+  let totalGlobalServer, moisPaysServer, tPaysServer;
+  try {
+    [totalGlobalServer, moisPaysServer, tPaysServer] = await Promise.all([
+      _sumPaiementsMontant(comIdsForAgence),
+      _fetchPaiementsDateRange(dateDebutHisto, TODAY),
+      _fetchColByDate('paiements', TODAY)
+    ]);
+  } catch(e) {
+    notify('Erreur de chargement du tableau de bord : '+(e.message||String(e)), 'err');
+    return;
+  }
+  if (myDashToken !== _dashQueryToken) return; // filtre agence changé entre-temps
+
   // ── Chips de filtre agence ──
   const chipsEl = document.getElementById('dash-agence-chips');
   if(chipsEl){
@@ -6410,12 +6551,13 @@ function renderAdminDash(){
     });
   }
 
-  const mois=TODAY.slice(0,7);
-  const pays = dashPays();
+  const mois=mois0;
   const clients = dashClients();
-  const mPays=pays.filter(p=>p.date&&p.date.startsWith(mois));
-  const tPays=pays.filter(p=>p.date===TODAY);
-  const totalGlobal=pays.reduce((a,p)=>a+p.montant,0);
+  const comIdsSet = comIdsForAgence ? new Set(comIdsForAgence) : null;
+  const moisCourantPays = moisPaysServer.filter(p=>p.date && p.date.startsWith(mois));
+  const mPays = comIdsSet ? moisCourantPays.filter(p=>comIdsSet.has(p.commercialId)) : moisCourantPays;
+  const tPays = comIdsSet ? tPaysServer.filter(p=>comIdsSet.has(p.commercialId)) : tPaysServer;
+  const totalGlobal = totalGlobalServer;
   const actifs=clients.filter(c=>stats(c).pct<100);
   const agLabel = dashAgenceFilter ? (DB.agences.find(a=>a._id===dashAgenceFilter)||{nom:'?'}).nom : 'Toutes les agences';
 
@@ -8273,7 +8415,23 @@ window.onClFilterChange = function(){
   renderTousCls();
 };
 
-function renderTousCls(){
+let _clientsLazyLoadToken = 0;
+async function renderTousCls(){
+  // ── FIX PERFORMANCE : 'clients' (jusqu'à 30 000 docs) n'est plus chargé
+  // automatiquement à l'ouverture de la page — seulement ici, la première
+  // fois qu'une recherche/filtre est réellement utilisé(e). Grâce au cache
+  // (_CACHE_TTL_MS), les recherches suivantes ne re-téléchargent rien.
+  const myToken = ++_clientsLazyLoadToken;
+  const tb = document.getElementById('tb-tous-cl');
+  if (tb && !DB.clients?.length) tb.innerHTML = '<tr><td colspan="9" class="emp">⏳ Chargement des clients…</td></tr>';
+  try {
+    await ensureCollectionsLoaded(['clients']);
+  } catch(e) {
+    if (tb) tb.innerHTML = `<tr><td colspan="9" class="emp">Erreur de chargement : ${esc(e.message||String(e))}</td></tr>`;
+    return;
+  }
+  if (myToken !== _clientsLazyLoadToken) return; // une recherche plus récente a été lancée
+
   const sel=document.getElementById('filter-com');
   const prev=sel.value;
   // Remplir le select commercial
@@ -8473,7 +8631,8 @@ window.annulerControle = async function(cid){
   renderControle();
 };
 
-function renderHist(){
+let _histDateQueryToken = 0;
+async function renderHist(){
   const el = document.getElementById('h-date');
   const fd = el ? el.value : TODAY;
   // Peupler le select commercial si vide
@@ -8488,6 +8647,34 @@ function renderHist(){
     comSel.onchange = function(){ comSel._lastVal = this.value; renderHist(); };
   }
   const filtreComId = comSel ? comSel.value : '';
+
+  // ── FIX : même correction que registre/fiche — quand une date précise est
+  // sélectionnée (cas le plus courant, y compris pour retrouver un paiement
+  // à supprimer), on va chercher les paiements de CETTE date directement
+  // sur Firestore, au lieu de filtrer DB.paiements qui peut être incomplet
+  // (grosse collection chargée par pages arbitraires). Sans quoi un paiement
+  // existant peut ne jamais apparaître dans la liste — impossible à trouver
+  // ni à supprimer, même s'il existe bien côté serveur.
+  const myHistToken = ++_histDateQueryToken;
+  const tbHist = document.getElementById('tb-hist');
+  if (fd) {
+    if (tbHist) tbHist.innerHTML = `<tr><td colspan="8" class="emp">⏳ Chargement…</td></tr>`;
+    try {
+      await Promise.all([
+        _fetchColByDate('paiements', fd),
+        fd !== TODAY ? _fetchColByDate('paiements', TODAY) : Promise.resolve()
+      ]);
+    } catch(e) {
+      if (tbHist) tbHist.innerHTML = `<tr><td colspan="8" class="emp">Erreur de chargement : ${esc(e.message||String(e))}</td></tr>`;
+      return;
+    }
+    if (myHistToken !== _histDateQueryToken) return; // date changée entre-temps
+  }
+  // NB : si aucune date n'est sélectionnée ("tous les paiements"), la vue
+  // reste basée sur ce qui est déjà chargé en mémoire (comportement inchangé
+  // — afficher l'historique complet sans filtre de date nécessiterait de
+  // parcourir la collection entière, ce qui est un problème à part).
+
   let pays = paiementsDansAgence();
   if(fd) pays = pays.filter(p=>p.date===fd);
   if(filtreComId) pays = pays.filter(p=>p.commercialId===filtreComId);
@@ -8660,7 +8847,7 @@ window.setRegistreAgenceFilter = function(id){
   renderRegistre();
 };
 
-function renderRegistre(){
+async function renderRegistre(){
   const date=document.getElementById('reg-date').value;
   if(!date){document.getElementById('reg-content').innerHTML='<div class="emp" style="padding:50px">Sélectionnez une date.</div>';return;}
   const dateStr=new Date(date+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
@@ -8674,13 +8861,33 @@ function renderRegistre(){
   // ── Rendre les chips de filtre (admin seulement) ──
   renderRegistreAgenceChips();
 
+  // ── FIX : chargement ciblé depuis Firestore pour CETTE date, au lieu de
+  // filtrer DB.paiements/DB.adhesionPays qui peuvent être incomplets pour
+  // de grosses collections chargées par pages. Garantit un registre du jour
+  // toujours exact. Un jeton évite d'afficher un résultat périmé si
+  // l'utilisateur change de date pendant le chargement.
+  const myToken = ++_dateQueryToken;
+  const contentEl = document.getElementById('reg-content');
+  if (contentEl) contentEl.innerHTML = '<div class="emp" style="padding:50px">⏳ Chargement des données du jour…</div>';
+  let paysDate, adhDate;
+  try {
+    [paysDate, adhDate] = await Promise.all([
+      _fetchColByDate('paiements', date),
+      _fetchColByDate('adhesionPays', date)
+    ]);
+  } catch(e) {
+    if (contentEl) contentEl.innerHTML = '<div class="emp" style="padding:50px">Erreur de chargement : '+esc(e.message||String(e))+'</div>';
+    return;
+  }
+  if (myToken !== _dateQueryToken) return; // une requête plus récente a été lancée entre-temps
+
   // ── Paiements cotisations du jour ──
   // Filtrage : si effectiveAgenceId, garder seulement les coms de cette agence
   let allComs = DB.commerciaux.filter(c=>c.role!=='admin');
   if(effectiveAgenceId) allComs = allComs.filter(c=>c.agenceId===effectiveAgenceId);
   const comIds = new Set(allComs.map(c=>c._id));
 
-  const pays = DB.paiements.filter(p=>p.date===date && p.origine!=='import_historique' && comIds.has(p.commercialId));
+  const pays = paysDate.filter(p=>p.origine!=='import_historique' && comIds.has(p.commercialId));
   const totalCotis=pays.reduce((a,p)=>a+p.montant,0);
   const coms = allComs;
 
@@ -8688,9 +8895,7 @@ function renderRegistre(){
   let clientsAgence = DB.clients.filter(c=>comIds.has(c.commercialId));
   const clientIdsAgence = new Set(clientsAgence.map(c=>c._id));
 
-  const adhJour = (DB.adhesionPays||[]).filter(a=>
-    a.date === date && clientIdsAgence.has(a.clientId)
-  );
+  const adhJour = adhDate.filter(a=> clientIdsAgence.has(a.clientId));
   const totalAdh = adhJour.reduce((a,x)=>a+Number(x.montant||0),0);
   const totalJour = totalCotis + totalAdh;
 
@@ -9234,16 +9439,31 @@ window.confirmerTransfert = async function(){
   else notify(`&#10003; ${ok} client(s) transférés vers ${dest.nom}`);
 };
 
-function renderRec(){
+let _recDateQueryToken = 0;
+async function renderRec(){
+  // ── FIX : même correction que renderRegistre/renderFiche — les paiements
+  // du jour doivent venir directement de Firestore, pas d'un filtrage sur
+  // DB.paiements qui peut être incomplet pour une grosse collection.
+  const myRecToken = ++_recDateQueryToken;
+  let tpAll;
+  try {
+    tpAll = await _fetchColByDate('paiements', TODAY);
+  } catch(e) {
+    const tb = document.getElementById('tb-rec');
+    if (tb) tb.innerHTML = `<tr><td colspan="8" class="emp">Erreur de chargement : ${esc(e.message||String(e))}</td></tr>`;
+    return;
+  }
+  if (myRecToken !== _recDateQueryToken) return;
+
   const cls=DB.clients.filter(c=>c.commercialId===session.userId&&stats(c).pct<100);
-  const tp=DB.paiements.filter(p=>p.date===TODAY&&cls.some(c=>c._id===p.clientId));
+  const tp=tpAll.filter(p=>cls.some(c=>c._id===p.clientId));
   const coll=tp.reduce((a,p)=>a+p.montant,0);
   const cotisTotal=cls.reduce((a,c)=>a+stats(c).m,0);
   document.getElementById('rec-info').innerHTML=
     `📅 <strong>${new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})}</strong><br>
      Cotisations attendues : <strong>${fmt(cotisTotal)}</strong> &nbsp;|&nbsp; Collecté : <strong style="color:var(--accent2)">${fmt(coll)}</strong> &nbsp;|&nbsp; <strong>${new Set(tp.map(p=>p.clientId)).size}/${cls.length}</strong> clients`;
   document.getElementById('tb-rec').innerHTML=cls.map(c=>{
-    const s=stats(c);const pt=DB.paiements.find(p=>p.clientId===c._id&&p.date===TODAY);
+    const s=stats(c);const pt=tp.find(p=>p.clientId===c._id);
     return`<tr>
       <td><div class="fw6">${esc(c.nom)}</div><div class="tm" style="font-size:10px">${esc(c.ville)} · ${esc(c.quartier)}</div>${c.codeClient?`<span style="font-size:9px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.3);border-radius:4px;padding:0 4px;color:var(--accent);font-weight:700;">${c.codeClient}</span>`:''}</td>
       <td>${esc(c.tel)}</td><td style="font-size:11px">${esc(c.contrat)}</td>
@@ -9256,7 +9476,23 @@ function renderRec(){
   }).join('')||'<tr><td colspan="8" class="emp">Aucun client actif.</td></tr>';
 }
 
-function renderFiche(){
+// Récupère les clients d'UN commercial directement depuis Firestore, sans
+// charger toute la collection (utile pour 'fiche' où admin/secrétaire ne
+// regardent qu'un commercial à la fois, mais où _PAGE_DEPS chargeait avant
+// les 30 000 clients de la base entière pour n'en afficher qu'une poignée).
+async function _fetchClientsByCommercial(comId) {
+  if (!db_fs) return (DB.clients||[]).filter(c=>c.commercialId===comId);
+  const colRef = collection(db_fs, 'clients');
+  const snap = await getDocs(query(colRef, where('commercialId','==', comId)));
+  const docs = snap.docs.map(d => ({...d.data(), _id: d.id}));
+  if (!DB.clients) DB.clients = [];
+  const existing = new Map(DB.clients.map(d => [d._id, d]));
+  docs.forEach(d => existing.set(d._id, d));
+  DB.clients = [...existing.values()];
+  return docs;
+}
+
+async function renderFiche(){
   const role = session.role;
   const isViewer = (role==='admin'||role==='secretaire');
 
@@ -9306,9 +9542,30 @@ function renderFiche(){
       btnVerse.style.display='none';
     }
   }
+  // ── FIX : mêmes raisons que renderRegistre — paiements/adhésions de CETTE
+  // date, et clients DU commercial sélectionné, sont chargés directement
+  // depuis Firestore plutôt que filtrés depuis DB.paiements/DB.clients qui
+  // supposeraient les collections entières (jusqu'à 1M / 30 000 docs) déjà
+  // chargées en mémoire.
+  const myFicheToken = ++_ficheDateQueryToken;
+  const ficheContentEl = document.getElementById('fiche-content');
+  if (ficheContentEl) ficheContentEl.innerHTML = '<div class="emp" style="padding:40px">⏳ Chargement des données du jour…</div>';
+  let paysDateFiche, adhDateFiche, clsFiche;
+  try {
+    [paysDateFiche, adhDateFiche, clsFiche] = await Promise.all([
+      _fetchColByDate('paiements', fd),
+      _fetchColByDate('adhesionPays', fd),
+      _fetchClientsByCommercial(comId)
+    ]);
+  } catch(e) {
+    if (ficheContentEl) ficheContentEl.innerHTML = '<div class="emp" style="padding:40px">Erreur de chargement : '+esc(e.message||String(e))+'</div>';
+    return;
+  }
+  if (myFicheToken !== _ficheDateQueryToken) return; // requête plus récente entre-temps
+
   const com=getCom(comId);
-  const cls=DB.clients.filter(c=>c.commercialId===comId);
-  const pays=DB.paiements.filter(p=>p.date===fd&&p.origine!=='import_historique'&&cls.some(c=>c._id===p.clientId));
+  const cls=clsFiche;
+  const pays=paysDateFiche.filter(p=>p.origine!=='import_historique'&&cls.some(c=>c._id===p.clientId));
   let clientsPayeurs=cls.filter(c=>pays.some(p=>p.clientId===c._id));
   // Trier par heure de saisie du paiement (du plus ancien au plus récent)
   clientsPayeurs = clientsPayeurs.slice().sort((c1,c2)=>{
@@ -9323,7 +9580,7 @@ function renderFiche(){
   const nouveauxClients = cls.filter(c=>(c.debut===fd || c.createdAt===fd) && c.origine!=='import');
   // Adhésions encaissées ce jour (table adhesionPays), triées par heure de saisie croissante
   const clientIdsComm = new Set(cls.map(c=>c._id));
-  const adhJourFiche = (DB.adhesionPays||[]).filter(a=>a.date===fd && clientIdsComm.has(a.clientId))
+  const adhJourFiche = adhDateFiche.filter(a=>clientIdsComm.has(a.clientId))
     .slice().sort((a,b)=>(a.heure||'').localeCompare(b.heure||''));
   const totalAdhesions = adhJourFiche.reduce((a,x)=>a+Number(x.montant||0),0);
   // Total général = cotisations + adhésions
