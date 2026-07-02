@@ -1627,6 +1627,9 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         <select id="h-filter-com" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 10px;color:var(--text);font-size:11px;outline:none;min-width:130px;" onchange="renderHist()">
           <option value="">Tous les commerciaux</option>
         </select>
+        <input type="text" id="h-search" placeholder="🔍 Nom, code, contrat..." oninput="renderHist()"
+          style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 12px;color:var(--text);font-size:11px;outline:none;min-width:180px;">
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('h-search').value='';renderHist()" style="font-size:10px;color:var(--muted);" title="Effacer la recherche">✕</button>
       </div>
     </div>
     <div id="h-visu-label" style="font-size:11px;color:var(--muted);margin-bottom:8px;padding:0 2px;"></div>
@@ -8812,9 +8815,17 @@ async function renderHist(){
   // — afficher l'historique complet sans filtre de date nécessiterait de
   // parcourir la collection entière, ce qui est un problème à part).
 
+  const histSearch = (document.getElementById('h-search')?.value || '').toLowerCase().trim();
   let pays = paiementsDansAgence();
   if(fd) pays = pays.filter(p=>p.date===fd);
   if(filtreComId) pays = pays.filter(p=>p.commercialId===filtreComId);
+  if(histSearch) pays = pays.filter(p=>{
+    const cl = getCl(p.clientId);
+    return (cl.nom||'').toLowerCase().includes(histSearch)
+      || (cl.codeClient||'').toLowerCase().includes(histSearch)
+      || (cl.contrat||'').toLowerCase().includes(histSearch)
+      || (cl.tel||'').includes(histSearch);
+  });
   pays = [...pays].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   const tot = pays.reduce((a,p)=>a+p.montant,0);
   const tp = paiementsDansAgence().filter(p=>p.date===TODAY);
@@ -8822,13 +8833,14 @@ async function renderHist(){
   const labelEl = document.getElementById('h-visu-label');
   if(labelEl){
     const comLabel = filtreComId ? ` · <strong style="color:var(--accent)">${(DB.commerciaux.find(c=>c._id===filtreComId)||{nom:'?'}).nom}</strong>` : '';
+    const searchLabel = histSearch ? ` · <strong style="color:var(--accent2)">🔍 "${histSearch}"</strong>` : '';
     if(fd){
       const d = new Date(fd+'T12:00:00');
       const ds = d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
       const isToday = fd===TODAY;
-      labelEl.innerHTML = `<span style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.25);border-radius:6px;padding:3px 10px;">&#128197; ${ds}${isToday?' <strong style="color:var(--accent2)"> — Aujourd\'hui</strong>':''}${comLabel}</span>`;
+      labelEl.innerHTML = `<span style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.25);border-radius:6px;padding:3px 10px;">&#128197; ${ds}${isToday?' <strong style="color:var(--accent2)"> — Aujourd\'hui</strong>':''}${comLabel}${searchLabel}</span>`;
     } else {
-      labelEl.innerHTML = `<span style="background:rgba(247,201,79,0.1);border:1px solid rgba(201,168,76,0.25);border-radius:6px;padding:3px 10px;color:var(--accent);">&#128203; Tous les paiements — ${pays.length} entr&eacute;e(s)${comLabel}</span>`;
+      labelEl.innerHTML = `<span style="background:rgba(247,201,79,0.1);border:1px solid rgba(201,168,76,0.25);border-radius:6px;padding:3px 10px;color:var(--accent);">&#128203; Tous les paiements — ${pays.length} entr&eacute;e(s)${comLabel}${searchLabel}</span>`;
     }
   }
   document.getElementById('h-kpi').innerHTML=`
