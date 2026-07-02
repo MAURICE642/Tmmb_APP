@@ -3406,6 +3406,20 @@ const _loadedCols = new Set();
 // demande, sans payer ce coût pour tout le monde à chaque ouverture de page.
 const _PAGE_SIZE = 500;
 
+// ── FIX FIABILITÉ (admin/secrétaire/contrôleur) ──────────────────
+// 'clients' et 'paiements' alimentent des vues qui doivent être exactes
+// (dashboard, registre, historique, recouvrement...) : on les charge donc
+// intégralement en boucle automatique dès qu'on en a besoin, au lieu de
+// s'arrêter après une seule page de _PAGE_SIZE et d'attendre un clic manuel
+// sur "charger plus". Les autres grosses collections (pointsJour,
+// versements, stockMvts...) restent en pagination manuelle pour contenir le
+// coût, car elles ne sont pas utilisées pour des totaux affichés partout.
+const _AUTO_FULL_LOAD_COLS = new Set(['clients','paiements']);
+// Garde-fou : nombre max de pages chargées en boucle synchrone en un seul
+// appel (évite de bloquer l'UI si le volume est extrême). Si dépassé, le
+// reste se charge en tâche de fond via un rappel automatique.
+const _MAX_AUTO_PAGES = 10;
+
 // ── PERF / COÛT : fenêtre du listener temps réel admin (collections volumineuses) ──
 // Le chargement initial complet (pagination "charger plus") utilise _PAGE_SIZE (2000)
 // pour parcourir tout l'historique. Le LISTENER temps réel, lui, n'a besoin de
@@ -3594,32 +3608,59 @@ async function _loadCol(col) {
       const cached = _cacheRead(col);
       if (cached) { DB[col] = cached; _loadedCols.add(col); return; }
     }
-    // Chargement paginé (2000 à la fois) — les données précédentes sont conservées
+    // Chargement paginé (500 à la fois) — les données précédentes sont conservées
     if (!DB[col]) DB[col] = [];
-    let q;
-    const cursor = _pageCursors[col];
-    if (cursor) {
-      q = query(colRef, orderBy('__name__'), startAfter(cursor), limit(_PAGE_SIZE));
-    } else {
-      q = query(colRef, orderBy('__name__'), limit(_PAGE_SIZE));
-    }
-    const snap = await getDocs(q);
-    const newDocs = snap.docs.map(d => ({...d.data(), _id: d.id}));
-    _trackMaxTs(col, newDocs); // ✅ FIX DOUBLE LECTURE : mémorise le _ts max déjà lu
 
-    // Fusionner sans doublons
-    const existing = new Map(DB[col].map(d => [d._id, d]));
-    newDocs.forEach(d => existing.set(d._id, d));
-    DB[col] = [...existing.values()];
+    // ✅ FIX FIABILITÉ : pour 'clients'/'paiements' (voir _AUTO_FULL_LOAD_COLS),
+    // on boucle sur les pages jusqu'à tout charger au lieu de s'arrêter après
+    // une seule page — sinon les vues (dashboard, registre, historique...)
+    // affichaient des totaux/listes calculés sur une fraction arbitraire des
+    // données tant que l'admin n'avait pas cliqué "charger plus" autant de
+    // fois que nécessaire.
+    const autoFull = _AUTO_FULL_LOAD_COLS.has(col);
+    let pagesLoaded = 0;
+    let fullyLoaded = false;
 
-    if (snap.docs.length === _PAGE_SIZE) {
-      // Il y a peut-être plus de données — sauvegarder le curseur
-      _pageCursors[col] = snap.docs[snap.docs.length - 1];
-    } else {
-      // Tout est chargé — on met en cache pour éviter de relire au prochain F5
-      delete _pageCursors[col];
-      _loadedCols.add(col);
-      _cacheWrite(col, DB[col]);
+    do {
+      let q;
+      const cursor = _pageCursors[col];
+      if (cursor) {
+        q = query(colRef, orderBy('__name__'), startAfter(cursor), limit(_PAGE_SIZE));
+      } else {
+        q = query(colRef, orderBy('__name__'), limit(_PAGE_SIZE));
+      }
+      const snap = await getDocs(q);
+      const newDocs = snap.docs.map(d => ({...d.data(), _id: d.id}));
+      _trackMaxTs(col, newDocs); // ✅ FIX DOUBLE LECTURE : mémorise le _ts max déjà lu
+
+      // Fusionner sans doublons
+      const existing = new Map(DB[col].map(d => [d._id, d]));
+      newDocs.forEach(d => existing.set(d._id, d));
+      DB[col] = [...existing.values()];
+
+      pagesLoaded++;
+
+      if (snap.docs.length === _PAGE_SIZE) {
+        // Il y a peut-être plus de données — sauvegarder le curseur
+        _pageCursors[col] = snap.docs[snap.docs.length - 1];
+      } else {
+        // Tout est chargé — on met en cache pour éviter de relire au prochain F5
+        delete _pageCursors[col];
+        _loadedCols.add(col);
+        _cacheWrite(col, DB[col]);
+        fullyLoaded = true;
+      }
+    } while (autoFull && !fullyLoaded && pagesLoaded < _MAX_AUTO_PAGES);
+
+    // Garde-fou atteint mais il reste des pages : on continue en tâche de
+    // fond (sans bloquer l'appel courant) et on rafraîchit l'affichage à la
+    // volée quand ces pages supplémentaires arrivent.
+    if (autoFull && !fullyLoaded && _pageCursors[col]) {
+      setTimeout(() => {
+        _loadCol(col).then(() => {
+          if (session && curPg) renderPg(curPg);
+        });
+      }, 50);
     }
   }
 }
@@ -9719,7 +9760,7 @@ async function renderFiche(){
 
   const com=getCom(comId);
   const cls=clsFiche;
-  const pays=paysDateFiche.filter(p=>p.origine!=='import_historique'&&cls.some(c=>c._id===p.clientId));
+  const pays=paysDateFiche.filter(p=>p.origine!=='import_historique'&&p.commercialId===comId);
   let clientsPayeurs=cls.filter(c=>pays.some(p=>p.clientId===c._id));
   // Trier par heure de saisie du paiement (du plus ancien au plus récent)
   clientsPayeurs = clientsPayeurs.slice().sort((c1,c2)=>{
