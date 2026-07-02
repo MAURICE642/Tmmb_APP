@@ -5282,12 +5282,17 @@ window.sauvegarderModifContrat = async function(){
   const nouvelleNote = noteExistante ? noteExistante + "\n" + noteHistorique : noteHistorique;
 
   // ── Enregistrer ──
+  // ✅ FIX : un client importé porte parfois un champ caché 'cotisationJourFixe'
+  // (fixé une fois à l'import) que jm() priorise toujours sur montantTotal/duree.
+  // On l'efface donc ici aussi (comme dans sauvegarderEditionClient) pour que la
+  // cotisation journalière suive bien le nouveau montant/durée du contrat modifié.
   await fbUpdate("clients", cid, {
     contrat: ct,
     montantTotal: mt,
     duree: dur,
     contratArticles: _mcArticles.map(a=>({artId:a.artId,nom:a.nom,qty:a.qty,pv:a.pv})),
-    note: nouvelleNote
+    note: nouvelleNote,
+    cotisationJourFixe: null
   });
 
   closeM("m-modif-contrat");
