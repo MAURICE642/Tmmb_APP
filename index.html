@@ -3863,7 +3863,7 @@ const DELAY_RENDER_DEBOUNCE_MS = 300; // debounce re-render onSnapshot
 // recouvrement.
 const _LIVE_SYNC_PAGES = new Set(['registre','fiche','historique','recouvrement']);
 let _liveSyncBadgeTimer = null;
-function _signalLiveSync(pageId) {
+function _signalLiveSync(pageId, pending) {
   if (!_LIVE_SYNC_PAGES.has(pageId)) return;
   let badge = document.getElementById('_live-sync-badge');
   if (!badge) {
@@ -3872,24 +3872,53 @@ function _signalLiveSync(pageId) {
     badge.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;'
       + 'background:rgba(34,212,160,0.95);color:#0a0e17;font-size:12px;font-weight:700;'
       + 'padding:8px 14px;border-radius:20px;box-shadow:0 4px 16px rgba(0,0,0,0.3);'
-      + 'display:flex;align-items:center;gap:6px;opacity:0;transition:opacity 0.25s;pointer-events:none;';
-    badge.innerHTML = '<span style="width:8px;height:8px;border-radius:50%;background:#0a0e17;display:inline-block;"></span><span id="_live-sync-badge-txt"></span>';
+      + 'display:flex;align-items:center;gap:6px;opacity:0;transition:opacity 0.3s;pointer-events:none;';
+    badge.innerHTML = '<span id="_live-sync-dot" style="width:8px;height:8px;border-radius:50%;background:#0a0e17;display:inline-block;"></span><span id="_live-sync-badge-txt"></span>';
     document.body.appendChild(badge);
   }
   const now = new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-  document.getElementById('_live-sync-badge-txt').textContent = `Donnée du terrain synchronisée — ${now}`;
+  if (pending) {
+    // Mise à jour reçue mais pas encore affichée (utilisateur actif)
+    document.getElementById('_live-sync-badge-txt').textContent = `Mise à jour terrain en attente — ${now}`;
+    badge.style.background = 'rgba(201,168,76,0.95)';
+  } else {
+    // Rendu effectué — données à jour
+    document.getElementById('_live-sync-badge-txt').textContent = `Terrain synchronisé — ${now}`;
+    badge.style.background = 'rgba(34,212,160,0.95)';
+  }
   badge.style.opacity = '1';
   if (_liveSyncBadgeTimer) clearTimeout(_liveSyncBadgeTimer);
-  _liveSyncBadgeTimer = setTimeout(() => { badge.style.opacity = '0'; }, 3000);
+  _liveSyncBadgeTimer = setTimeout(() => { badge.style.opacity = '0'; }, 3500);
 }
 
 const _renderDebounceTimers = new Map();
+// ✅ FIX CLIGNOTEMENT : le re-rendu complet à chaque synchro terrain
+// effaçait/réécrivait tout le DOM → clignotement visible et désagréable.
+// Solution : on diffère le re-rendu pendant que l'utilisateur est actif
+// (mouvement souris / frappe clavier récente dans les 4 dernières secondes).
+// Dès qu'il s'arrête, le rendu se fait silencieusement. Le badge de synchro
+// reste affiché sans déclencher de re-rendu parasite.
+let _lastUserActivity = 0;
+['mousemove','keydown','touchstart','scroll'].forEach(ev =>
+  document.addEventListener(ev, () => { _lastUserActivity = Date.now(); }, {passive:true})
+);
+function _isUserActive() { return Date.now() - _lastUserActivity < 4000; }
+
 function _debouncedRenderPg(id) {
   if (_renderDebounceTimers.has(id)) clearTimeout(_renderDebounceTimers.get(id));
-  _renderDebounceTimers.set(id, setTimeout(() => {
-    _renderDebounceTimers.delete(id);
-    if (session && curPg === id) { renderPg(id); _signalLiveSync(id); }
-  }, DELAY_RENDER_DEBOUNCE_MS));
+  const attempt = () => {
+    if (!session || curPg !== id) return;
+    if (_isUserActive()) {
+      // L'utilisateur est actif : signaler "en attente" et reporter de 1s
+      _signalLiveSync(id, true);
+      _renderDebounceTimers.set(id, setTimeout(attempt, 1000));
+    } else {
+      _renderDebounceTimers.delete(id);
+      renderPg(id);
+      _signalLiveSync(id, false);
+    }
+  };
+  _renderDebounceTimers.set(id, setTimeout(attempt, DELAY_RENDER_DEBOUNCE_MS));
 }
 
 // ── Listeners temps-réel persistants, indexés par collection ──
