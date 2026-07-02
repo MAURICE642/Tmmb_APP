@@ -2907,6 +2907,10 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     <div class="ib ib-yellow" style="font-size:12px;margin-bottom:12px;">
       Montant fixe : <strong style="font-size:14px;">200 FCFA</strong> — Adhésion unique à vie, irréversible.
     </div>
+    <div class="fr" id="m-adh-date-row" style="display:none;">
+      <label>Date d'encaissement <span style="color:var(--accent);font-size:10px;">(Admin uniquement)</span></label>
+      <input type="date" id="m-adh-date">
+    </div>
     <div class="fr">
       <label>Note (optionnel)</label>
       <input type="text" id="m-adh-note" placeholder="ex: Encaissé en main propre...">
@@ -9086,11 +9090,9 @@ async function renderRegistre(){
   const totalCotis=pays.reduce((a,p)=>a+p.montant,0);
   const coms = allComs;
 
-  // ── Adhésions du jour : clients des commerciaux filtrés ──
-  let clientsAgence = DB.clients.filter(c=>comIds.has(c.commercialId));
-  const clientIdsAgence = new Set(clientsAgence.map(c=>c._id));
-
-  const adhJour = adhDate.filter(a=> clientIdsAgence.has(a.clientId));
+  // ── Adhésions du jour : filtrées par a.commercialId (même logique que cotisations)
+  // FIX: évite dépendance à DB.clients potentiellement incomplet
+  const adhJour = adhDate.filter(a=> comIds.has(a.commercialId));
   const totalAdh = adhJour.reduce((a,x)=>a+Number(x.montant||0),0);
   const totalJour = totalCotis + totalAdh;
 
@@ -9099,15 +9101,17 @@ async function renderRegistre(){
     const paysC = pays.filter(p=>p.commercialId===c._id);
     const montantCotis = paysC.reduce((a,p)=>a+p.montant,0);
     // Adhésions liées aux clients de ce commercial
-    const clientsC = DB.clients.filter(cl=>cl.commercialId===c._id).map(cl=>cl._id);
-    const montantAdh = adhJour.filter(a=>clientsC.includes(a.clientId)).reduce((a,x)=>a+Number(x.montant||0),0);
+    // FIX: adhésions filtrées par a.commercialId (comme cotisations)
+    // évite dépendance à DB.clients potentiellement incomplet en mémoire
+    const adhC = adhJour.filter(a=>a.commercialId===c._id);
+    const montantAdh = adhC.reduce((a,x)=>a+Number(x.montant||0),0);
     return{
       com: c,
       montantCotis,
       montantAdh,
       montantTotal: montantCotis + montantAdh,
       nbPaiements: paysC.length,
-      nbAdhesions: adhJour.filter(a=>clientsC.includes(a.clientId)).length,
+      nbAdhesions: adhC.length,
       nbClients: new Set(paysC.map(p=>p.clientId)).size
     };
   }).filter(d=>d.montantTotal>0).sort((a,b)=>b.montantTotal-a.montantTotal);
@@ -9774,8 +9778,8 @@ async function renderFiche(){
   // Nouveaux clients enregistrés ce jour par ce commercial
   const nouveauxClients = cls.filter(c=>(c.debut===fd || c.createdAt===fd) && c.origine!=='import');
   // Adhésions encaissées ce jour (table adhesionPays), triées par heure de saisie croissante
-  const clientIdsComm = new Set(cls.map(c=>c._id));
-  const adhJourFiche = adhDateFiche.filter(a=>clientIdsComm.has(a.clientId))
+  // FIX: adhésions filtrées par a.commercialId (aligné avec registre)
+  const adhJourFiche = adhDateFiche.filter(a=>a.commercialId===comId)
     .slice().sort((a,b)=>(a.heure||'').localeCompare(b.heure||''));
   const totalAdhesions = adhJourFiche.reduce((a,x)=>a+Number(x.montant||0),0);
   // Total général = cotisations + adhésions
@@ -12673,6 +12677,16 @@ window.ouvrirEncaissementAdh = function(clientId){
   document.getElementById('m-adh-client-info').innerHTML =
     `<strong>Client :</strong> ${c.nom} ${c.codeClient?'<span style="color:var(--accent);font-weight:700;">('+c.codeClient+')</span>':''}<br>
      <strong>Commercial :</strong> ${getCom(c.commercialId).nom}`;
+  // Champ date visible uniquement pour l'admin (pour antidater un encaissement)
+  const dateRow = document.getElementById('m-adh-date-row');
+  const dateInput = document.getElementById('m-adh-date');
+  if(session.role === 'admin'){
+    dateRow.style.display = '';
+    dateInput.value = TODAY;
+  } else {
+    dateRow.style.display = 'none';
+    dateInput.value = TODAY;
+  }
   openM('m-encaisser-adh');
 };
 
@@ -12686,14 +12700,18 @@ window.confirmerEncaissementAdh = async function(){
   if(!(await confirmDialog(`Client : ${c.nom}\nMontant : 200 FCFA\n\nCet encaissement ne peut pas être annulé.`,{title:'⚠️ Confirmation irréversible',okLabel:'Confirmer',danger:true}))) return;
   const now = new Date();
   const heure = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+  // Admin peut choisir une date différente d'aujourd'hui
+  const dateChoisie = (session.role === 'admin' && document.getElementById('m-adh-date')?.value)
+    ? document.getElementById('m-adh-date').value
+    : TODAY;
   await fbUpdate('clients', clientId, {adhesionStatut:'paye', adhesion:200});
   await fbAdd('adhesionPays',{
     clientId,
     commercialId: c.commercialId,
     montant: 200,
-    date: TODAY,
-    heure,
-    note: note || 'Adhésion encaissée — saisie adhésions',
+    date: dateChoisie,
+    heure: dateChoisie === TODAY ? heure : '00:00',
+    note: note || ('Adhésion encaissée — saisie adhésions' + (dateChoisie !== TODAY ? ' (date modifiée par admin)' : '')),
     saisiParId: session.userId,
     saisiParNom: session.nom,
     verrouille: true
