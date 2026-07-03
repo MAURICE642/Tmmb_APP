@@ -3743,7 +3743,14 @@ async function _fetchColByDate(col, date) {
     return (DB[col]||[]).filter(d => d.date === date);
   }
   const colRef = collection(db_fs, col);
-  const snap = await getDocs(query(colRef, where('date','==', date)));
+  // FIX TIMEOUT : limite la requête à 15 secondes pour éviter un blocage infini.
+  // Si Firestore ne répond pas (réseau lent, règles bloquantes, index manquant),
+  // on affiche un message d'erreur clair plutôt que rester bloqué indéfiniment.
+  const fetchPromise = getDocs(query(colRef, where('date','==', date)));
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('Délai dépassé (15s) — vérifiez votre connexion ou les règles Firestore')), 15000)
+  );
+  const snap = await Promise.race([fetchPromise, timeoutPromise]);
   const docs = snap.docs.map(d => ({...d.data(), _id: d.id}));
   // Fusion (sans doublons) dans DB[col] : le reste de l'appli qui lit
   // DB[col] bénéficie aussi de données fraîches pour cette date.
@@ -9146,6 +9153,9 @@ async function renderRegistre(){
     // évite dépendance à DB.clients potentiellement incomplet en mémoire
     const adhC = adhJour.filter(a=>a.commercialId===c._id);
     const montantAdh = adhC.reduce((a,x)=>a+Number(x.montant||0),0);
+    // FIX: nbClients ne compte que les clientId présents dans DB.clients
+    // pour aligner le registre sur la même logique que la fiche journalière
+    const clientIdsComC = new Set(DB.clients.filter(cl=>cl.commercialId===c._id).map(cl=>cl._id));
     return{
       com: c,
       montantCotis,
@@ -9153,7 +9163,7 @@ async function renderRegistre(){
       montantTotal: montantCotis + montantAdh,
       nbPaiements: paysC.length,
       nbAdhesions: adhC.length,
-      nbClients: new Set(paysC.map(p=>p.clientId)).size
+      nbClients: new Set(paysC.map(p=>p.clientId).filter(id=>clientIdsComC.has(id))).size
     };
   }).filter(d=>d.montantTotal>0).sort((a,b)=>b.montantTotal-a.montantTotal);
 
@@ -9302,7 +9312,7 @@ async function renderRegistre(){
       </thead>
       <tbody>
         ${adhJour.map((a,i)=>{
-          const cl = clientsAgence.find(c=>c._id===a.clientId)||{};
+          const cl = DB.clients.find(c=>c._id===a.clientId)||{};
           const com = coms.find(c=>c._id===a.commercialId)||{};
           const bg = i%2===1?'background:rgba(26,32,53,0.35)':'';
           return '<tr style="border-top:1px solid var(--border);'+bg+'">'
