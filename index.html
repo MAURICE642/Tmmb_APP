@@ -628,6 +628,11 @@ td{padding:9px 12px;font-size:12px;}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;}
 .mo{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:500;align-items:center;justify-content:center;}
 .mo.open{display:flex;}
+.img-lightbox{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.94);z-index:900;align-items:center;justify-content:center;cursor:zoom-out;}
+.img-lightbox.open{display:flex;}
+.img-lightbox img{max-width:92vw;max-height:88vh;object-fit:contain;border-radius:6px;box-shadow:0 10px 40px rgba(0,0,0,0.5);cursor:default;}
+.img-lightbox-close{position:absolute;top:16px;right:18px;background:rgba(255,255,255,0.12);border:none;border-radius:50%;width:38px;height:38px;color:#fff;font-size:20px;cursor:pointer;line-height:38px;text-align:center;}
+.img-lightbox-close:hover{background:rgba(255,255,255,0.22);}
 .md{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;width:500px;max-width:96vw;max-height:92vh;overflow-y:auto;}
 .md-lg{width:680px;}
 .md-title{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:600;margin-bottom:12px;}
@@ -3119,11 +3124,17 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
 </div>
 
 <!-- MODAL ZOOM PRODUIT -->
+<!-- LIGHTBOX PHOTO PLEIN ÉCRAN -->
+<div class="img-lightbox" id="m-img-lightbox" onclick="closeImageLightbox(event)">
+  <button class="img-lightbox-close" onclick="closeImageLightbox(event)">✕</button>
+  <img id="img-lightbox-img" src="" alt="">
+</div>
+
 <div class="mo" id="m-prod-zoom">
   <div class="md md-lg" style="padding:0;overflow:hidden;border-radius:16px;">
     <!-- Image -->
     <div id="pz-img-wrap" style="width:100%;height:220px;background:var(--surface2);display:flex;align-items:center;justify-content:center;position:relative;flex-shrink:0;">
-      <img id="pz-img" style="width:100%;height:100%;object-fit:cover;display:none;">
+      <img id="pz-img" style="width:100%;height:100%;object-fit:cover;display:none;cursor:zoom-in;" onclick="openImageLightbox(document.getElementById('pz-img').src, event)">
       <div id="pz-noimg" style="font-size:72px;">📦</div>
       <button onclick="closeM('m-prod-zoom')" style="position:absolute;top:10px;right:12px;background:rgba(0,0,0,0.55);border:none;border-radius:50%;width:30px;height:30px;color:#fff;font-size:16px;cursor:pointer;line-height:30px;text-align:center;">✕</button>
     </div>
@@ -6987,7 +6998,7 @@ function renderProduits() {
     const stock = prodStockTheorique(comp);
     const stockBadge = prodStockBadge(stock);
     const imgHtml = p.imageUrl
-      ? `<img src="${p.imageUrl}" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-size:56px;">📦</div>`
+      ? `<img src="${p.imageUrl}" style="width:100%;height:100%;object-fit:cover;cursor:zoom-in;" onclick="openImageLightbox('${p.imageUrl}', event)" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-size:56px;">📦</div>`
       : `<div style="font-size:56px;">📦</div>`;
     const nbArts = comp.length;
     return `<div class="prod-card" onclick="ouvrirZoomProduit('${p._id}')">
@@ -11049,6 +11060,20 @@ window.openM = function(id){
   }
 };
 window.closeM = function(id){ document.getElementById(id).classList.remove('open'); };
+
+// ── Visionneuse photo plein écran (galerie) ───────────────────
+window.openImageLightbox = function(url, ev){
+  if(ev) ev.stopPropagation();
+  if(!url) return;
+  const img = document.getElementById('img-lightbox-img');
+  img.src = url;
+  document.getElementById('m-img-lightbox').classList.add('open');
+};
+window.closeImageLightbox = function(ev){
+  if(ev) ev.stopPropagation();
+  document.getElementById('m-img-lightbox').classList.remove('open');
+  document.getElementById('img-lightbox-img').src = '';
+};
 document.querySelectorAll('.mo').forEach(m=>m.addEventListener('click',e=>{ if(e.target===m) m.classList.remove('open'); }));
 
 // ── Confirmation personnalisée (remplace window.confirm() — point 8 de l'audit) ──
