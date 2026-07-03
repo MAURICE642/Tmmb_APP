@@ -5774,8 +5774,8 @@ window.doLogout = function(){
   fillLogin();
 };
 
-// ========= TIMEOUT DE SESSION (inactivité 30 min) =========
-const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+// ========= TIMEOUT DE SESSION (inactivité 60 min) =========
+const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 60 minutes
 let _sessionTimer = null;
 let _sessionWarningTimer = null;
 let _tokenRefreshInterval = null; // Point 5 : rafraîchissement proactif du token
