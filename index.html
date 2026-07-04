@@ -5774,8 +5774,8 @@ window.doLogout = function(){
   fillLogin();
 };
 
-// ========= TIMEOUT DE SESSION (inactivité 60 min) =========
-const SESSION_TIMEOUT_MS = 60 * 60 * 1000; // 60 minutes
+// ========= TIMEOUT DE SESSION (inactivité 30 min) =========
+const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 let _sessionTimer = null;
 let _sessionWarningTimer = null;
 let _tokenRefreshInterval = null; // Point 5 : rafraîchissement proactif du token
@@ -8489,9 +8489,13 @@ function renderLivraisons(){
   // ── Peupler select commerciaux selon agence sélectionnée ──
   const selCom = document.getElementById('filter-liv-com');
   const agId = selAgence?.value || '';
-  const comsSource = agId
-    ? DB.commerciaux.filter(c => c.role === 'commercial' && c.agenceId === agId)
-    : comsDansAgence().filter(c => c.role === 'commercial');
+  // Tous les membres du staff de l'agence (tous rôles confondus) — sert au filtre agence,
+  // car une livraison peut être saisie par un commercial, une secrétaire ou un chef d'agence.
+  const staffAgenceTous = agId
+    ? DB.commerciaux.filter(c => c.agenceId === agId)
+    : comsDansAgence();
+  // Sous-ensemble "commercial" uniquement — sert seulement à peupler le select de choix.
+  const comsSource = staffAgenceTous.filter(c => c.role === 'commercial');
   const prevCom = selCom?.value || '';
   if(selCom){
     selCom.innerHTML = '<option value="">Tous les commerciaux</option>' +
@@ -8518,9 +8522,10 @@ function renderLivraisons(){
   // ── Base de livraisons (filtrée par agence de session) ──
   let livs = livraisonsDansAgence();
 
-  // Appliquer filtre agence (admin seulement, via commerciaux de l'agence)
+  // Appliquer filtre agence (admin seulement) — on utilise TOUS les rôles de l'agence,
+  // pas seulement 'commercial', sinon les livraisons saisies par secretaire/chef_agence disparaissent.
   if(agId){
-    const comIdsAgence = comsSource.map(c => c._id);
+    const comIdsAgence = staffAgenceTous.map(c => c._id);
     livs = livs.filter(l => comIdsAgence.includes(l.commercialId));
   }
 
