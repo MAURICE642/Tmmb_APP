@@ -1738,9 +1738,15 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
           <!-- Champ date personnalisée — admin uniquement -->
           <div id="mise-date-admin-zone" style="display:none;margin-bottom:14px;">
             <label style="display:block;font-size:9.5px;color:var(--warn);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">📅 Date de la mise (admin)</label>
-            <input type="date" id="mise-date-admin"
+            <input type="date" id="mise-date-admin" onchange="_miseToggleMotifCorrection()"
               style="width:100%;background:var(--surface2);border:2px solid rgba(212,137,58,0.5);border-radius:8px;padding:9px 12px;color:var(--text);font-size:14px;font-weight:600;outline:none;font-family:'Space Grotesk',sans-serif;">
             <div style="font-size:10px;color:var(--warn);margin-top:4px;opacity:0.8;">⚠️ Réservé à l'administrateur. Laisser la date du jour si aucune modification nécessaire.</div>
+          </div>
+          <div id="mise-motif-correction-zone" style="display:none;margin-bottom:14px;">
+            <label style="display:block;font-size:9.5px;color:var(--danger);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Motif de la correction (obligatoire)</label>
+            <input type="text" id="mise-motif-correction" placeholder="ex: erreur de saisie du 03/07, régularisation..."
+              style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:13px;outline:none;">
+            <div style="font-size:10px;color:var(--muted);margin-top:4px;">⚠️ Sera affiché comme correction admin — visible par le commercial, avec la date réelle de saisie et votre nom.</div>
           </div>
           <div id="mise-saisie-warn" style="display:none;margin-bottom:10px;"></div>
           <button onclick="enregistrerMiseSaisie()" style="width:100%;padding:14px;font-size:15px;font-weight:700;font-family:'Space Grotesk',sans-serif;background:linear-gradient(135deg,#15803d,#22d4a0);border:none;border-radius:9px;color:#fff;cursor:pointer;transition:opacity 0.15s;" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
@@ -2143,7 +2149,12 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     <div class="fr"><label>Montant reçu (FCFA)</label><input type="number" id="pay-amt" placeholder="0"></div>
     <div class="fr" id="pay-date-row" style="display:none;">
       <label>Date du paiement <span style="color:var(--accent);font-size:9px;">(admin uniquement)</span></label>
-      <input type="date" id="pay-date" style="height:29px;">
+      <input type="date" id="pay-date" style="height:29px;" onchange="_payToggleMotifCorrection()">
+    </div>
+    <div class="fr" id="pay-motif-row" style="display:none;">
+      <label>Motif de la correction <span style="color:var(--danger);font-size:9px;">(obligatoire — visible par le commercial)</span></label>
+      <input type="text" id="pay-motif-correction" placeholder="ex: erreur de saisie du 03/07, régularisation suite appel client...">
+      <div style="font-size:10px;color:var(--muted);margin-top:3px;">⚠️ Cette saisie sera clairement identifiée comme une <strong>correction admin</strong> dans le registre et la fiche du commercial, avec la date réelle de saisie, votre nom et ce motif.</div>
     </div>
     <div class="fr"><label>Note (optionnel)</label><input type="text" id="pay-note" placeholder="ex: 2 cotisations..."></div>
     <!-- Bouton modifier contrat — admin uniquement -->
@@ -4904,7 +4915,7 @@ window.ouvrirFicheClient = function(cid){
     const niveauApres = niveauxMap.get(key);
     const niveauLabel = niveauApres !== undefined ? joursEnJM(niveauApres) : '—';
     const niveauColor = niveauApres !== undefined && niveauApres >= dureeContrat ? 'var(--accent2)' : 'var(--accent)';
-    return`<tr><td>${esc(p.date)}</td><td class="tm">${esc(p.heure||'—')}</td><td><span class="cotis-badge" style="font-size:10px">💰 ${fmt(p.cotisJour||s.m)}</span></td><td style="color:var(--accent2);font-weight:700">${fmt(p.montant)}</td><td>${ratio(p.montant,p.cotisJour||s.m)}</td><td style="font-size:12px;font-weight:700;color:${niveauColor};white-space:nowrap;">${niveauLabel}<span style="font-size:9px;color:var(--muted);font-weight:400;"> /${joursEnJM(dureeContrat)}</span></td><td style="font-size:10px;color:var(--muted)">${esc(p.saisiParNom||p.saisieParNom||'—')}${locked?' 🔒':''}</td><td class="tm" style="font-size:10px">${esc(p.note||'—')}</td></tr>`;
+    return`<tr><td>${esc(p.date)}</td><td class="tm">${esc(p.heure||'—')}</td><td><span class="cotis-badge" style="font-size:10px">💰 ${fmt(p.cotisJour||s.m)}</span></td><td style="color:var(--accent2);font-weight:700">${fmt(p.montant)}</td><td>${ratio(p.montant,p.cotisJour||s.m)}</td><td style="font-size:12px;font-weight:700;color:${niveauColor};white-space:nowrap;">${niveauLabel}<span style="font-size:9px;color:var(--muted);font-weight:400;"> /${joursEnJM(dureeContrat)}</span></td><td style="font-size:10px;color:var(--muted)">${esc(p.saisiParNom||p.saisieParNom||'—')}${locked?' 🔒':''}${badgeCorrection(p)}</td><td class="tm" style="font-size:10px">${esc(p.note||'—')}</td></tr>`;
   }).join('')||'<tr><td colspan="8" class="emp">Aucun paiement</td></tr>';
 
   // Livraisons
@@ -5084,7 +5095,7 @@ window.ouvrirEditionClient = function(cid){
   document.getElementById('edit-cl-adhesion').value=c.adhesion||0;
   document.getElementById('edit-cl-adhesion-statut').value=c.adhesionStatut||'non_paye';
   document.getElementById('edit-cl-note').value=c.note||'';
-  document.getElementById('edit-cl-com').innerHTML=comsDansAgence().filter(x=>x.role!=='admin').map(x=>`<option value="${x._id}"${x._id===c.commercialId?' selected':''}>${esc(x.nom)}</option>`).join('');
+  document.getElementById('edit-cl-com').innerHTML=comsDansAgence().filter(x=>x.role==='commercial').map(x=>`<option value="${x._id}"${x._id===c.commercialId?' selected':''}>${esc(x.nom)}</option>`).join('');
   document.getElementById('edit-cl-calc-info').style.display='none';
   calcJourEdit();
   openM('m-edit-client');
@@ -5469,6 +5480,18 @@ window.supprimerClient = async function(cid){
 
 // ========= HELPERS =========
 function fmt(n){ return Number(n||0).toLocaleString('fr-FR')+' FCFA'; }
+
+// ── Badge "correction admin" — jamais caché, toujours visible partout où
+// le paiement/l'adhésion apparaît (fiche du jour, registre, historique).
+// Affiche la date réelle de saisie, l'auteur et le motif au survol.
+function badgeCorrection(p){
+  if(!p || !p.estCorrection) return '';
+  const auteur = p.saisiParNom || 'admin';
+  const dateReelle = p.dateSaisieReelle || '';
+  const motif = (p.motifCorrection || '').replace(/"/g,'&quot;');
+  const titre = `Correction saisie le ${dateReelle} par ${auteur}. Motif : ${motif}`;
+  return `<span title="${titre}" style="display:inline-flex;align-items:center;gap:3px;margin-left:5px;background:rgba(224,92,82,0.12);border:1px solid rgba(247,97,79,0.4);border-radius:10px;padding:1px 7px;font-size:9px;font-weight:700;color:var(--danger);white-space:nowrap;">🔧 Correction</span>`;
+}
 
 // ─── Debounce générique pour les champs de recherche/filtre ───
 // Évite de re-render toute la liste à CHAQUE frappe clavier : on attend
@@ -6276,9 +6299,7 @@ function renderPg(id){
     // Peupler le select, puis afficher le prompt (pas tous les clients d'un coup)
     const sel=document.getElementById('filter-com');
     if(sel){
-      const comsVisibles = session?.role==='secretaire'
-        ? comsDansAgence().filter(c=>c.role==='commercial')
-        : comsDansAgence().filter(c=>c.role!=='admin');
+      const comsVisibles = comsDansAgence().filter(c=>c.role==='commercial');
       const prev=sel.value;
       sel.innerHTML=`<option value="">— Sélectionner un commercial —</option>`+comsVisibles.map(c=>`<option value="${c._id}"${c._id===prev?' selected':''}>${esc(c.nom)}</option>`).join('');
       sel.value=prev;
@@ -8563,11 +8584,21 @@ function renderLivraisons(){
   // ── Base de livraisons (filtrée par agence de session) ──
   let livs = livraisonsDansAgence();
 
-  // Appliquer filtre agence (admin seulement) — on utilise TOUS les rôles de l'agence,
-  // pas seulement 'commercial', sinon les livraisons saisies par secretaire/chef_agence disparaissent.
+  // Appliquer filtre agence (admin seulement) — ⚠️ IMPORTANT : on filtre sur
+  // l'agence DU CLIENT livré, pas sur le commercialId enregistré dans la
+  // livraison. Ce dernier correspond à la personne qui a SAISI la livraison
+  // (souvent l'admin/secrétaire), qui n'appartient à aucune agence — filtrer
+  // dessus faisait disparaître à tort toutes les livraisons saisies par un
+  // admin/secrétaire, alors que le client livré appartient bel et bien à
+  // l'agence sélectionnée.
   if(agId){
-    const comIdsAgence = staffAgenceTous.map(c => c._id);
-    livs = livs.filter(l => comIdsAgence.includes(l.commercialId));
+    const clientIdsAgence = new Set(
+      DB.clients.filter(c => {
+        const com = DB.commerciaux.find(cc => cc._id === c.commercialId);
+        return com && com.agenceId === agId;
+      }).map(c => c._id)
+    );
+    livs = livs.filter(l => clientIdsAgence.has(l.clientId));
   }
 
   // Filtre date
@@ -8703,10 +8734,8 @@ async function renderTousCls(){
 
   const sel=document.getElementById('filter-com');
   const prev=sel.value;
-  // Remplir le select commercial
-  const comsVisibles = session?.role==='secretaire'
-    ? comsDansAgence().filter(c=>c.role==='commercial')
-    : comsDansAgence().filter(c=>c.role!=='admin');
+  // Remplir le select commercial — uniquement des commerciaux (pas chef d'agence/secrétaire/contrôleur)
+  const comsVisibles = comsDansAgence().filter(c=>c.role==='commercial');
   // Conserver la valeur sélectionnée
   const prevVal = sel.value;
   sel.innerHTML=`<option value="">— Sélectionner un commercial —</option>`+comsVisibles.map(c=>`<option value="${c._id}"${c._id===prevVal?' selected':''}>${esc(c.nom)}</option>`).join('');
@@ -8817,7 +8846,7 @@ function renderControle(){
   const selCom = document.getElementById('ctrl-filter-com');
   if(selCom){
     const prevVal = selCom.value;
-    const comsVisibles = comsDansAgence().filter(c=>c.role!=='admin');
+    const comsVisibles = comsDansAgence().filter(c=>c.role==='commercial');
     selCom.innerHTML = `<option value="">— Tous les commerciaux —</option>`+comsVisibles.map(c=>`<option value="${c._id}"${c._id===prevVal?' selected':''}>${esc(c.nom)}</option>`).join('');
     selCom.value = prevVal;
   }
@@ -9433,7 +9462,7 @@ async function renderRegistre(){
             +'<td style="padding:8px 12px;"><span style="font-size:10px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.3);border-radius:4px;padding:0 6px;color:var(--accent);font-weight:700;">'+esc(cl.codeClient||'—')+'</span></td>'
             +'<td style="padding:8px 12px;font-weight:600;font-size:12px;">'+esc(cl.nom||'—')+'</td>'
             +'<td style="padding:8px 12px;font-size:11px;color:var(--muted);">'+esc(com.nom||'—')+'</td>'
-            +'<td style="padding:8px 12px;font-size:11px;color:var(--muted);">'+esc(a.heure||'—')+'</td>'
+            +'<td style="padding:8px 12px;font-size:11px;color:var(--muted);">'+esc(a.heure||'—')+badgeCorrection(a)+'</td>'
             +'<td style="padding:8px 12px;text-align:right;font-weight:800;font-size:13px;color:var(--accent);">'+fmt(a.montant)+'</td>'
             +'</tr>';
         }).join('')}
@@ -10024,7 +10053,7 @@ async function renderFiche(){
             +'<td><span style="font-size:10px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.3);border-radius:4px;padding:0 5px;color:var(--accent);font-weight:700;">'+(c.codeClient||'—')+'</span></td>'
             +'<td class="fw6">'+c.nom+'</td>'
             +'<td style="font-weight:700;color:var(--accent)">'+fmt(s.m)+'</td>'
-            +'<td style="color:var(--muted);font-size:11px">'+(pay.heure||'—')+'</td>'
+            +'<td style="color:var(--muted);font-size:11px">'+(pay.heure||'—')+badgeCorrection(pay)+'</td>'
             +'<td style="font-weight:700;color:var(--accent2)">'+fmt(pay.montant)+'</td>'
             +'<td>'+ratio(pay.montant,s.m)+'</td>'
             +'<td style="white-space:nowrap;">'+niveauLabel+'</td>'
@@ -10058,7 +10087,7 @@ async function renderFiche(){
             return '<tr>'
               +'<td><span style="font-size:10px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.3);border-radius:4px;padding:0 5px;color:var(--accent);font-weight:700;">'+(c.codeClient||'—')+'</span></td>'
               +'<td class="fw6">'+(c.nom||'—')+'</td>'
-              +'<td style="color:var(--muted);font-size:11px">'+(a.heure||'—')+'</td>'
+              +'<td style="color:var(--muted);font-size:11px">'+(a.heure||'—')+badgeCorrection(a)+'</td>'
               +'<td style="font-weight:800;color:var(--accent);">'+fmt(a.montant)+'</td>'
               +'<td style="font-size:10px;color:var(--muted)">'+(a.note||'—')+'</td>'
               +'</tr>';
@@ -10225,11 +10254,25 @@ window.openPay = function(cid){
     dateRow.style.display='none';
     dateInput.value=effectiveDate;
   }
+  const motifRow = document.getElementById('pay-motif-row');
+  const motifInput = document.getElementById('pay-motif-correction');
+  if(motifRow) motifRow.style.display='none';
+  if(motifInput) motifInput.value='';
   openM('m-pay');
 };
 
+// ── Affiche le champ "motif de correction" dès que l'admin/chef d'agence
+// choisit une date différente d'aujourd'hui. Rend la correction visible
+// et justifiée plutôt que silencieuse.
+window._payToggleMotifCorrection = function(){
+  const dateInput = document.getElementById('pay-date');
+  const motifRow = document.getElementById('pay-motif-row');
+  if(!dateInput || !motifRow) return;
+  motifRow.style.display = (dateInput.value && dateInput.value !== TODAY) ? '' : 'none';
+};
+
 window.savePay = async function(){
-  if(!['admin','commercial'].includes(session?.role)){ notify('Accès refusé','err'); return; }
+  if(!['admin','commercial','chef_agence'].includes(session?.role)){ notify('Accès refusé','err'); return; }
   if(!payCtx) return;
   // ── Bloquer si contrat résilié ──
   const _clResilie = getCl(payCtx);
@@ -10252,13 +10295,51 @@ window.savePay = async function(){
   const note=document.getElementById('pay-note').value||'';
   const autoNote=amt===s.m?note:`${Math.round(amt/s.m*10)/10}x cotisation${note?', '+note:''}`;
   const now=new Date();
+  const heureSaisie = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
   // L'admin peut choisir la date, le commercial utilise la date effective (J ou J+1 si point versé)
-  const payDate = ['admin','chef_agence'].includes(session.role)
+  const isCorrecteur = ['admin','chef_agence'].includes(session.role);
+  const payDate = isCorrecteur
     ? (document.getElementById('pay-date').value || TODAY)
     : getDateEffectiveCommercial(session.userId);
+
+  // ── Correction à une date antérieure : transparente, jamais silencieuse ──
+  // On exige un motif, on garde la date réelle de saisie (aujourd'hui) et on
+  // marque clairement l'enregistrement comme correction : il apparaîtra
+  // dans le registre/la fiche du jour concerné avec un badge visible par
+  // le commercial, la date réelle de saisie et le nom de l'auteur.
+  const estCorrection = isCorrecteur && payDate !== TODAY;
+  let motifCorrection = '';
+  if(estCorrection){
+    motifCorrection = (document.getElementById('pay-motif-correction')?.value || '').trim();
+    if(!motifCorrection){
+      notify('Motif de la correction obligatoire — expliquez pourquoi cette saisie est datée différemment.','err');
+      return;
+    }
+  }
+
+  const paiementData = {
+    clientId:payCtx,
+    commercialId:isCorrecteur?c.commercialId:session.userId,
+    cotisJour:s.m,
+    montant:amt,
+    date:payDate,
+    note:autoNote,
+    heure:heureSaisie,
+    saisiParId:session.userId,
+    saisiParNom:session.nom
+  };
+  if(estCorrection){
+    paiementData.estCorrection = true;
+    paiementData.dateSaisieReelle = TODAY;
+    paiementData.motifCorrection = motifCorrection;
+  }
+
   try{
-    await fbAdd('paiements',{clientId:payCtx,commercialId:['admin','chef_agence'].includes(session.role)?c.commercialId:session.userId,cotisJour:s.m,montant:amt,date:payDate,note:autoNote,heure:`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`});
-    closeM('m-pay');payCtx=null;notify(`Paiement de ${fmt(amt)} enregistré ✓`);
+    await fbAdd('paiements',paiementData);
+    closeM('m-pay');payCtx=null;
+    notify(estCorrection
+      ? `✅ Correction enregistrée sur le ${payDate} — visible dans le registre et la fiche du commercial`
+      : `Paiement de ${fmt(amt)} enregistré ✓`);
   }catch(e){
     console.error('Échec enregistrement paiement:', e);
     notify("Échec de l'enregistrement du paiement — vérifiez votre connexion et réessayez avant de fermer cette fenêtre.", 'err');
@@ -10326,7 +10407,7 @@ window.openDet = function(cid){
     const btnDelPai2 = (session&&['admin','chef_agence'].includes(session.role)&&!p.verrouille)
       ? `<td style="text-align:center;"><button onclick="delPaiement('${p._id}')" title="Supprimer ce paiement" style="background:rgba(224,92,82,0.12);border:1px solid rgba(224,92,82,0.35);border-radius:6px;padding:2px 7px;color:var(--danger);font-size:11px;cursor:pointer;" onmouseover="this.style.background='rgba(224,92,82,0.28)'" onmouseout="this.style.background='rgba(224,92,82,0.12)'">🗑</button></td>`
       : (session&&['admin','chef_agence'].includes(session.role) ? `<td style="text-align:center;"><button onclick="delPaiementVerrouille('${p._id}')" title="Paiement verrouillé — cliquer pour une suppression exceptionnelle" style="background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.3);border-radius:6px;padding:2px 7px;color:var(--accent);font-size:11px;cursor:pointer;">🔒</button></td>` : '<td></td>');
-    return`<tr><td>${p.date}</td><td class="tm">${p.heure||'—'}</td><td><span class="cotis-badge" style="font-size:10px">💰 ${fmt(p.cotisJour||s.m)}</span></td><td style="color:var(--accent2);font-weight:700">${fmt(p.montant)}</td><td>${ratio(p.montant,p.cotisJour||s.m)}</td><td style="font-size:12px;font-weight:700;color:${nivColor2};white-space:nowrap;">${nivLabel2}<span style="font-size:9px;color:var(--muted);font-weight:400;"> /${joursEnJM(duree2)}</span></td><td class="tm" style="font-size:10px">${p.note||'—'}${locked?'<span style="margin-left:4px;color:var(--accent2);" title="Saisi par commercial — verrouillé">🔒</span>':''}</td>${btnDelPai2}</tr>`;
+    return`<tr><td>${p.date}</td><td class="tm">${p.heure||'—'}</td><td><span class="cotis-badge" style="font-size:10px">💰 ${fmt(p.cotisJour||s.m)}</span></td><td style="color:var(--accent2);font-weight:700">${fmt(p.montant)}</td><td>${ratio(p.montant,p.cotisJour||s.m)}</td><td style="font-size:12px;font-weight:700;color:${nivColor2};white-space:nowrap;">${nivLabel2}<span style="font-size:9px;color:var(--muted);font-weight:400;"> /${joursEnJM(duree2)}</span></td><td class="tm" style="font-size:10px">${p.note||'—'}${locked?'<span style="margin-left:4px;color:var(--accent2);" title="Saisi par commercial — verrouillé">🔒</span>':''}${badgeCorrection(p)}</td>${btnDelPai2}</tr>`;
   }).join('')||`<tr><td colspan="${session&&['admin','chef_agence'].includes(session.role)?8:7}" class="emp">Aucun paiement</td></tr>`;
   const detPaysTh = document.getElementById('det-pays-th-actions');
   if(detPaysTh) detPaysTh.style.display = (session&&['admin','chef_agence'].includes(session.role)) ? '' : 'none';
@@ -10634,7 +10715,12 @@ window.saveLivraison = async function(){
       const warnings = await deduireStockLivraison(prod, qty, getCl(cId)?.nom||'');
       if(warnings.length) notify(`⚠️ Stock insuffisant sur : ${warnings.join(', ')}`,'warn');
     }
-    await fbAdd('livraisons',{clientId:cId,commercialId:session.userId,produitId:pId,qty,montant:montantFinal,pvFige:_prixFigeLiv,date,statut,note:document.getElementById('liv-note').value});
+    // ── commercialId = commercial RÉEL du client (garantit que la livraison
+    // reste toujours rattachée à la bonne agence, même quand c'est un
+    // admin/secrétaire/chef d'agence qui saisit l'opération). Qui a
+    // effectivement saisi la livraison reste tracé via saisiParId/saisiParNom.
+    const commercialReel = client ? (client.commercialId || session.userId) : session.userId;
+    await fbAdd('livraisons',{clientId:cId,commercialId:commercialReel,produitId:pId,qty,montant:montantFinal,pvFige:_prixFigeLiv,date,statut,note:document.getElementById('liv-note').value,saisiParId:session.userId,saisiParNom:session.nom});
     closeM('m-livraison');notify('Livraison enregistrée ✓');
   }catch(e){
     console.error('Échec enregistrement livraison:', e);
@@ -11084,7 +11170,7 @@ window.openM = function(id){
     document.getElementById('cl-adhesion-statut').value='non_paye';
     const clAdhRNP=document.getElementById('cl-adh-non-paye'); if(clAdhRNP) clAdhRNP.checked=true;
     document.getElementById('cl-calc-info').style.display='none';
-    document.getElementById('cl-com').innerHTML='<option value="">— Sélectionner —</option>'+comsDansAgence().filter(c=>c.role!=='admin').map(c=>`<option value="${c._id}">${esc(c.nom)}</option>`).join('');
+    document.getElementById('cl-com').innerHTML='<option value="">— Sélectionner —</option>'+comsDansAgence().filter(c=>c.role==='commercial').map(c=>`<option value="${c._id}">${esc(c.nom)}</option>`).join('');
     // Charger les articles multi-select
     resetArticlesAdded('cl');
   }
@@ -11376,7 +11462,7 @@ function prepareImportPreview(rows){
   if(errors>0){ document.getElementById('import-errors').style.display=''; document.getElementById('import-errors').textContent = errors+' lignes ignorées (nom manquant).'; }
   else { document.getElementById('import-errors').style.display='none'; }
   document.getElementById('import-com').innerHTML = '<option value="">— Sélectionner —</option>' +
-    DB.commerciaux.filter(c=>c.role!=='admin').map(c=>'<option value="'+c._id+'">'+c.nom+'</option>').join('');
+    DB.commerciaux.filter(c=>c.role==='commercial').map(c=>'<option value="'+c._id+'">'+c.nom+'</option>').join('');
 
   // Stats paiements
   const nbAvecCotisJ = importData.filter(r=>r.cotisationJour>0).length;
@@ -11990,7 +12076,7 @@ window.voirDetailComClient = function(cid){
   document.getElementById('det-pays-list').innerHTML=pays.map(p=>{
     const key3=p._id||(p.date+p.montant); const niv3=niveauxMap3.get(key3);
     const nivLabel3=niv3!==undefined?joursEnJM(niv3):'—'; const nivColor3=niv3!==undefined&&niv3>=duree3?'var(--accent2)':'var(--accent)';
-    return`<tr><td>${p.date}</td><td class="tm">${p.heure||'—'}</td><td><span class="cotis-badge" style="font-size:10px">💰 ${fmt(p.cotisJour||s.m)}</span></td><td style="color:var(--accent2);font-weight:700">${fmt(p.montant)}</td><td>${ratio(p.montant,p.cotisJour||s.m)}</td><td style="font-size:12px;font-weight:700;color:${nivColor3};white-space:nowrap;">${nivLabel3}<span style="font-size:9px;color:var(--muted);font-weight:400;"> /${joursEnJM(duree3)}</span></td><td class="tm" style="font-size:10px">${p.note||'—'}</td></tr>`;
+    return`<tr><td>${p.date}</td><td class="tm">${p.heure||'—'}</td><td><span class="cotis-badge" style="font-size:10px">💰 ${fmt(p.cotisJour||s.m)}</span></td><td style="color:var(--accent2);font-weight:700">${fmt(p.montant)}</td><td>${ratio(p.montant,p.cotisJour||s.m)}</td><td style="font-size:12px;font-weight:700;color:${nivColor3};white-space:nowrap;">${nivLabel3}<span style="font-size:9px;color:var(--muted);font-weight:400;"> /${joursEnJM(duree3)}</span></td><td class="tm" style="font-size:10px">${p.note||'—'}${badgeCorrection(p)}</td></tr>`;
   }).join('')||'<tr><td colspan="7" class="emp">Aucun paiement</td></tr>';
   const livs=DB.livraisons.filter(l=>l.clientId===cid).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   document.getElementById('det-liv-list').innerHTML=livs.map(l=>`<tr><td>${esc(l.date)}</td><td class="fw6">${esc(getProd(l.produitId).nom)}</td><td>${esc(String(l.qty||""))}</td><td>${fmt(l.montant)}</td><td>${livStatut(l.statut)}</td></tr>`).join('')||'<tr><td colspan="5" class="emp">Aucune livraison</td></tr>';
@@ -12265,7 +12351,18 @@ function renderSaisieMises(){
   const dateAdminInput = document.getElementById('mise-date-admin');
   if(dateAdminZone) dateAdminZone.style.display = (['admin','chef_agence'].includes(session.role)) ? '' : 'none';
   if(dateAdminInput) dateAdminInput.value = TODAY;
+  const motifZone0 = document.getElementById('mise-motif-correction-zone');
+  if(motifZone0) motifZone0.style.display = 'none';
 }
+
+// ── Affiche le champ "motif de correction" dès que l'admin/chef d'agence
+// choisit une date de mise différente d'aujourd'hui.
+window._miseToggleMotifCorrection = function(){
+  const dateInput = document.getElementById('mise-date-admin');
+  const motifZone = document.getElementById('mise-motif-correction-zone');
+  if(!dateInput || !motifZone) return;
+  motifZone.style.display = (dateInput.value && dateInput.value !== TODAY) ? '' : 'none';
+};
 
 window.miseLiveSearch = function(){
   const q = document.getElementById('mise-search-id').value.trim().toLowerCase();
@@ -12671,7 +12768,7 @@ function afficherRecu(data){
 }
 
 window.enregistrerMiseSaisie = async function(){
-  if(!['admin','commercial','secretaire'].includes(session?.role)){ notify('Accès refusé','err'); return; }
+  if(!['admin','commercial','secretaire','chef_agence'].includes(session?.role)){ notify('Accès refusé','err'); return; }
   if(!miseClientCtx){ notify("Sélectionnez un client d'abord",'err'); return; }
   const nb = parseInt(document.getElementById('mise-nb-cotis').value);
   if(!nb||nb<=0){ notify('Entrez un nombre de cotisations valide','err'); return; }
@@ -12687,7 +12784,7 @@ window.enregistrerMiseSaisie = async function(){
   }
   const montant = nb * jm(c);
   const note = document.getElementById('mise-saisie-note').value.trim();
-  // Date : l'admin peut choisir une date personnalisée
+  // Date : l'admin/chef d'agence peut choisir une date personnalisée
   let dateChoisie = TODAY;
   if(['admin','chef_agence'].includes(session.role)){
     const dateAdminVal = (document.getElementById('mise-date-admin')?.value || '').trim();
@@ -12695,20 +12792,42 @@ window.enregistrerMiseSaisie = async function(){
   }
   const now = new Date();
   const heure = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+  // ── Correction datée différemment d'aujourd'hui : motif obligatoire,
+  // jamais silencieuse. La date réelle de saisie et l'auteur restent
+  // toujours visibles dans le registre et la fiche du commercial.
+  const estCorrection = ['admin','chef_agence'].includes(session.role) && dateChoisie !== TODAY;
+  let motifCorrection = '';
+  if(estCorrection){
+    motifCorrection = (document.getElementById('mise-motif-correction')?.value || '').trim();
+    if(!motifCorrection){
+      notify('Motif de la correction obligatoire — expliquez pourquoi cette mise est datée différemment.','err');
+      return;
+    }
+  }
+
   // Confirmation irréversible obligatoire
-  const dateMention = dateChoisie !== TODAY ? `\nDate : ${dateChoisie} ⚠️ (date modifiée par l'admin)` : '';
+  const dateMention = dateChoisie !== TODAY ? `\nDate : ${dateChoisie} ⚠️ (correction admin — motif : ${motifCorrection})` : '';
   if(!(await confirmDialog(`Client : ${c.nom}\nCotisations : ${nb}x\nMontant : ${fmt(montant)}${dateMention}\n\nCe paiement ne pourra pas être modifié.`,{title:'⚠️ Confirmation irréversible',okLabel:'Confirmer le paiement',danger:true}))) return;
   try{
     // Enregistrer dans paiements (pas mises) — verrouillé (source: commercial)
-    await fbAdd('paiements',{
+    const paiementMiseData = {
       clientId:miseClientCtx, commercialId:c.commercialId,
       cotisJour:jm(c), montant, date:dateChoisie, heure,
-      note: note || `${nb} cotisation(s) — saisie ${session.role==='secretaire'?'secrétaire':session.role==='admin'?'admin':'commercial'}`,
-      nbCotis:nb, type:'mise', source:session.role==='secretaire'?'secretaire':session.role==='admin'?'admin':'commercial',
+      note: note || `${nb} cotisation(s) — saisie ${session.role==='secretaire'?'secrétaire':session.role==='admin'?'admin':session.role==='chef_agence'?'chef d\'agence':'commercial'}`,
+      nbCotis:nb, type:'mise', source:session.role==='secretaire'?'secretaire':session.role==='admin'?'admin':session.role==='chef_agence'?'chef_agence':'commercial',
       saisiParId:session.userId, saisiParNom:session.nom,
       verrouille:true
-    });
-    notify(`✅ ${nb} cotisation(s) enregistrée(s) — ${fmt(montant)} FCFA encaissé`,'ok');
+    };
+    if(estCorrection){
+      paiementMiseData.estCorrection = true;
+      paiementMiseData.dateSaisieReelle = TODAY;
+      paiementMiseData.motifCorrection = motifCorrection;
+    }
+    await fbAdd('paiements',paiementMiseData);
+    notify(estCorrection
+      ? `✅ Correction enregistrée sur le ${dateChoisie} — visible dans le registre et la fiche du commercial`
+      : `✅ ${nb} cotisation(s) enregistrée(s) — ${fmt(montant)} FCFA encaissé`,'ok');
   }catch(e){
     console.error('Échec enregistrement cotisation:', e);
     notify("Échec de l'enregistrement — vérifiez votre connexion avant de ressaisir, pour éviter un double paiement.", 'err');
@@ -12740,6 +12859,10 @@ window.enregistrerMiseSaisie = async function(){
   if(['admin','chef_agence'].includes(session.role)){
     const dateAdminInput = document.getElementById('mise-date-admin');
     if(dateAdminInput) dateAdminInput.value = TODAY;
+    const motifInput = document.getElementById('mise-motif-correction');
+    if(motifInput) motifInput.value = '';
+    const motifZone = document.getElementById('mise-motif-correction-zone');
+    if(motifZone) motifZone.style.display = 'none';
   }
   // ✅ Pour les commerciaux : formulaire entièrement vierge après confirmation
   // (déselectionne le client, vide la recherche) — évite tout risque de double saisie
@@ -12925,7 +13048,7 @@ window.confirmerEncaissementAdh = async function(){
 
 // ========= ENCAISSEMENT ADHÉSION — SAISIE MISES =========
 window.enregistrerAdhesionMise = async function(){
-  if(!['admin','commercial'].includes(session?.role)){ notify('Accès refusé','err'); return; }
+  if(!['admin','commercial','chef_agence'].includes(session?.role)){ notify('Accès refusé','err'); return; }
   if(!miseClientCtx){ notify("Sélectionnez un client d'abord",'err'); return; }
   const c = getCl(miseClientCtx);
   if(c.adhesionStatut === 'paye'){ notify('Adhésion déjà encaissée','err'); return; }
