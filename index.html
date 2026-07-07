@@ -4939,7 +4939,7 @@ window.ouvrirFicheClient = function(cid){
   // Bouton modifier contrat rapide
   const ficheContratBtn = document.getElementById('fiche-cl-contrat-btn');
   if(ficheContratBtn){
-    ficheContratBtn.style.display = ['admin','chef_agence'].includes(session.role) ? '' : 'none';
+    ficheContratBtn.style.display = ['admin','chef_agence','secretaire'].includes(session.role) ? '' : 'none';
     ficheContratBtn.onclick=()=>{closeM('m-fiche-client');ouvrirModifContrat(cid);};
   }
   openM('m-fiche-client');
@@ -8654,7 +8654,7 @@ function renderLivraisons(){
     <td><span class="tag">${com.nom}</span></td>
     <td style="font-size:11px">${a.nom}</td><td>${l.qty}</td><td>${fmt(l.montant)}</td><td>${livStatut(l.statut)}</td>
     <td>${(l.statut==='en_attente'&&['admin','secretaire'].includes(session.role))?`<button class="btn btn-success btn-xs" onclick="marquerLivre('${l._id}')" style="margin-right:3px">✓ Livré</button>`:''}
-    ${['admin','secretaire'].includes(session.role)?`<button class="btn btn-xs btn-warn" onclick="delLiv('${l._id}')">✕</button>`:livStatut(l.statut)}</td></tr>`;
+    ${(session.role==='admin'||(session.role==='secretaire'&&l.date===TODAY))?`<button class="btn btn-xs btn-warn" onclick="delLiv('${l._id}')">✕</button>`:livStatut(l.statut)}</td></tr>`;
   }).join('')||`<tr><td colspan="8" class="emp">${(q||filtDate||filtComId||filtStatut||agId)?'Aucune livraison pour ces filtres':'Aucune livraison'}</td></tr>`;
 }
 
@@ -8820,8 +8820,8 @@ async function renderTousCls(){
         ${session.role==='admin'||session.role==='commercial'||session.role==='chef_agence'?`<button class="btn btn-success btn-xs" onclick="openPay('${c._id}')" title="Payer">💰</button>`:''}
         ${['admin','chef_agence'].includes(session.role)&&c.adhesionStatut!=='paye'?`<button class="btn btn-xs" style="background:rgba(247,201,79,0.15);color:var(--accent);border:1px solid rgba(247,201,79,0.3)" onclick="openAdh('${c._id}')" title="Adhésion">🎫</button>`:''}
         <button class="btn btn-ghost btn-xs" onclick="ouvrirFicheClient('${c._id}')" title="Fiche complète">👁</button>
-        ${['admin','chef_agence'].includes(session.role)?`<button class="btn btn-xs" style="background:rgba(201,168,76,0.12);color:var(--accent);border:1px solid rgba(201,168,76,0.28)" onclick="ouvrirEditionClient('${c._id}')" title="Modifier">✏️</button>`:''}
-        ${['admin','chef_agence'].includes(session.role)?`<button class="btn btn-xs" style="background:rgba(56,201,160,0.12);color:var(--accent2);border:1px solid rgba(56,201,160,0.28)" onclick="ouvrirModifContrat('${c._id}')" title="Modifier le contrat">📝</button>`:''}
+        ${['admin','chef_agence','secretaire'].includes(session.role)?`<button class="btn btn-xs" style="background:rgba(201,168,76,0.12);color:var(--accent);border:1px solid rgba(201,168,76,0.28)" onclick="ouvrirEditionClient('${c._id}')" title="Modifier">✏️</button>`:''}
+        ${['admin','chef_agence','secretaire'].includes(session.role)?`<button class="btn btn-xs" style="background:rgba(56,201,160,0.12);color:var(--accent2);border:1px solid rgba(56,201,160,0.28)" onclick="ouvrirModifContrat('${c._id}')" title="Modifier le contrat">📝</button>`:''}
         ${['admin','chef_agence'].includes(session.role)?`<button class="btn btn-xs btn-warn" onclick="supprimerClient('${c._id}')" title="Supprimer">🗑</button>`:''}
       </td></tr>`;
   }).join('')||`<tr><td colspan="10" class="emp">${q?'Aucun client trouvé pour "'+q+'"':'Aucun client'}</td></tr>`;
@@ -10231,11 +10231,11 @@ window.openPay = function(cid){
   document.getElementById('pay-note').value='';
   // Bouton modifier contrat (admin uniquement)
   const editContratWrap = document.getElementById('pay-edit-contrat-wrap');
-  if(editContratWrap) editContratWrap.style.display = ['admin','chef_agence'].includes(session.role) ? '' : 'none';
+  if(editContratWrap) editContratWrap.style.display = ['admin','chef_agence','secretaire'].includes(session.role) ? '' : 'none';
   // Désactiver le bouton confirmer si contrat soldé (non-admin bloqué, admin peut forcer)
   const btnConfirm = document.getElementById('pay-btn-confirm');
   if(btnConfirm){
-    if(contratSolde && !['admin','chef_agence'].includes(session.role)){
+    if(contratSolde && !['admin','chef_agence','secretaire'].includes(session.role)){
       btnConfirm.disabled=true; btnConfirm.style.opacity='0.4'; btnConfirm.style.cursor='not-allowed';
       btnConfirm.title='Contrat soldé — modification du contrat requise';
     } else {
@@ -10865,7 +10865,17 @@ window.editArt = function(id){
   renderArtGalleryEdit();
   openM('m-article');
 };
-window.delLiv = async function(id){ if(!['admin','secretaire'].includes(session?.role)){ notify('Accès refusé','err'); return; } if(!(await confirmDialog('Supprimer cette livraison ?',{title:'🗑 Suppression',okLabel:'Supprimer',danger:true}))) return; await fbDelete('livraisons',id); notify('Livraison supprimée'); };
+window.delLiv = async function(id){
+  if(!['admin','secretaire'].includes(session?.role)){ notify('Accès refusé','err'); return; }
+  const liv = (DB.livraisons||[]).find(l=>l._id===id);
+  if(liv && liv.date && liv.date!==TODAY && session.role!=='admin'){
+    notify('🚫 Cette livraison a été effectuée un jour précédent — seul un administrateur peut la supprimer.','err');
+    return;
+  }
+  if(!(await confirmDialog('Supprimer cette livraison ?',{title:'🗑 Suppression',okLabel:'Supprimer',danger:true}))) return;
+  await fbDelete('livraisons',id);
+  notify('Livraison supprimée');
+};
 window.delCom = async function(id){
   // FIX 6 : seul l'admin peut supprimer un utilisateur
   if(session?.role !== 'admin'){ notify('Accès refusé — admin uniquement','err'); return; }
@@ -12313,8 +12323,8 @@ function renderSaisieMises(){
   document.getElementById('mise-saisie-warn').style.display = 'none';
   const nv = document.getElementById('mc-niveau-wrap'); if(nv) nv.innerHTML='';
   miseClientCtx = null;
-  // Admin, commercial ET secrétaire peuvent saisir des mises
-  const canSaisirMise = ['admin','commercial','secretaire'].includes(session.role);
+  // Admin, commercial, secrétaire ET chef d'agence peuvent saisir des mises
+  const canSaisirMise = ['admin','commercial','secretaire','chef_agence'].includes(session.role);
   const saisieForm = document.getElementById('mise-saisie-form-zone');
   const infoLecture = document.getElementById('mise-lecture-seule-info');
 
@@ -14133,7 +14143,7 @@ window.connecterImprimanteBT = async function(){
 
 // ═══════════════════════════════════════════════════════════
 //  TRANSFERT DE SOLDE & RÉSILIATION DE CONTRAT
-//  Accès : admin + secrétaire
+//  Accès : admin + secrétaire + chef d'agence
 //  Logique :
 //   1. Chercher client SOURCE → afficher solde total versé
 //   2. Chercher client DESTINATION → afficher montant contrat
@@ -14147,8 +14157,8 @@ let _trDstId = null;   // id client destination sélectionné
 // ── Accès guard ──────────────────────────────────────────────
 function _trCheckAccess(){
   if(!session){ notify('Non connecté','err'); return false; }
-  if(!['admin','secretaire'].includes(session.role)){
-    notify('Accès refusé — réservé admin & secrétaire','err');
+  if(!['admin','secretaire','chef_agence'].includes(session.role)){
+    notify('Accès refusé — réservé admin, secrétaire & chef d\'agence','err');
     go(getRoleHome(session.role));
     return false;
   }
