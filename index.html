@@ -5523,7 +5523,11 @@ window.supprimerAdhesionPay = async function(id, clientId){
       if(c) await fbUpdate('clients', clientId, {adhesionStatut:'non_paye'});
     }
     notify("Frais d'adhésion supprimé");
-    if(typeof ouvrirFicheClient==='function' && clientId) ouvrirFicheClient(clientId);
+    const ficheOpen = document.getElementById('m-fiche-client')?.classList.contains('open');
+    const detailOpen = document.getElementById('m-detail')?.classList.contains('open');
+    if(ficheOpen && typeof ouvrirFicheClient==='function' && clientId) ouvrirFicheClient(clientId);
+    if(detailOpen && typeof openDet==='function' && clientId) openDet(clientId);
+    if(typeof renderControle==='function') renderControle();
   }catch(e){
     console.error('Échec suppression adhésion:', e);
     notify("Échec de la suppression — vérifiez votre connexion.", 'err');
@@ -10567,7 +10571,8 @@ window.openDet = function(cid){
   const livs=DB.livraisons.filter(l=>l.clientId===cid).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   document.getElementById('det-liv-list').innerHTML=livs.map(l=>`<tr><td>${esc(l.date)}</td><td class="fw6">${esc(getProd(l.produitId).nom)}</td><td>${esc(String(l.qty||""))}</td><td>${fmt(l.montant)}</td><td>${livStatut(l.statut)}</td></tr>`).join('')||'<tr><td colspan="5" class="emp">Aucune livraison</td></tr>';
   const adhPays=DB.adhesionPays.filter(a=>a.clientId===cid);
-  document.getElementById('det-adh-content').innerHTML=`<div class="ib ${c.adhesionStatut==='paye'?'ib-green':'ib-red'}" style="margin-bottom:8px;"><strong>Adhésion : ${fmt(c.adhesion)}</strong> — ${c.adhesionStatut==='paye'?'✅ Payé':'❌ Non payé'}${c.adhesionStatut!=='paye'&&session.role==='admin'?`<br><button class="btn btn-success btn-xs no-print" onclick="closeM('m-detail');openAdh('${cid}')" style="margin-top:5px">Encaisser</button>`:''}</div>${adhPays.length>0?`<div class="tw" style="margin:0"><table><thead><tr><th>Date</th><th>Montant</th><th>Note</th></tr></thead><tbody>${adhPays.map(a=>`<tr><td>${esc(a.date)}</td><td style="color:var(--accent2);font-weight:600">${fmt(a.montant)}</td><td class="tm" style="font-size:10px">${esc(a.note||'—')}</td></tr>`).join('')}</tbody></table></div>`:'<div class="emp" style="padding:16px">Aucun paiement d\'adhésion</div>'}`;
+  const detAdhIsAdmin = session && session.role==='admin';
+  document.getElementById('det-adh-content').innerHTML=`<div class="ib ${c.adhesionStatut==='paye'?'ib-green':'ib-red'}" style="margin-bottom:8px;"><strong>Adhésion : ${fmt(c.adhesion)}</strong> — ${c.adhesionStatut==='paye'?'✅ Payé':'❌ Non payé'}${c.adhesionStatut!=='paye'&&session.role==='admin'?`<br><button class="btn btn-success btn-xs no-print" onclick="closeM('m-detail');openAdh('${cid}')" style="margin-top:5px">Encaisser</button>`:''}</div>${adhPays.length>0?`<div class="tw" style="margin:0"><table><thead><tr><th>Date</th><th>Montant</th><th>Note</th>${detAdhIsAdmin?'<th class="no-print"></th>':''}</tr></thead><tbody>${adhPays.map(a=>`<tr><td>${esc(a.date)}</td><td style="color:var(--accent2);font-weight:600">${fmt(a.montant)}</td><td class="tm" style="font-size:10px">${esc(a.note||'—')}</td>${detAdhIsAdmin?`<td class="no-print" style="text-align:center;"><button onclick="supprimerAdhesionPay('${a._id}','${cid}')" title="Supprimer ce frais d'adhésion" style="background:rgba(224,92,82,0.12);border:1px solid rgba(224,92,82,0.35);border-radius:6px;padding:2px 7px;color:var(--danger);font-size:11px;cursor:pointer;">🗑</button></td>`:''}</tr>`).join('')}</tbody></table></div>`:'<div class="emp" style="padding:16px">Aucun paiement d\'adhésion</div>'}`;
   document.querySelectorAll('.det-tab').forEach(t=>t.classList.remove('active'));
   document.querySelector('.det-tab').classList.add('active');
   ['paiements','livraisons','adhesion'].forEach(t=>document.getElementById('det-'+t).style.display=t==='paiements'?'':'none');
