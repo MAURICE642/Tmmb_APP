@@ -1370,17 +1370,23 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
       <div class="sec-title">Contrôle des clients</div>
     </div>
     <!-- Onglets -->
-    <div style="display:flex;gap:8px;margin-bottom:12px;">
+    <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap;">
       <button class="btn btn-sm ctrl-tab active" id="ctrl-tab-attente" onclick="setControleTab('attente')">⏳ À contrôler (<span id="ctrl-count-attente">0</span>)</button>
       <button class="btn btn-sm ctrl-tab" id="ctrl-tab-fait" onclick="setControleTab('fait')">✅ Contrôlés (<span id="ctrl-count-fait">0</span>)</button>
+      <button class="btn btn-sm no-print" style="margin-left:auto;background:rgba(100,160,247,0.15);color:#64a0f7;border:1px solid rgba(100,160,247,0.4);font-weight:700;" onclick="ouvrirRapportControle()">📊 Rapport de contrôle</button>
     </div>
-    <!-- Barre recherche + filtre commercial -->
+    <!-- Barre recherche + filtre commercial + filtre statut -->
     <div style="margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
       <input type="text" id="ctrl-search" placeholder="🔍  Rechercher par code, nom, téléphone..."
         style="flex:1;min-width:220px;max-width:420px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 14px;color:var(--text);font-size:13px;outline:none;"
         oninput="dRender('renderControle')">
       <select id="ctrl-filter-com" onchange="renderControle()"
         style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 10px;color:var(--text);font-size:11px;outline:none;"><option value="">— Tous les commerciaux —</option></select>
+      <select id="ctrl-filter-statut" onchange="setControleTab(this.value)"
+        style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 10px;color:var(--text);font-size:11px;outline:none;">
+        <option value="attente">⏳ Non contrôlé</option>
+        <option value="fait">✅ Contrôlé</option>
+      </select>
       <span id="ctrl-search-count" style="font-size:11px;color:var(--muted);white-space:nowrap;"></span>
     </div>
     <div class="tw"><table><thead><tr><th>Client</th><th>Téléphone</th><th class="no-print">Commercial</th><th>Contrat</th><th id="ctrl-th-info">Statut</th><th class="no-print">Actions</th></tr></thead><tbody id="tb-controle"></tbody></table></div>
@@ -2277,6 +2283,29 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     <div class="ma" style="margin-top:14px;">
       <button class="btn btn-ghost" onclick="closeM('m-controle')">Annuler</button>
       <button class="btn btn-primary" onclick="confirmerControle()">✓ Marquer comme contrôlé</button>
+    </div>
+  </div>
+</div>
+
+<!-- RAPPORT DE CONTRÔLE -->
+<div class="mo" id="m-rapport-controle">
+  <div class="md" style="border:1px solid rgba(100,160,247,0.4);max-width:400px;">
+    <div class="md-title" style="color:#64a0f7;">📊 Rapport de contrôle</div>
+    <div class="fr">
+      <label>Statut à inclure</label>
+      <select id="rc-statut" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px 11px;color:var(--text);font-size:12px;outline:none;">
+        <option value="tous">Tous les clients</option>
+        <option value="controle">✅ Contrôlés uniquement</option>
+        <option value="non_controle">⏳ Non contrôlés uniquement</option>
+      </select>
+    </div>
+    <div class="fr">
+      <label>Commercial</label>
+      <select id="rc-com" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px 11px;color:var(--text);font-size:12px;outline:none;"><option value="">— Tous les commerciaux —</option></select>
+    </div>
+    <div class="ma" style="margin-top:14px;">
+      <button class="btn btn-ghost" onclick="closeM('m-rapport-controle')">Annuler</button>
+      <button class="btn btn-primary" onclick="genererRapportControle()">📄 Générer le rapport</button>
     </div>
   </div>
 </div>
@@ -4924,7 +4953,8 @@ window.ouvrirFicheClient = function(cid){
 
   // Adhésion
   const adhPays=DB.adhesionPays.filter(a=>a.clientId===cid);
-  document.getElementById('fiche-cl-adh-content').innerHTML=`<div class="ib ${c.adhesionStatut==='paye'?'ib-green':'ib-red'}" style="margin-bottom:8px;"><strong>Adhésion : ${fmt(c.adhesion)}</strong> — ${c.adhesionStatut==='paye'?'✅ Payé':'❌ Non payé'}</div>${adhPays.length>0?`<table style="width:100%;border-collapse:collapse;">${adhPays.map(a=>`<tr style="border-top:1px solid var(--border)"><td style="padding:6px;font-size:12px">${esc(a.date)}</td><td style="padding:6px;color:var(--accent2);font-weight:600">${fmt(a.montant)}</td><td style="padding:6px;font-size:11px;color:var(--muted)">${esc(a.note||'—')}</td></tr>`).join('')}</table>`:'<div class="emp" style="padding:12px">Aucun paiement d\'adhésion</div>'}`;
+  const adhIsAdmin = session && session.role==='admin';
+  document.getElementById('fiche-cl-adh-content').innerHTML=`<div class="ib ${c.adhesionStatut==='paye'?'ib-green':'ib-red'}" style="margin-bottom:8px;"><strong>Adhésion : ${fmt(c.adhesion)}</strong> — ${c.adhesionStatut==='paye'?'✅ Payé':'❌ Non payé'}</div>${adhPays.length>0?`<table style="width:100%;border-collapse:collapse;">${adhPays.map(a=>`<tr style="border-top:1px solid var(--border)"><td style="padding:6px;font-size:12px">${esc(a.date)}</td><td style="padding:6px;color:var(--accent2);font-weight:600">${fmt(a.montant)}</td><td style="padding:6px;font-size:11px;color:var(--muted)">${esc(a.note||'—')}</td>${adhIsAdmin?`<td style="padding:6px;text-align:right;"><button class="btn btn-xs btn-warn" onclick="supprimerAdhesionPay('${a._id}','${cid}')" title="Supprimer ce frais d'adhésion">🗑</button></td>`:''}</tr>`).join('')}</table>`:'<div class="emp" style="padding:12px">Aucun paiement d\'adhésion</div>'}`;
 
   // Reset onglets
   document.querySelectorAll('.fiche-cl-tab').forEach(t=>t.classList.remove('active'));
@@ -5476,6 +5506,28 @@ window.supprimerClient = async function(cid){
   if(!(await confirmDialog(`Supprimer définitivement le client "${c.nom}" ?\n\nTous ses paiements et historique seront conservés mais le client sera retiré de la liste.`,{title:'🗑 Suppression client',okLabel:'Supprimer',danger:true}))) return;
   await fbDelete('clients',cid);
   notify(`Client ${c.nom} supprimé`);
+};
+
+// ── Suppression d'un frais d'adhésion (réservé admin — règles Firestore) ──
+window.supprimerAdhesionPay = async function(id, clientId){
+  if(!session || session.role!=='admin'){ notify("Action réservée à l'administrateur", 'err'); return; }
+  const a = DB.adhesionPays.find(x=>x._id===id);
+  if(!a){ notify('Paiement introuvable', 'err'); return; }
+  if(!(await confirmDialog(`Supprimer définitivement ce frais d'adhésion de ${fmt(a.montant)} du ${a.date} ?`,{title:"🗑 Suppression frais d'adhésion",okLabel:'Supprimer',danger:true}))) return;
+  try{
+    await fbDelete('adhesionPays', id);
+    // Si le client n'a plus aucun paiement d'adhésion, on remet son statut à "non payé"
+    const resteAdh = DB.adhesionPays.filter(x=>x.clientId===clientId);
+    if(resteAdh.length===0){
+      const c = DB.clients.find(x=>x._id===clientId);
+      if(c) await fbUpdate('clients', clientId, {adhesionStatut:'non_paye'});
+    }
+    notify("Frais d'adhésion supprimé");
+    if(typeof ouvrirFicheClient==='function' && clientId) ouvrirFicheClient(clientId);
+  }catch(e){
+    console.error('Échec suppression adhésion:', e);
+    notify("Échec de la suppression — vérifiez votre connexion.", 'err');
+  }
 };
 
 // ========= HELPERS =========
@@ -8837,11 +8889,15 @@ window.setControleTab = function(tab){
   controleTab = tab;
   document.getElementById('ctrl-tab-attente').classList.toggle('active', tab==='attente');
   document.getElementById('ctrl-tab-fait').classList.toggle('active', tab==='fait');
+  const selStatut = document.getElementById('ctrl-filter-statut');
+  if(selStatut) selStatut.value = tab;
   renderControle();
 };
 
 function renderControle(){
   if(!['admin','controleur'].includes(session?.role)) return;
+  const selStatutSync = document.getElementById('ctrl-filter-statut');
+  if(selStatutSync) selStatutSync.value = controleTab;
   // Peupler le select commercial (une seule fois suffit, mais on garde la valeur sélectionnée)
   const selCom = document.getElementById('ctrl-filter-com');
   if(selCom){
@@ -8948,6 +9004,103 @@ window.annulerControle = async function(cid){
   });
   notify('Contrôle annulé');
   renderControle();
+};
+
+// ── Rapport de contrôle : synthèse imprimable des clients contrôlés / non contrôlés ──
+window.ouvrirRapportControle = function(){
+  if(!['admin','controleur'].includes(session?.role)){ notify('Accès non autorisé','err'); return; }
+  const selCom = document.getElementById('rc-com');
+  const comsVisibles = comsDansAgence().filter(c=>c.role==='commercial');
+  selCom.innerHTML = `<option value="">— Tous les commerciaux —</option>`+comsVisibles.map(c=>`<option value="${c._id}">${esc(c.nom)}</option>`).join('');
+  document.getElementById('rc-statut').value = 'tous';
+  openM('m-rapport-controle');
+};
+
+window.genererRapportControle = function(){
+  const statutFiltre = document.getElementById('rc-statut').value;
+  const comFiltre = document.getElementById('rc-com').value;
+
+  let cls = clientsDansAgence();
+  if(comFiltre) cls = cls.filter(c=>c.commercialId===comFiltre);
+
+  const enAttente = cls.filter(c=>!c.controle || c.controle.statut!=='controle');
+  const dejaFait  = cls.filter(c=>c.controle && c.controle.statut==='controle');
+
+  let liste;
+  if(statutFiltre==='controle') liste = dejaFait;
+  else if(statutFiltre==='non_controle') liste = enAttente;
+  else liste = cls;
+  liste = [...liste].sort((a,b)=>(a.nom||'').localeCompare(b.nom||'','fr',{sensitivity:'base'}));
+
+  const total = cls.length;
+  const nbFait = dejaFait.length;
+  const nbAttente = enAttente.length;
+  const taux = total>0 ? Math.round((nbFait/total)*100) : 0;
+
+  // Répartition par commercial
+  const parCom = {};
+  cls.forEach(c=>{
+    const nom = getCom(c.commercialId).nom || '—';
+    if(!parCom[nom]) parCom[nom] = {total:0, fait:0};
+    parCom[nom].total++;
+    if(c.controle && c.controle.statut==='controle') parCom[nom].fait++;
+  });
+  const lignesCom = Object.entries(parCom).sort((a,b)=>a[0].localeCompare(b[0],'fr')).map(([nom,d])=>{
+    const t = d.total>0 ? Math.round((d.fait/d.total)*100) : 0;
+    return `<tr><td style="padding:6px 8px;">${esc(nom)}</td><td style="padding:6px 8px;text-align:center;">${d.total}</td><td style="padding:6px 8px;text-align:center;color:#1a8a4a;">${d.fait}</td><td style="padding:6px 8px;text-align:center;color:#c0392b;">${d.total-d.fait}</td><td style="padding:6px 8px;text-align:center;font-weight:700;">${t}%</td></tr>`;
+  }).join('') || `<tr><td colspan="5" style="padding:10px;text-align:center;color:#888;">Aucune donnée</td></tr>`;
+
+  const statutLabel = statutFiltre==='controle' ? 'Clients contrôlés' : statutFiltre==='non_controle' ? 'Clients non contrôlés' : 'Tous les clients';
+  const comLabel = comFiltre ? (DB.commerciaux.find(c=>c._id===comFiltre)?.nom || '—') : 'Tous les commerciaux';
+
+  const lignesDetail = liste.map(c=>{
+    const estFait = c.controle && c.controle.statut==='controle';
+    const statutCell = estFait
+      ? `<span style="color:#1a8a4a;font-weight:700;">✅ Contrôlé</span><div style="font-size:10px;color:#666;">${esc(c.controle.date||'')} ${esc(c.controle.heure||'')} — ${esc(c.controle.par||'—')}</div>`
+      : `<span style="color:#c0392b;font-weight:700;">⏳ Non contrôlé</span>`;
+    return `<tr><td style="padding:6px 8px;">${esc(c.nom)}${c.codeClient?` (${esc(c.codeClient)})`:''}</td><td style="padding:6px 8px;">${esc(c.tel||'—')}</td><td style="padding:6px 8px;">${esc(getCom(c.commercialId).nom)}</td><td style="padding:6px 8px;">${statutCell}</td></tr>`;
+  }).join('') || `<tr><td colspan="4" style="padding:10px;text-align:center;color:#888;">Aucun client</td></tr>`;
+
+  const now = new Date();
+  const dateGen = now.toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'}) + ' à ' + String(now.getHours()).padStart(2,'0')+'h'+String(now.getMinutes()).padStart(2,'0');
+
+  const win = window.open('', '_blank', 'width=900,height=1000,scrollbars=yes');
+  if(!win){ alert('Veuillez autoriser les popups pour générer le rapport.'); return; }
+  win.document.write(`<!DOCTYPE html>
+<html lang="fr"><head><meta charset="UTF-8"><title>Rapport de contrôle</title>
+<style>
+  *{box-sizing:border-box;}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:#111;padding:24px;max-width:960px;margin:0 auto;}
+  h1{font-size:20px;color:#1e3a5f;margin-bottom:2px;}
+  .sub{color:#666;font-size:12px;margin-bottom:18px;}
+  .kpis{display:flex;gap:12px;margin-bottom:22px;flex-wrap:wrap;}
+  .kpi{flex:1;min-width:140px;border:1px solid #ddd;border-radius:8px;padding:12px 14px;background:#f8f9fb;}
+  .kpi .lbl{font-size:10.5px;text-transform:uppercase;color:#777;letter-spacing:0.5px;}
+  .kpi .val{font-size:22px;font-weight:800;color:#1e3a5f;margin-top:4px;}
+  h2{font-size:14px;color:#1e3a5f;margin:22px 0 8px;border-bottom:2px solid #64a0f7;padding-bottom:4px;}
+  table{width:100%;border-collapse:collapse;font-size:12px;}
+  thead th{background:#eef2f8;text-align:left;padding:7px 8px;font-size:11px;color:#333;border-bottom:2px solid #ccc;}
+  tbody tr{border-top:1px solid #e5e5e5;}
+  .btn-print{margin-top:20px;padding:10px 20px;background:#64a0f7;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;}
+  @media print{ .no-print{display:none!important;} }
+</style></head>
+<body>
+  <h1>📊 Rapport de contrôle</h1>
+  <div class="sub">Généré le ${dateGen} · Filtre : ${esc(statutLabel)} · Commercial : ${esc(comLabel)}</div>
+  <div class="kpis">
+    <div class="kpi"><div class="lbl">Total clients</div><div class="val">${total}</div></div>
+    <div class="kpi"><div class="lbl">✅ Contrôlés</div><div class="val" style="color:#1a8a4a;">${nbFait}</div></div>
+    <div class="kpi"><div class="lbl">⏳ Non contrôlés</div><div class="val" style="color:#c0392b;">${nbAttente}</div></div>
+    <div class="kpi"><div class="lbl">Taux de contrôle</div><div class="val">${taux}%</div></div>
+  </div>
+  <h2>Répartition par commercial</h2>
+  <table><thead><tr><th>Commercial</th><th style="text-align:center;">Total</th><th style="text-align:center;">Contrôlés</th><th style="text-align:center;">Non contrôlés</th><th style="text-align:center;">Taux</th></tr></thead><tbody>${lignesCom}</tbody></table>
+  <h2>Détail — ${esc(statutLabel)} (${liste.length})</h2>
+  <table><thead><tr><th>Client</th><th>Téléphone</th><th>Commercial</th><th>Statut</th></tr></thead><tbody>${lignesDetail}</tbody></table>
+  <button class="btn-print no-print" onclick="window.print()">🖨️ Imprimer</button>
+</body></html>`);
+  win.document.close();
+  closeM('m-rapport-controle');
 };
 
 let _histDateQueryToken = 0;
