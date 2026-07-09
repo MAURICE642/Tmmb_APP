@@ -68,7 +68,7 @@
          }
          function isAdmin(){ return isAuth() && role() == 'admin'; }
          function isOneOf(roles){ return isAuth() && role() in roles; }
-         function isStaff(){ return isOneOf(['admin','commercial','secretaire','gestionnaire_stock','controleur']); }
+         function isStaff(){ return isOneOf(['admin','commercial','secretaire','gestionnaire_stock','controleur','chef_agence']); }
 
          match /agences/{d}            { allow read: if isStaff(); allow write: if isAdmin(); }
          match /commerciaux/{d}        { allow read: if isStaff(); allow create,delete: if isAdmin();
@@ -78,7 +78,7 @@
          // ✅ POINT 2 : champs sensibles accessibles uniquement après connexion réelle
          match /commerciauxPrive/{d}   { allow read: if isStaff(); allow write: if isAdmin()
                                            || (isAuth() && request.auth.uid==d); }
-         match /clients/{d}            { allow read: if isStaff(); allow create,update: if isOneOf(['admin','commercial','secretaire']); allow delete: if isAdmin(); }
+         match /clients/{d}            { allow read: if isStaff(); allow create,update: if isOneOf(['admin','commercial','secretaire','chef_agence']); allow delete: if isAdmin() || isOneOf(['chef_agence']); }
          match /paiements/{d}          { allow read: if isStaff(); allow create: if isOneOf(['admin','commercial','secretaire']); allow update,delete: if isAdmin(); }
          match /articles/{d}           { allow read: if isStaff(); allow write: if isOneOf(['admin','gestionnaire_stock']); }
          match /produits/{d}           { allow read: if isStaff(); allow write: if isOneOf(['admin','gestionnaire_stock']); }
@@ -130,9 +130,9 @@
          }
 
          match /clients/{d}     { allow read: if isStaff();
-                                   allow create: if isOneOf(['admin','commercial','secretaire']) && validClient();
-                                   allow update: if isOneOf(['admin','commercial','secretaire']) && validClient();
-                                   allow delete: if isAdmin(); }
+                                   allow create: if isOneOf(['admin','commercial','secretaire','chef_agence']) && validClient();
+                                   allow update: if isOneOf(['admin','commercial','secretaire','chef_agence']) && validClient();
+                                   allow delete: if isAdmin() || isOneOf(['chef_agence']); }
          match /paiements/{d}   { allow read: if isStaff();
                                    allow create: if isOneOf(['admin','commercial','secretaire']) && validPaiement();
                                    allow update,delete: if isAdmin(); }
@@ -5418,7 +5418,7 @@ window.calcMC = function(){
 };
 
 window.sauvegarderModifContrat = async function(){
-  if(session?.role !== "admin"){ notify("Accès réservé à l'administrateur","err"); return; }
+  if(!session || !['admin','chef_agence'].includes(session.role)){ notify("Accès réservé à l'administrateur ou au chef d'agence","err"); return; }
   const cid = document.getElementById("mc-cl-id").value;
   const ct  = document.getElementById("mc-contrat").value.trim();
   const mt  = parseFloat(document.getElementById("mc-montant").value)||0;
