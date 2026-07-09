@@ -9563,7 +9563,8 @@ async function renderRegistre(){
               ${(()=>{
                 const vt = getVersementDuJour(d.com._id, date);
                 const canMark = ['admin','secretaire'].includes(session?.role);
-                if(vt) return `<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(34,212,160,0.12);border:1px solid rgba(34,212,160,0.4);border-radius:20px;padding:3px 10px;font-size:10px;font-weight:700;color:var(--accent2);">✅ Versé<br><span style="font-size:9px;font-weight:400;color:var(--muted);">${vt.marqueParNom}</span></span>`;
+                const isAdminRole = session?.role==='admin';
+                if(vt) return `<span style="display:inline-flex;align-items:center;gap:6px;background:rgba(34,212,160,0.12);border:1px solid rgba(34,212,160,0.4);border-radius:20px;padding:3px 10px;font-size:10px;font-weight:700;color:var(--accent2);">✅ Versé<br><span style="font-size:9px;font-weight:400;color:var(--muted);">${vt.marqueParNom}</span>${isAdminRole?`<button onclick="annulerVersement('${vt._id}','${esc(d.com.nom)}','${date}')" title="Annuler ce versement" class="no-print" style="margin-left:2px;background:rgba(224,92,82,0.12);border:1px solid rgba(224,92,82,0.35);border-radius:6px;padding:1px 6px;color:var(--danger);font-size:10px;cursor:pointer;">✕</button>`:''}</span>`;
                 if(canMark && d.montantTotal>0) return `<button onclick="marquerVerseRegistre('${d.com._id}','${date}')" style="background:rgba(34,212,160,0.15);border:1px solid rgba(34,212,160,0.4);border-radius:7px;padding:4px 10px;color:var(--accent2);font-size:10px;font-weight:700;cursor:pointer;font-family:'Outfit',sans-serif;">Marquer versé</button>`;
                 return `<span style="font-size:11px;color:var(--muted);">—</span>`;
               })()}
@@ -10080,12 +10081,17 @@ async function renderFiche(){
     if(isViewer && comId){
       if(versementExistant){
         btnVerse.style.display='';
-        btnVerse.textContent='✅ Versé le '+versementExistant.dateMarquage+' par '+versementExistant.marqueParNom;
+        btnVerse.textContent='✅ Versé le '+versementExistant.dateMarquage+' par '+versementExistant.marqueParNom+(session.role==='admin'?' — cliquer pour annuler':'');
         btnVerse.style.background='rgba(34,212,160,0.08)';
         btnVerse.style.borderColor='rgba(34,212,160,0.3)';
         btnVerse.style.color='var(--accent2)';
-        btnVerse.style.cursor='default';
-        btnVerse.onclick=null;
+        if(session.role==='admin'){
+          btnVerse.style.cursor='pointer';
+          btnVerse.onclick=()=>annulerVersement(versementExistant._id, (DB.commerciaux.find(c=>c._id===comId)||{}).nom||'?', fd);
+        } else {
+          btnVerse.style.cursor='default';
+          btnVerse.onclick=null;
+        }
       } else {
         btnVerse.style.display='';
         btnVerse.textContent='✅ Marquer comme versé';
@@ -11132,6 +11138,20 @@ window.delMise = async function(id){
 // ========= MARQUER POINTS COMME VERSÉS (Secrétaire / Admin) =========
 // Un versement lie une date + commercial. Une fois versé, le commercial ne peut plus
 // enregistrer de mise ce jour-là.
+
+window.annulerVersement = async function(id, comNom, date){
+  if(session?.role!=='admin'){ notify('Action réservée à l\'administrateur','err'); return; }
+  if(!(await confirmDialog(`Annuler le versement marqué pour ${comNom} du ${date} ?\nLe commercial redeviendra "non versé" pour cette date.`,{title:'✕ Annuler le versement',okLabel:'Annuler le versement',danger:true}))) return;
+  try{
+    await fbDelete('versements', id);
+    notify('Versement annulé — retour à "non versé"');
+    if(typeof renderRegistre==='function') renderRegistre();
+    if(typeof renderFiche==='function') renderFiche();
+  }catch(e){
+    console.error('Échec annulation versement:', e);
+    notify("Échec de l'annulation — vérifiez votre connexion.", 'err');
+  }
+};
 
 function getVersementDuJour(comId, date){
   return (DB.versements||[]).find(v=>v.commercialId===comId && v.date===date);
