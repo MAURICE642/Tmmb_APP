@@ -68,10 +68,17 @@
          }
          function isAdmin(){ return isAuth() && role() == 'admin'; }
          function isOneOf(roles){ return isAuth() && role() in roles; }
-         function isStaff(){ return isOneOf(['admin','commercial','secretaire','gestionnaire_stock','controleur','chef_agence']); }
+         // ✅ 'comptable' ajouté : accès lecture à isStaff() pour permettre à
+         // l'app comptable de lire les mêmes collections (agences, commerciaux,
+         // clients, paiements, articles, stockMvts, livraisons, adhesionPays, mises).
+         function isStaff(){ return isOneOf(['admin','commercial','secretaire','gestionnaire_stock','controleur','chef_agence','comptable']); }
+         function isComptable(){ return isOneOf(['admin','comptable']); }
 
          match /agences/{d}            { allow read: if isStaff(); allow write: if isAdmin(); }
-         match /commerciaux/{d}        { allow read: if isStaff(); allow create,delete: if isAdmin();
+         match /commerciaux/{d}        { allow read: if isStaff();
+                                         allow create: if isAdmin()
+                                           || (isAuth() && request.auth.uid==d && request.resource.data.role=='comptable');
+                                         allow delete: if isAdmin();
                                          allow update: if isAdmin() || (isAuth() && request.auth.uid==d
                                            && request.resource.data.role==resource.data.role
                                            && request.resource.data.agenceId==resource.data.agenceId); }
@@ -90,6 +97,16 @@
          match /primesPaliers/{d}      { allow read: if isStaff(); allow write: if isAdmin(); }
          match /pointsJour/{d}         { allow read: if isStaff(); allow write: if isOneOf(['admin','commercial','secretaire']); }
          match /transferts/{d}         { allow read: if isStaff(); allow create: if isOneOf(['admin','secretaire']); allow update,delete: if isAdmin(); }
+
+         // ✅ Collections propres au logiciel de COMPTABILITÉ (même projet Firebase)
+         // Lecture/écriture réservées au rôle 'comptable' et à l'admin.
+         match /charges/{d}             { allow read: if isStaff(); allow write: if isComptable(); }
+         match /salaires/{d}            { allow read: if isStaff(); allow write: if isComptable(); }
+         match /periodesVerrouillees/{d}{ allow read: if isStaff(); allow write: if isComptable(); }
+
+         // Auto-inscription : un compte 'comptable' peut créer SON PROPRE
+         // document dans 'commerciaux' (jamais avec le rôle 'admin').
+         // L'admin garde le droit de créer/modifier/supprimer n'importe quel compte.
 
          // ✅ POINT 4 + FIX 9 : verrou anti-brute-force - lecture restreinte à l'utilisateur lui-même
          match /loginAttempts/{emailKey} {
@@ -2812,6 +2829,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         <option value="controleur">🔍 Contrôleur</option>
         <option value="gestionnaire_stock">📦 Gestionnaire de stock</option>
         <option value="chef_agence">🏢 Chef d'Agence</option>
+        <option value="comptable">📊 Comptable</option>
       </select>
     </div>
     <!-- Agence — visible pour commercial et secrétaire -->
@@ -2860,6 +2878,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         <option value="controleur">&#128269; Contrôleur</option>
         <option value="gestionnaire_stock">&#128230; Gestionnaire de stock</option>
         <option value="chef_agence">&#127970; Chef d'Agence</option>
+        <option value="comptable">&#128202; Comptable</option>
       </select>
     </div>
     <div class="fr" id="eu-agence-row">
