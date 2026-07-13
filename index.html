@@ -2773,6 +2773,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
       <button class="btn btn-success btn-sm" id="fiche-cl-pay-btn">💰 Payer cotisation</button>
       <button class="btn btn-xs" style="background:rgba(201,168,76,0.12);color:var(--accent);border:1px solid rgba(201,168,76,0.28)" id="fiche-cl-edit-btn">✏️ Modifier</button>
       <button class="btn btn-xs" style="display:none;background:rgba(56,201,160,0.12);color:var(--accent2);border:1px solid rgba(56,201,160,0.28)" id="fiche-cl-contrat-btn">📝 Contrat</button>
+      <button class="btn btn-xs" style="background:rgba(120,140,255,0.12);color:#8fa4ff;border:1px solid rgba(120,140,255,0.3)" onclick="imprimerFicheClient()">🖨️ Imprimer</button>
     </div>
   </div>
 </div>
@@ -4992,6 +4993,124 @@ window.ouvrirFicheClient = function(cid){
     ficheContratBtn.onclick=()=>{closeM('m-fiche-client');ouvrirModifContrat(cid);};
   }
   openM('m-fiche-client');
+};
+
+// ═══════════════ IMPRESSION FICHE CLIENT COMPLÈTE ═════════════
+// Génère une page imprimable indépendante (fond blanc, sans le thème
+// sombre de l'appli) avec les infos client + l'historique COMPLET des
+// paiements (pas seulement ce qui est visible dans la zone défilante).
+window.imprimerFicheClient = function(cid){
+  cid = cid || _ficheClientCtxId;
+  if(!cid){ notify('Aucune fiche ouverte à imprimer','err'); return; }
+  const c = getCl(cid);
+  if(!c){ notify('Client introuvable','err'); return; }
+  const s = stats(c);
+  const com = getCom(c.commercialId);
+  const fin = new Date(c.debut+'T12:00:00'); fin.setDate(fin.getDate()+(c.duree||372));
+
+  // Historique complet des paiements, du plus récent au plus ancien
+  const pays = [...s.pays].sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.heure||'').localeCompare(a.heure||''));
+
+  // Calcul du niveau cumulatif (identique à l'affichage écran)
+  const paysTries = [...pays].sort((a,b)=>a.date.localeCompare(b.date));
+  const cotisParJour = s.m;
+  const dureeContrat = c.duree || 372;
+  let cumulMontant = 0;
+  const niveauxMap = new Map();
+  paysTries.forEach(p=>{
+    cumulMontant += p.montant;
+    const joursCouv = cotisParJour>0 ? Math.floor(cumulMontant/cotisParJour) : 0;
+    niveauxMap.set(p._id || (p.date+p.montant), Math.min(dureeContrat, joursCouv));
+  });
+
+  const lignesPaiements = pays.map(p=>{
+    const key = p._id || (p.date+p.montant);
+    const niveauApres = niveauxMap.get(key);
+    const niveauLabel = niveauApres!==undefined ? joursEnJM(niveauApres) : '—';
+    return `<tr>
+      <td>${esc(p.date)}</td>
+      <td>${esc(p.heure||'—')}</td>
+      <td>${fmt(p.cotisJour||s.m)}</td>
+      <td style="font-weight:700;">${fmt(p.montant)}</td>
+      <td>${niveauLabel} / ${joursEnJM(dureeContrat)}</td>
+      <td>${esc(p.saisiParNom||p.saisieParNom||'—')}${p.verrouille||p.source==='commercial'?' 🔒':''}</td>
+      <td>${esc(p.note||'—')}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="7" style="text-align:center;color:#888;padding:14px;">Aucun paiement enregistré</td></tr>';
+
+  const dateImpression = new Date().toLocaleString('fr-FR');
+
+  const html = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Fiche client — ${esc(c.nom)}</title>
+<style>
+  * { box-sizing:border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; color:#111; margin:24px; font-size:13px; }
+  h1 { font-size:20px; margin:0 0 2px 0; }
+  .sub { color:#555; font-size:12px; margin-bottom:14px; }
+  .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:14px 0 18px 0; }
+  .card { border:1px solid #ccc; border-radius:6px; padding:8px 10px; }
+  .card .lbl { font-size:10px; text-transform:uppercase; color:#666; letter-spacing:0.5px; }
+  .card .val { font-size:16px; font-weight:700; margin-top:2px; }
+  .infos { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:18px; }
+  .infos div { border:1px solid #ddd; border-radius:6px; padding:8px 10px; }
+  table { width:100%; border-collapse:collapse; margin-top:6px; }
+  th, td { border:1px solid #ccc; padding:5px 7px; font-size:11.5px; text-align:left; }
+  th { background:#f0f0f0; text-transform:uppercase; font-size:9.5px; letter-spacing:0.5px; }
+  h2 { font-size:14px; margin:18px 0 4px 0; border-bottom:2px solid #333; padding-bottom:3px; }
+  .footer { margin-top:22px; font-size:10px; color:#777; text-align:right; }
+  @media print {
+    body { margin:10mm; }
+    button { display:none; }
+  }
+  .print-bar { text-align:right; margin-bottom:14px; }
+  .print-bar button { padding:8px 16px; font-size:13px; cursor:pointer; }
+</style>
+</head>
+<body>
+  <div class="print-bar"><button onclick="window.print()">🖨️ Imprimer</button></div>
+
+  <h1>${esc(c.nom)} ${c.codeClient?('— '+esc(c.codeClient)):''}</h1>
+  <div class="sub">📞 ${esc(c.tel||'—')} · 📍 ${esc(c.ville||'—')}${c.quartier?(' — '+esc(c.quartier)):''} · Commercial : ${esc(com.nom)}</div>
+
+  <div class="grid">
+    <div class="card"><div class="lbl">Total payé</div><div class="val">${fmt(s.totalPaye)}</div></div>
+    <div class="card"><div class="lbl">Restant</div><div class="val">${fmt(s.totalRestant)}</div></div>
+    <div class="card"><div class="lbl">Progression</div><div class="val">${s.pct}%</div></div>
+    <div class="card"><div class="lbl">Montant total contrat</div><div class="val">${fmt(c.montantTotal||0)}</div></div>
+  </div>
+
+  <div class="infos">
+    <div><strong>Contrat</strong><br>${esc(c.contrat||'—')}</div>
+    <div><strong>Cotisation/jour</strong><br>${fmt(s.m)}</div>
+    <div><strong>Début</strong><br>${esc(c.debut||'—')}</div>
+    <div><strong>Fin prévue</strong><br>${esc(fin.toLocaleDateString('fr-FR'))} (${c.duree||372} jours)</div>
+  </div>
+
+  <h2>💰 Historique des paiements (${pays.length})</h2>
+  <table>
+    <thead><tr>
+      <th>Date</th><th>Heure</th><th>Cotis./j</th><th>Montant</th><th>Niveau après</th><th>Saisi par</th><th>Note</th>
+    </tr></thead>
+    <tbody>${lignesPaiements}</tbody>
+  </table>
+
+  <div class="footer">Document généré le ${esc(dateImpression)} — TRIOMPHANT MMB SERVICE</div>
+
+  <script>
+    // Ouvre automatiquement la boîte de dialogue d'impression
+    window.onload = function(){ setTimeout(function(){ window.print(); }, 300); };
+  <\/script>
+</body>
+</html>`;
+
+  const w = window.open('', '_blank', 'width=900,height=1000');
+  if(!w){ notify("Impossible d'ouvrir la fenêtre d'impression — vérifiez que les pop-ups ne sont pas bloqués.", 'err'); return; }
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
 };
 
 window.switchFicheTab = function(tab,el){
