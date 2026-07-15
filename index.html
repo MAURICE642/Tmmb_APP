@@ -4220,6 +4220,23 @@ async function setupPageListeners(pageId) {
         return;
       }
 
+      // ✅ FIX SYNCHRO FICHE CLIENT : la « fiche complète du client » (modal
+      // m-fiche-client) est un écran de LECTURE (pas un formulaire de saisie).
+      // Elle ne doit donc pas être bloquée par la règle générale ci-dessous
+      // qui suspend tout re-rendu tant qu'un modal est ouvert (règle pensée
+      // pour ne pas perturber un formulaire en cours de remplissage). Si ce
+      // modal est ouvert et que la collection modifiée fait partie de ses
+      // données (paiements, adhésions, livraisons, infos client), on la
+      // rafraîchit directement, pour refléter en temps réel un paiement
+      // saisi ailleurs (autre appareil / autre utilisateur) pendant qu'on
+      // consulte la fiche de ce client.
+      const ficheClientModalOuvert = document.getElementById('m-fiche-client')?.classList.contains('open');
+      if (ficheClientModalOuvert && typeof _ficheClientCtxId !== 'undefined' && _ficheClientCtxId
+          && ['paiements','adhesionPays','livraisons','clients'].includes(col)
+          && typeof ouvrirFicheClient === 'function') {
+        ouvrirFicheClient(_ficheClientCtxId);
+      }
+
       const modalOuvert = document.querySelector('.modal-overlay.open, .md.open, [id^="m-"][style*="flex"], [id^="m-"][style*="block"]');
       if (modalOuvert) return;
 
@@ -4839,7 +4856,40 @@ window.supprimerSelection = async function(){
 };
 
 // ========= FICHE COMPLÈTE CLIENT =========
-window.ouvrirFicheClient = function(cid){
+window.ouvrirFicheClient = async function(cid){
+  // ✅ FIX COMPLÉTUDE : sur une grosse installation, DB.paiements (et
+  // DB.adhesionPays / DB.livraisons) peut n'être que PARTIELLEMENT chargée
+  // en mémoire (chargement par pages de 500, en tâche de fond, potentiellement
+  // interrompu par un rafraîchissement de page avant d'avoir tout récupéré).
+  // La fiche complète d'un client ne doit jamais dépendre de cet état de
+  // chargement global : on va chercher directement TOUS les documents de
+  // CE client (requête ciblée, peu coûteuse), et on les fusionne dans DB
+  // avant de calculer/afficher quoi que ce soit. Cela évite que d'anciens
+  // paiements (enregistrés bien avant, mais pas encore chargés dans le lot
+  // global) semblent manquants.
+  if (db_fs) {
+    try {
+      const [paySnap, adhSnap, livSnap] = await Promise.all([
+        getDocs(query(collection(db_fs,'paiements'), where('clientId','==',cid))),
+        getDocs(query(collection(db_fs,'adhesionPays'), where('clientId','==',cid))),
+        getDocs(query(collection(db_fs,'livraisons'), where('clientId','==',cid)))
+      ]);
+      const merge = (col, snap) => {
+        if (!DB[col]) DB[col] = [];
+        const existing = new Map(DB[col].map(d => [d._id, d]));
+        snap.docs.forEach(d => existing.set(d.id, {...d.data(), _id: d.id}));
+        DB[col] = [...existing.values()];
+        _touchVer(col);
+      };
+      merge('paiements', paySnap);
+      merge('adhesionPays', adhSnap);
+      merge('livraisons', livSnap);
+    } catch(e) {
+      console.error('Échec chargement complet des données du client:', e);
+      notify("Certaines données anciennes de ce client n'ont peut-être pas pu être chargées — vérifiez votre connexion.", 'err');
+    }
+  }
+
   const c=getCl(cid), s=stats(c), com=getCom(c.commercialId);
   const fin=new Date(c.debut+'T12:00:00'); fin.setDate(fin.getDate()+(c.duree||372));
 
@@ -10641,6 +10691,12 @@ window.savePay = async function(){
     notify(estCorrection
       ? `✅ Correction enregistrée sur le ${payDate} — visible dans le registre et la fiche du commercial`
       : `Paiement de ${fmt(amt)} enregistré ✓`);
+    // ✅ FIX SYNCHRO : rafraîchir immédiatement la page courante si elle
+    // affiche ce paiement (fiche/registre), sans attendre le debounce du
+    // listener temps réel (qui diffère le rendu pendant l'activité de
+    // l'utilisateur pour éviter le clignotement).
+    if(curPg==='fiche' && typeof renderFiche==='function') renderFiche();
+    else if(curPg==='registre' && typeof renderRegistre==='function') renderRegistre();
   }catch(e){
     console.error('Échec enregistrement paiement:', e);
     notify("Échec de l'enregistrement du paiement — vérifiez votre connexion et réessayez avant de fermer cette fenêtre.", 'err');
@@ -10669,6 +10725,8 @@ window.saveAdhesion = async function(){
       note: document.getElementById('adh-note').value
     });
     closeM('m-adhesion');adhCtx=null;notify('Adhésion enregistrée ✓');
+    if(curPg==='fiche' && typeof renderFiche==='function') renderFiche();
+    else if(curPg==='registre' && typeof renderRegistre==='function') renderRegistre();
   }catch(e){
     console.error('Échec enregistrement adhésion:', e);
     notify("Échec de l'enregistrement de l'adhésion — vérifiez votre connexion et vérifiez le statut du client avant de réessayer.", 'err');
@@ -13154,6 +13212,8 @@ window.enregistrerMiseSaisie = async function(){
     notify(estCorrection
       ? `✅ Correction enregistrée sur le ${dateChoisie} — visible dans le registre et la fiche du commercial`
       : `✅ ${nb} cotisation(s) enregistrée(s) — ${fmt(montant)} FCFA encaissé`,'ok');
+    if(curPg==='fiche' && typeof renderFiche==='function') renderFiche();
+    else if(curPg==='registre' && typeof renderRegistre==='function') renderRegistre();
   }catch(e){
     console.error('Échec enregistrement cotisation:', e);
     notify("Échec de l'enregistrement — vérifiez votre connexion avant de ressaisir, pour éviter un double paiement.", 'err');
