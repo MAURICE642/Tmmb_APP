@@ -9572,7 +9572,7 @@ async function renderRegistre(){
   if(effectiveAgenceId) allComs = allComs.filter(c=>c.agenceId===effectiveAgenceId);
   const comIds = new Set(allComs.map(c=>c._id));
 
-  const pays = paysDate.filter(p=>p.origine!=='import_historique' && comIds.has(p.commercialId));
+  const pays = paysDate.filter(p=>p.origine!=='import_historique' && p.source!=='transfert' && comIds.has(p.commercialId));
   const totalCotis=pays.reduce((a,p)=>a+p.montant,0);
   const coms = allComs;
 
