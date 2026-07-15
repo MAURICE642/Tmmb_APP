@@ -10266,7 +10266,7 @@ async function renderFiche(){
 
   const com=getCom(comId);
   const cls=clsFiche;
-  const pays=paysDateFiche.filter(p=>p.origine!=='import_historique'&&p.commercialId===comId);
+  const pays=paysDateFiche.filter(p=>p.origine!=='import_historique'&&p.source!=='transfert'&&p.commercialId===comId);
   let clientsPayeurs=cls.filter(c=>pays.some(p=>p.clientId===c._id));
   // Trier par heure de saisie du paiement (du plus ancien au plus récent)
   clientsPayeurs = clientsPayeurs.slice().sort((c1,c2)=>{
