@@ -2977,8 +2977,13 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
           <tr style="background:rgba(56,201,160,0.05)"><td><code style="color:var(--accent2)">montant_deja_paye</code></td><td>💰 Total des cotisations déjà versées par ce client. Un paiement d'historique sera créé automatiquement.</td><td style="color:var(--muted)">Non</td></tr>
           <tr style="background:rgba(56,201,160,0.05)"><td><code style="color:var(--accent2)">date_dernier_paiement</code></td><td>💰 Date à associer au paiement reporté (format: AAAA-MM-JJ)</td><td style="color:var(--muted)">Non</td></tr>
           <tr style="background:rgba(56,201,160,0.05)"><td><code style="color:var(--accent2)">note_paiement</code></td><td>💰 Note ou commentaire sur le paiement historique importé</td><td style="color:var(--muted)">Non</td></tr>
+          <tr style="background:rgba(201,168,76,0.06)"><td><code style="color:var(--accent)">montant_divers</code> (ou <code style="color:var(--accent)">penalite</code>, <code style="color:var(--accent)">remise</code>, <code style="color:var(--accent)">frais_divers</code>)</td><td>🧾 Montant divers à ajouter au client (pénalité, remise, frais...). Positif = ajout, négatif = déduction.</td><td style="color:var(--muted)">Non</td></tr>
+          <tr style="background:rgba(201,168,76,0.06)"><td><code style="color:var(--accent)">note_divers</code></td><td>🧾 Note ou motif du montant divers importé</td><td style="color:var(--muted)">Non</td></tr>
         </tbody>
       </table>
+    </div>
+    <div class="ib ib-green" style="margin-bottom:12px;">
+      🔄 <strong>Client déjà existant</strong> : si le <code>code_client</code> d'une ligne correspond à un client déjà présent dans l'appli, sa fiche n'est <strong>pas recréée ni écrasée</strong> — seules les informations cochées au moment de l'import (cotisation, adhésion, paiement, divers) lui sont <strong>ajoutées</strong>.
     </div>
     <div class="ib ib-yellow">⚠️ Les noms de colonnes ne sont <strong>pas sensibles à la casse</strong> — NOM, Nom et nom sont tous acceptés.</div>
     <div class="ma"><button class="btn btn-primary" onclick="closeM('m-import-guide')">Compris !</button></div>
@@ -3095,8 +3100,18 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     <div id="import-preview-info" class="ib ib-green" style="margin-bottom:10px;"></div>
     <div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Assigner à un commercial</div>
     <div class="fr" style="margin-bottom:12px;"><label>Commercial responsable de ces clients</label><select id="import-com" style="height:29px;"><option value="">— Sélectionner —</option></select></div>
+    <div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Informations à importer (décochez ce que vous ne voulez pas importer)</div>
+    <div style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:14px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;">
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;"><input type="checkbox" id="import-chk-cotis" checked style="cursor:pointer;">💰 Cotisation/jour</label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;"><input type="checkbox" id="import-chk-adhesion" checked style="cursor:pointer;">🎫 Droit d'adhésion</label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;"><input type="checkbox" id="import-chk-paye" checked style="cursor:pointer;">✅ Montant déjà payé</label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;"><input type="checkbox" id="import-chk-divers" checked style="cursor:pointer;">🧾 Montant divers (pénalité/remise/frais)</label>
+    </div>
+    <div class="ib ib-blue" style="font-size:11px;margin-bottom:10px;">
+      ℹ️ Si le <strong>code client</strong> d'une ligne correspond à un client déjà existant dans l'appli, ses informations de base ne seront <strong>pas modifiées</strong> — seules les informations cochées ci-dessus (cotisation, adhésion, paiement, divers) lui seront <strong>ajoutées</strong>.
+    </div>
     <div class="tw" style="max-height:280px;overflow-y:auto;margin-bottom:10px;">
-      <table><thead><tr><th>#</th><th>Nom</th><th>Téléphone</th><th>Ville</th><th>Contrat</th><th>Cotis./j</th><th>Déjà payé</th><th>Code client</th><th>Statut</th></tr></thead>
+      <table><thead><tr><th>#</th><th>Nom</th><th>Téléphone</th><th>Ville</th><th>Contrat</th><th>Cotis./j</th><th>Déjà payé</th><th>Début</th><th>Adhésion</th><th>Divers</th><th>Code client</th><th>Statut</th></tr></thead>
       <tbody id="import-preview-body"></tbody></table>
     </div>
     <div id="import-errors" class="ib ib-red" style="display:none;"></div>
@@ -11807,6 +11822,9 @@ function normalizeRow(row){
     montantDejaPaye: parseFloat(get('montant_deja_paye','montant deja paye','montant_déjà_payé','montant déjà payé','deja_paye','deja paye','solde_initial','solde initial','paiement_initial','paiement initial')) || 0,
     dateDernierPaiement: normalizeDate(get('date_dernier_paiement','date dernier paiement','date_paiement','date paiement','date_versement','date versement')),
     notePaiement:    String(get('note_paiement','note paiement','note_versement','note versement','commentaire_paiement')||'').trim().slice(0,200),
+    // ✅ Nouveau paramètre : montant divers (pénalité, remise, frais divers...)
+    montantDivers:   parseFloat(get('montant_divers','montant divers','penalite','pénalité','remise','frais_divers','frais divers','divers')) || 0,
+    noteDivers:      String(get('note_divers','note divers','motif_divers','motif divers','commentaire_divers')||'').trim().slice(0,200),
   };
 }
 
@@ -11829,18 +11847,21 @@ function prepareImportPreview(rows){
   const doublonsFichier = new Set();
   importData.forEach(r=>{ if(r.codeClient){ if(codesVus.has(r.codeClient)) doublonsFichier.add(r.codeClient); codesVus.add(r.codeClient); } });
 
-  // Détecter codes déjà existants en base
-  const codesExistants = new Set(DB.clients.map(c=>(c.codeClient||'').toUpperCase()).filter(Boolean));
+  // Détecter codes déjà existants en base (= client existant → sera MIS À JOUR, pas ignoré)
+  const clientsExistantsParCode = new Map(DB.clients.filter(c=>c.codeClient).map(c=>[(c.codeClient||'').toUpperCase(), c]));
+  const codesExistants = new Set(clientsExistantsParCode.keys());
 
   const nbAvecCode  = importData.filter(r=>r.codeClient).length;
   const nbSansCode  = importData.filter(r=>!r.codeClient).length;
-  const nbDoublons  = importData.filter(r=>r.codeClient&&(doublonsFichier.has(r.codeClient)||codesExistants.has(r.codeClient))).length;
+  const nbMaj       = importData.filter(r=>r.codeClient&&codesExistants.has(r.codeClient)&&!doublonsFichier.has(r.codeClient)).length;
+  const nbDoublonsFichier = importData.filter(r=>r.codeClient&&doublonsFichier.has(r.codeClient)).length;
 
   document.getElementById('import-preview-info').innerHTML =
-    `Fichier lu : <strong>${rows.length} ligne(s)</strong> — <strong style="color:var(--accent2)">${importData.length} client(s) valides</strong>`+
+    `Fichier lu : <strong>${rows.length} ligne(s)</strong> — <strong style="color:var(--accent2)">${importData.length} ligne(s) valides</strong>`+
     (errors>0?` — <strong style="color:var(--danger)">${errors} ignorée(s)</strong>`:'')+
     `<br><span style="font-size:11px;">📋 Avec code : <strong style="color:var(--accent)">${nbAvecCode}</strong> &nbsp;|&nbsp; Sans code (généré auto) : <strong style="color:var(--accent)">${nbSansCode}</strong>`+
-    (nbDoublons>0?` &nbsp;|&nbsp; <strong style="color:var(--danger)">⚠️ ${nbDoublons} doublon(s) de code — seront ignorés ou renommés</strong>`:'')+'</span>';
+    (nbMaj>0?` &nbsp;|&nbsp; <strong style="color:var(--accent2)">🔄 ${nbMaj} client(s) existant(s) — seront mis à jour (infos cochées ajoutées, reste inchangé)</strong>`:'')+
+    (nbDoublonsFichier>0?` &nbsp;|&nbsp; <strong style="color:var(--danger)">⚠️ ${nbDoublonsFichier} doublon(s) dans le fichier — seront ignorés</strong>`:'')+'</span>';
 
   document.getElementById('import-count').textContent = importData.length;
   if(errors>0){ document.getElementById('import-errors').style.display=''; document.getElementById('import-errors').textContent = errors+' lignes ignorées (nom manquant).'; }
@@ -11858,12 +11879,12 @@ function prepareImportPreview(rows){
 
   document.getElementById('import-preview-body').innerHTML = importData.slice(0,50).map((r,i)=>{
     const estDoublonFichier = r.codeClient && doublonsFichier.has(r.codeClient);
-    const estDoublonBase    = r.codeClient && codesExistants.has(r.codeClient);
-    const doublon = estDoublonFichier || estDoublonBase;
+    const estClientExistant = r.codeClient && codesExistants.has(r.codeClient) && !estDoublonFichier;
+    const doublon = estDoublonFichier; // seul un doublon DANS LE FICHIER est bloquant désormais
     const codeBadge = r.codeClient
-      ? `<span style="font-size:10px;padding:1px 6px;border-radius:4px;font-weight:700;background:${doublon?'rgba(224,92,82,0.14)':'rgba(201,168,76,0.15)'};color:${doublon?'var(--danger)':'var(--accent)'};border:1px solid ${doublon?'rgba(247,97,79,0.4)':'rgba(201,168,76,0.35)'};">${r.codeClient}${doublon?' ⚠️':''}</span>`
+      ? `<span style="font-size:10px;padding:1px 6px;border-radius:4px;font-weight:700;background:${doublon?'rgba(224,92,82,0.14)':(estClientExistant?'rgba(56,201,160,0.14)':'rgba(201,168,76,0.15)')};color:${doublon?'var(--danger)':(estClientExistant?'var(--accent2)':'var(--accent)')};border:1px solid ${doublon?'rgba(247,97,79,0.4)':(estClientExistant?'rgba(56,201,160,0.4)':'rgba(201,168,76,0.35)')};">${r.codeClient}${doublon?' ⚠️':''}</span>`
       : `<span style="font-size:10px;color:var(--accent);font-style:italic;">auto</span>`;
-    const statut = doublon ? sb('Doublon','sr') : sb('OK','sg');
+    const statut = doublon ? sb('Doublon (ignoré)','sr') : (estClientExistant ? sb('🔄 Client existant — MAJ','sg') : sb('Nouveau','sg'));
     const cotisCell = r.cotisationJour>0
       ? `<span class="cotis-badge" style="font-size:10px;">💰 ${fmt(r.cotisationJour)}</span>`
       : (r.montant>0 ? `<span style="font-size:10px;color:var(--muted);font-style:italic;">${fmt(Math.ceil(r.montant/r.duree))}/j</span>` : '—');
@@ -11873,7 +11894,10 @@ function prepareImportPreview(rows){
     const adhBadge = r.adhesionStatut==='paye'
       ? `<span style="font-size:10px;padding:1px 6px;border-radius:4px;font-weight:700;background:rgba(34,212,160,0.12);color:var(--accent2);border:1px solid rgba(34,212,160,0.3);">✓ Payé</span>`
       : `<span style="font-size:10px;padding:1px 6px;border-radius:4px;font-weight:700;background:rgba(224,92,82,0.1);color:var(--danger);border:1px solid rgba(224,92,82,0.25);">Non payé</span>`;
-    return `<tr${doublon?' style="background:rgba(247,97,79,0.05);"':''}>
+    const diversCell = r.montantDivers
+      ? `<span style="font-size:10px;color:${r.montantDivers<0?'var(--danger)':'var(--accent2)'};font-weight:700;">${r.montantDivers>0?'+':''}${fmt(r.montantDivers)}</span>`
+      : '<span style="color:var(--muted);font-size:10px;">—</span>';
+    return `<tr${doublon?' style="background:rgba(247,97,79,0.05);"':(estClientExistant?' style="background:rgba(56,201,160,0.05);"':'')}>
       <td class="tm">${i+1}</td>
       <td class="fw6">${r.nom}</td>
       <td>${r.tel||'—'}</td>
@@ -11883,23 +11907,32 @@ function prepareImportPreview(rows){
       <td>${paiCell}</td>
       <td style="font-size:10px;color:var(--subtle);">${r.debut||'—'}</td>
       <td>${adhBadge}</td>
+      <td>${diversCell}</td>
       <td>${codeBadge}</td>
       <td>${statut}</td>
     </tr>`;
-  }).join('') + (importData.length>50?`<tr><td colspan="9" style="text-align:center;padding:10px;color:var(--muted);font-size:12px;">... et ${importData.length-50} autres lignes</td></tr>`:'');
+  }).join('') + (importData.length>50?`<tr><td colspan="12" style="text-align:center;padding:10px;color:var(--muted);font-size:12px;">... et ${importData.length-50} autres lignes</td></tr>`:'');
   openM('m-import-preview');
 }
 
 window.confirmImport = async function(){
   if(!importData.length){ notify('Aucune donnée à importer','err'); return; }
 
+  // ✅ Cases à cocher : quelles informations importer
+  const impCotis    = document.getElementById('import-chk-cotis')?.checked !== false;
+  const impAdhesion = document.getElementById('import-chk-adhesion')?.checked !== false;
+  const impPaye     = document.getElementById('import-chk-paye')?.checked !== false;
+  const impDivers   = document.getElementById('import-chk-divers')?.checked !== false;
+
   const comId = document.getElementById('import-com').value || session.userId;
   const dateCliInput = (document.getElementById('import-cli-date')?.value||'').trim();
   const dateImportCli = /^\d{4}-\d{2}-\d{2}$/.test(dateCliInput) ? dateCliInput : TODAY;
-  const codesUtilises = new Set(DB.clients.map(c=>(c.codeClient||'').toUpperCase()).filter(Boolean));
+  // Clients déjà présents en base AVANT cet import (servent à détecter les MAJ)
+  const clientsExistantsParCode = new Map(DB.clients.filter(c=>c.codeClient).map(c=>[(c.codeClient||'').toUpperCase(), c]));
+  const codesUtilises = new Set(clientsExistantsParCode.keys());
   const codesVusDansFichier = new Set();
 
-  let count=0, ignores=0, generes=0, paiementsReportes=0;
+  let count=0, ignores=0, generes=0, paiementsReportes=0, majClients=0;
 
   // Indicateur de progression
   const total = importData.length;
@@ -11918,12 +11951,66 @@ window.confirmImport = async function(){
       const quartier = String(r.quartier||'').trim().slice(0,80);
       const contrat  = String(r.contrat||'À définir').trim().slice(0,200);
       const montant  = Math.max(0, Math.min(Number(r.montant)||0, 999999999));
-      const cotisationJour = r.cotisationJour > 0 ? Math.max(0, Math.min(Number(r.cotisationJour), 999999)) : 0;
+      const cotisationJour = (impCotis && r.cotisationJour > 0) ? Math.max(0, Math.min(Number(r.cotisationJour), 999999)) : 0;
       const duree    = Math.max(1, Math.min(Number(r.duree)||372, 3650));
       const debut    = /^\d{4}-\d{2}-\d{2}$/.test(r.debut) ? r.debut : dateImportCli;
       if(!nom){ ignores++; continue; }
 
+      const montantDejaPaye = (impPaye) ? Math.max(0, Math.min(Number(r.montantDejaPaye)||0, 999999999)) : 0;
+      const montantDivers   = (impDivers) ? Math.max(-999999999, Math.min(Number(r.montantDivers)||0, 999999999)) : 0;
+      const adhesionMontant = (impAdhesion) ? (Number(r.adhesion)||0) : 0;
+
       let codeClient = (r.codeClient||'').toString().toUpperCase().trim().slice(0,20);
+
+      // ── Cas 1 : le code correspond à un client déjà existant en base ⇒ MISE À JOUR (ajout d'infos, sans toucher au reste)
+      if(codeClient && clientsExistantsParCode.has(codeClient) && !codesVusDansFichier.has(codeClient)){
+        codesVusDansFichier.add(codeClient);
+        const clientExistant = clientsExistantsParCode.get(codeClient);
+        const clientId = clientExistant._id;
+
+        // Cotisation/jour : mise à jour du montant fixe uniquement si coché et fourni
+        if(cotisationJour > 0){
+          await fbUpdate('clients', clientId, { cotisationJourFixe: cotisationJour });
+        }
+        // Droit d'adhésion : si coché et non déjà payé, on l'ajoute sans écraser le reste de la fiche
+        if(impAdhesion && adhesionMontant > 0 && clientExistant.adhesionStatut !== 'paye'){
+          await fbUpdate('clients', clientId, { adhesion: adhesionMontant, adhesionStatut: 'paye' });
+          await fbAdd('adhesionPays', {
+            clientId, commercialId: clientExistant.commercialId || comId,
+            montant: adhesionMontant, date: dateImportCli, heure: '00:00',
+            note: 'Adhésion reportée via import', origine: 'import_historique'
+          });
+        }
+        // Montant déjà payé : ajouté comme paiement historique
+        if(montantDejaPaye > 0){
+          const datePai = /^\d{4}-\d{2}-\d{2}$/.test(r.dateDernierPaiement) ? r.dateDernierPaiement : debut;
+          const cotisRef = cotisationJour > 0 ? cotisationJour : (clientExistant.cotisationJourFixe || (montant > 0 ? Math.ceil(montant/duree) : 0));
+          await fbAdd('paiements', {
+            clientId, commercialId: clientExistant.commercialId || comId,
+            cotisJour: cotisRef, montant: montantDejaPaye,
+            date: datePai, heure: '00:00',
+            note: r.notePaiement || "Paiement reporté à l'import (client existant)",
+            origine: 'import_historique'
+          });
+          paiementsReportes++;
+        }
+        // Montant divers : ajouté comme mouvement séparé, sans toucher au reste de la fiche
+        if(montantDivers !== 0){
+          await fbAdd('paiements', {
+            clientId, commercialId: clientExistant.commercialId || comId,
+            type: 'divers', montant: montantDivers,
+            date: dateImportCli, heure: '00:00',
+            note: r.noteDivers || 'Montant divers (pénalité/remise/frais) — import',
+            origine: 'import_divers'
+          });
+        }
+
+        majClients++;
+        count++;
+        notifEl.textContent = `⏳ Import en cours… ${count} / ${total}`;
+        continue;
+      }
+
       if(codeClient){
         if(codesUtilises.has(codeClient) || codesVusDansFichier.has(codeClient)){
           ignores++; continue;
@@ -11936,12 +12023,13 @@ window.confirmImport = async function(){
         generes++;
       }
 
+      // ── Cas 2 : nouveau client
       const clientDoc = {
         nom, tel, ville, quartier,
         contrat, montantTotal: montant,
         duree, debut,
         note:'', commercialId:comId,
-        adhesion:r.adhesion||0, adhesionStatut:r.adhesionStatut||'non_paye',
+        adhesion: adhesionMontant, adhesionStatut: (impAdhesion ? (r.adhesionStatut||'non_paye') : 'non_paye'),
         codeClient, createdAt:dateImportCli, origine:'import'
       };
       if(cotisationJour > 0) clientDoc.cotisationJourFixe = cotisationJour;
@@ -11950,7 +12038,6 @@ window.confirmImport = async function(){
       const clientRef = await fbAdd('clients', clientDoc);
       const clientId = clientRef.id || clientRef;
 
-      const montantDejaPaye = Math.max(0, Math.min(Number(r.montantDejaPaye)||0, 999999999));
       if(montantDejaPaye > 0){
         const datePai = /^\d{4}-\d{2}-\d{2}$/.test(r.dateDernierPaiement) ? r.dateDernierPaiement : debut;
         const cotisRef = cotisationJour > 0 ? cotisationJour : (montant > 0 ? Math.ceil(montant/duree) : 0);
@@ -11962,6 +12049,15 @@ window.confirmImport = async function(){
           origine: 'import_historique'
         });
         paiementsReportes++;
+      }
+      if(montantDivers !== 0){
+        await fbAdd('paiements', {
+          clientId, commercialId: comId,
+          type: 'divers', montant: montantDivers,
+          date: dateImportCli, heure: '00:00',
+          note: r.noteDivers || 'Montant divers (pénalité/remise/frais) — import',
+          origine: 'import_divers'
+        });
       }
 
       count++;
@@ -11976,10 +12072,11 @@ window.confirmImport = async function(){
 
   closeM('m-import-preview');
   importData=[];
-  let msg = `${count} client(s) importé(s) avec succès !`;
+  let msg = `${count} ligne(s) traitée(s) avec succès !`;
+  if(majClients>0) msg += ` — ${majClients} client(s) existant(s) mis à jour`;
   if(generes>0) msg += ` (${generes} code(s) générés auto)`;
   if(paiementsReportes>0) msg += ` — ${paiementsReportes} paiement(s) historique(s) reporté(s)`;
-  if(ignores>0) msg += ` — ${ignores} ignoré(s) (doublon de code)`;
+  if(ignores>0) msg += ` — ${ignores} ignoré(s) (doublon de code dans le fichier)`;
   notify(msg);
 };
 
