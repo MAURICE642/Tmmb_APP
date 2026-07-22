@@ -7861,32 +7861,46 @@ function prepareProdImportPreview() {
 
 window.confirmImportProduits = async function() {
   if (!importProdData.length) return;
-  document.getElementById('import-prod-confirm-btn').disabled = true;
-  let count = 0;
+  const btn = document.getElementById('import-prod-confirm-btn');
+  btn.disabled = true;
+  const total = importProdData.length;
+  let count = 0, errCount = 0, lastErr = null;
   for (const r of importProdData) {
-    // Ne garder que les composants résolus (found === true)
-    const composition = r.composition
-      .filter(c => c.found)
-      .map(c => ({ articleId: c.articleId, nom: c.nom, qte: c.qte, unite: c.unite }));
-    await fbAdd('produits', {
-      nom:         r.nom,
-      cat:         r.cat,
-      prix:        r.prix,
-      ref:         r.ref,
-      desc:        r.desc,
-      imageUrl:    '',
-      composition,
-      createdAt:   TODAY,
-      origine:     'import',
-    });
-    count++;
+    try {
+      // Ne garder que les composants résolus (found === true)
+      const composition = r.composition
+        .filter(c => c.found)
+        .map(c => ({ articleId: c.articleId, nom: c.nom, qte: c.qte, unite: c.unite }));
+      await fbAdd('produits', {
+        nom:         r.nom,
+        cat:         r.cat,
+        prix:        r.prix,
+        ref:         r.ref,
+        desc:        r.desc,
+        imageUrl:    '',
+        composition,
+        createdAt:   TODAY,
+        origine:     'import',
+      });
+      count++;
+      btn.textContent = `⏳ Import en cours… ${count} / ${total}`;
+    } catch(e){
+      // ✅ FIX : une erreur sur UN produit n'interrompt plus tout l'import —
+      // on la compte comme échec et on continue avec les produits suivants.
+      errCount++;
+      lastErr = e;
+      btn.textContent = `⏳ Import en cours… ${count} / ${total} (${errCount} échec(s))`;
+    }
     await new Promise(r => setTimeout(r, 50)); // FIX 4 : pause anti-saturation
   }
-  document.getElementById('import-prod-confirm-btn').disabled = false;
+  btn.disabled = false;
+  btn.textContent = '✓ Importer';
   closeM('m-import-prod-preview');
   importProdData = [];
   renderProduits();
-  notify(`${count} produit(s) importé(s) avec succès ✓`);
+  let msg = `${count} produit(s) importé(s) avec succès ✓`;
+  if(errCount>0) msg += ` — ⚠️ ${errCount} échec(s) (ex: ${lastErr?.message||lastErr})`;
+  notify(msg, errCount>0 ? 'err' : 'ok');
 };
 
 // ══════════════════════════════════════════
@@ -11932,7 +11946,8 @@ window.confirmImport = async function(){
   const codesUtilises = new Set(clientsExistantsParCode.keys());
   const codesVusDansFichier = new Set();
 
-  let count=0, ignores=0, generes=0, paiementsReportes=0, majClients=0;
+  let count=0, ignores=0, generes=0, paiementsReportes=0, majClients=0, errCount=0;
+  let lastErr = null;
 
   // Indicateur de progression
   const total = importData.length;
@@ -11944,6 +11959,7 @@ window.confirmImport = async function(){
 
   try {
     for(let i = 0; i < importData.length; i++){
+     try {
       const r = importData[i];
       const nom = String(r.nom||'').trim().slice(0,100);
       const tel  = String(r.tel||'').trim().replace(/[^0-9+\s\-]/g,'').slice(0,20);
@@ -12062,6 +12078,13 @@ window.confirmImport = async function(){
 
       count++;
       notifEl.textContent = `⏳ Import en cours… ${count} / ${total}`;
+     } catch(rowErr){
+      // ✅ FIX : une erreur sur UNE ligne n'interrompt plus tout l'import —
+      // on la compte comme échec et on continue avec les lignes suivantes.
+      errCount++;
+      lastErr = rowErr;
+      notifEl.textContent = `⏳ Import en cours… ${count} / ${total} (${errCount} échec(s))`;
+     }
     }
     // Invalider le cache pour forcer un re-fetch propre
     _syncLocalAfterWrite('clients');
@@ -12077,7 +12100,8 @@ window.confirmImport = async function(){
   if(generes>0) msg += ` (${generes} code(s) générés auto)`;
   if(paiementsReportes>0) msg += ` — ${paiementsReportes} paiement(s) historique(s) reporté(s)`;
   if(ignores>0) msg += ` — ${ignores} ignoré(s) (doublon de code dans le fichier)`;
-  notify(msg);
+  if(errCount>0) msg += ` — ⚠️ ${errCount} échec(s) (ex: ${lastErr?.message||lastErr})`;
+  notify(msg, errCount>0 ? 'err' : 'ok');
 };
 
 // ========= IMPORT ARTICLES =========
@@ -12464,25 +12488,38 @@ window.confirmImportArticles = async function(){
   // Récupérer la date choisie ou utiliser TODAY par défaut
   const dateInput = (document.getElementById('import-art-date')?.value||'').trim();
   const dateImport = /^\d{4}-\d{2}-\d{2}$/.test(dateInput) ? dateInput : TODAY;
-  let count=0;
+  const total = importArticlesData.length;
+  let count=0, errCount=0, lastErr=null;
   for(const r of importArticlesData){
-    const ref = r.ref || `ART-${Date.now()}-${count}`;
-    const art = await fbAdd('articles',{
-      ref, nom:r.nom, cat:r.cat, pv:r.pv, pa:r.pa,
-      stock:r.stock, stockMin:r.stockMin, unite:r.unite,
-      desc:r.desc||'', type:'article', composition:[], images:[], image:'',
-      dateImport: dateImport
-    });
-    if(r.stock>0) await fbAdd('stockMvts',{
-      articleId:art._id||art.id, type:'entree', qty:r.stock,
-      stockApres:r.stock, date:dateImport, note:'Stock initial — import fichier'
-    });
-    count++;
+    try {
+      const ref = r.ref || `ART-${Date.now()}-${count}`;
+      const art = await fbAdd('articles',{
+        ref, nom:r.nom, cat:r.cat, pv:r.pv, pa:r.pa,
+        stock:r.stock, stockMin:r.stockMin, unite:r.unite,
+        desc:r.desc||'', type:'article', composition:[], images:[], image:'',
+        dateImport: dateImport
+      });
+      if(r.stock>0) await fbAdd('stockMvts',{
+        articleId:art._id||art.id, type:'entree', qty:r.stock,
+        stockApres:r.stock, date:dateImport, note:'Stock initial — import fichier'
+      });
+      count++;
+      if(btn) btn.textContent = `⏳ Import en cours… ${count} / ${total}`;
+    } catch(e){
+      // ✅ FIX : une erreur sur UN article n'interrompt plus tout l'import —
+      // on la compte comme échec et on continue avec les articles suivants.
+      errCount++;
+      lastErr = e;
+      if(btn) btn.textContent = `⏳ Import en cours… ${count} / ${total} (${errCount} échec(s))`;
+    }
     await new Promise(r => setTimeout(r, 50)); // FIX 4 : pause anti-saturation
   }
+  if(btn){ btn.disabled=false; btn.textContent='✓ Importer'; }
   closeM('m-import-articles');
   importArticlesData=[]; importArticlesRaw=[];
-  notify(`✅ ${count} article(s) importé(s) avec succès !`);
+  let msg = `✅ ${count} article(s) importé(s) avec succès !`;
+  if(errCount>0) msg += ` — ⚠️ ${errCount} échec(s) (ex: ${lastErr?.message||lastErr})`;
+  notify(msg, errCount>0 ? 'err' : 'ok');
 };
 
 // ========= COMMERCIAL : MES CLIENTS (lecture seule) =========
