@@ -4318,7 +4318,7 @@ const _WRITE_ROLES = {
   paiements:     ['admin','commercial','secretaire','chef_agence'],
   livraisons:    ['admin','commercial','secretaire','chef_agence'],
   adhesionPays:  ['admin','commercial','secretaire','chef_agence'],
-  rachatCarnetPays: ['admin','commercial','secretaire','chef_agence'],
+  rachatCarnetPays: ['admin','secretaire','chef_agence'],
   mises:         ['admin','commercial','secretaire','chef_agence'],
   primesPaliers: ['admin','secretaire'],
   pointsJour:    ['admin','commercial','secretaire','chef_agence'],
@@ -13448,20 +13448,20 @@ window.enregistrerMiseSaisie = async function(){
 
 // ========= SAISIE DES ADHÉSIONS =========
 function renderSaisieAdhesions(){
-  if(!['admin','commercial'].includes(session?.role)){
+  if(!['admin','commercial','secretaire','chef_agence'].includes(session?.role)){
     document.getElementById('tb-saisie-adhesions').innerHTML=
-      '<tr><td colspan="7" class="emp">Accès réservé à l\'admin et aux commerciaux.</td></tr>';
+      '<tr><td colspan="7" class="emp">Accès réservé à l\'admin, au secrétaire, au chef d\'agence et aux commerciaux.</td></tr>';
     return;
   }
 
   // Peupler le select commercial
   const selCom = document.getElementById('adh-filter-com');
   if(selCom){
-    const comsVisibles = ['admin','chef_agence'].includes(session.role)
+    const comsVisibles = ['admin','chef_agence','secretaire'].includes(session.role)
       ? comsDansAgence().filter(c=>c.role==='commercial')
       : [DB.commerciaux.find(c=>c._id===session.userId)].filter(Boolean);
     const prev = selCom.value;
-    selCom.innerHTML = (['admin','chef_agence'].includes(session.role)
+    selCom.innerHTML = (['admin','chef_agence','secretaire'].includes(session.role)
       ? '<option value="">Tous les commerciaux</option>'
       : '') +
       comsVisibles.map(c=>`<option value="${c._id}"${c._id===prev?' selected':''}>${esc(c.nom)}</option>`).join('');
@@ -13515,7 +13515,8 @@ function renderSaisieAdhesions(){
   }
 
   // Tableau
-  const canSaisir = ['admin','commercial'].includes(session?.role);
+  const canSaisir = ['admin','commercial'].includes(session?.role); // encaissement adhésion (inchangé)
+  const canRachat = ['admin','secretaire','chef_agence'].includes(session?.role); // ✅ rachat de carnet : pas les commerciaux
   document.getElementById('tb-saisie-adhesions').innerHTML = clients.map(c=>{
     const com = getCom(c.commercialId);
     const paye = (c.adhesionStatut||'non_paye') === 'paye';
@@ -13534,9 +13535,9 @@ function renderSaisieAdhesions(){
         }
       </td>
       <td style="text-align:center;">
-        ${canSaisir
+        ${canRachat
           ? `<button class="adh-btn-encaisser" style="background:rgba(100,160,247,0.15);color:#64a0f7;border:1px solid rgba(100,160,247,0.35);" onclick="ouvrirRachatCarnet('${c._id}')">📘 Racheter 200 FCFA</button>`
-          : `<span style="font-size:10px;color:var(--muted);">Accès refusé</span>`
+          : ''
         }
         ${rachats.length>0?`<div style="font-size:9px;color:var(--muted);margin-top:3px;">${rachats.length} rachat(s) — dernier : ${rachats[0].date}</div>`:''}
       </td>
@@ -13632,7 +13633,7 @@ window.confirmerEncaissementAdh = async function(){
 // c'est un historique de paiements, comme les paiements normaux, qu'on peut
 // encaisser autant de fois que nécessaire (ex : perte de carnet).
 window.ouvrirRachatCarnet = function(clientId){
-  if(!['admin','commercial'].includes(session?.role)){ notify('Accès refusé','err'); return; }
+  if(!['admin','secretaire','chef_agence'].includes(session?.role)){ notify('Accès refusé','err'); return; }
   const c = getCl(clientId);
   if(!c){ notify('Client introuvable','err'); return; }
   document.getElementById('m-rachat-client-id').value = clientId;
@@ -13654,7 +13655,7 @@ window.ouvrirRachatCarnet = function(clientId){
 };
 
 window.confirmerRachatCarnet = async function(){
-  if(!['admin','commercial'].includes(session?.role)){ notify('Accès refusé','err'); return; }
+  if(!['admin','secretaire','chef_agence'].includes(session?.role)){ notify('Accès refusé','err'); return; }
   const clientId = document.getElementById('m-rachat-client-id').value;
   const note = document.getElementById('m-rachat-note').value.trim();
   const c = getCl(clientId);
