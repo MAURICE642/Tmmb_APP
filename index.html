@@ -4528,10 +4528,15 @@ function _syncLocalAfterWrite(col) {
 // expire dans moins de 5 minutes. Sinon, getIdToken(false) est instantané
 // (lecture du cache mémoire, 0ms réseau).
 let _lastTokenCheck = 0;
+let _sessionInvalidHandled = false; // ✅ FIX : évite les appels en cascade à doLogout()
+
 async function _assertFirebaseSession() {
   if (!auth || !auth.currentUser) {
-    notify('Session expirée — veuillez vous reconnecter', 'err');
-    window.doLogout();
+    if(!_sessionInvalidHandled){
+      _sessionInvalidHandled = true;
+      notify('Session expirée — veuillez vous reconnecter', 'err');
+      window.doLogout();
+    }
     throw new Error('SESSION_EXPIRED');
   }
   try {
@@ -4542,13 +4547,29 @@ async function _assertFirebaseSession() {
     const msLeft = expiresAt - now;
     if (msLeft < 5 * 60 * 1000) {
       // Token expire dans moins de 5 min → forcer le refresh (appel réseau)
-      await auth.currentUser.getIdToken(true);
+      // ✅ FIX : un aléa réseau ponctuel ne doit plus déconnecter l'utilisateur.
+      // On retente une fois avant de considérer la session comme invalide.
+      try {
+        await auth.currentUser.getIdToken(true);
+      } catch(refreshErr) {
+        await new Promise(r => setTimeout(r, 800));
+        await auth.currentUser.getIdToken(true); // 2e tentative — si ça échoue aussi, on tombe dans le catch externe
+      }
     }
     // Sinon : token valide, 0ms réseau
   } catch(e) {
-    notify('Session invalide — veuillez vous reconnecter', 'err');
-    window.doLogout();
-    throw new Error('SESSION_INVALID');
+    // Ne déconnecter réellement que si l'utilisateur n'est plus authentifié du tout,
+    // pas pour un simple raté de rafraîchissement réseau (ex: pendant un gros import).
+    if (!auth.currentUser) {
+      if(!_sessionInvalidHandled){
+        _sessionInvalidHandled = true;
+        notify('Session invalide — veuillez vous reconnecter', 'err');
+        window.doLogout();
+      }
+      throw new Error('SESSION_INVALID');
+    }
+    // currentUser existe encore : on laisse passer, l'écriture suivante retentera son propre refresh.
+    console.warn('Rafraîchissement du token Firebase temporairement indisponible, poursuite avec le token actuel.', e);
   }
 }
 
@@ -6026,6 +6047,7 @@ window.doLogin = async function(){
     await _resetServerLock(raw);
     errEl.style.display = 'none';
     session = {userId: u._id, role: u.role, nom: u.nom};
+    _sessionInvalidHandled = false; // ✅ FIX : réarme le garde-fou pour la nouvelle session
     _resetSessionTimer();
     _startTokenRefresh(); // Point 5 : démarrer le rafraîchissement proactif
 
