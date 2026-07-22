@@ -1981,6 +1981,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
             <th>Téléphone</th>
             <th>Commercial</th>
             <th style="text-align:center;">Adhésion (200 FCFA)</th>
+            <th style="text-align:center;">Rachat carnet</th>
             <th style="text-align:center;">Action</th>
           </tr>
         </thead>
@@ -3016,6 +3017,32 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
   </div>
 </div>
 
+<!-- MODAL RACHAT DE CARNET (frais séparé, répétable, ex: perte de carnet) -->
+<div class="mo" id="m-rachat-carnet">
+  <div class="md" style="border-color:rgba(100,160,247,0.4);">
+    <div class="md-title" style="color:#64a0f7;">📘 Rachat de carnet</div>
+    <div id="m-rachat-client-info" class="ib ib-blue" style="margin-bottom:12px;font-size:12px;"></div>
+    <div class="ib ib-yellow" style="font-size:12px;margin-bottom:12px;">
+      Montant fixe : <strong style="font-size:14px;">200 FCFA</strong> — Frais distinct de l'adhésion, peut être encaissé plusieurs fois (ex : perte de carnet).
+    </div>
+    <div class="fr" id="m-rachat-date-row" style="display:none;">
+      <label>Date d'encaissement <span style="color:var(--accent);font-size:10px;">(Admin uniquement)</span></label>
+      <input type="date" id="m-rachat-date">
+    </div>
+    <div class="fr">
+      <label>Note (optionnel)</label>
+      <input type="text" id="m-rachat-note" placeholder="ex: Carnet perdu, rachat...">
+    </div>
+    <input type="hidden" id="m-rachat-client-id">
+    <div class="ma">
+      <button class="btn btn-ghost" onclick="closeM('m-rachat-carnet')">Annuler</button>
+      <button class="btn btn-success" onclick="confirmerRachatCarnet()" style="background:linear-gradient(135deg,rgba(100,160,247,0.4),rgba(100,160,247,0.2));border-color:rgba(100,160,247,0.5);color:#64a0f7;">
+        ✅ Confirmer 200 FCFA
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- PRIMES PALIERS -->
 <div class="mo" id="m-primes">
   <div class="md md-lg">
@@ -3674,6 +3701,8 @@ async function _loadCol(col) {
       q = query(colRef, where('commercialId', '==', uid));
     } else if (col === 'adhesionPays') {
       q = query(colRef, where('commercialId', '==', uid));
+    } else if (col === 'rachatCarnetPays') {
+      q = query(colRef, where('commercialId', '==', uid));
     } else if (col === 'livraisons') {
       // Livraisons filtrées par clients du commercial
       const clientIds = DB.clients.map(c => c._id);
@@ -3966,7 +3995,7 @@ const _PAGE_DEPS = {
   'recouvrement':       ['clients','paiements','commerciaux'],
   'fiche':              ['paiements','livraisons','adhesionPays','mises','versements','clients','commerciaux'],
   'saisie-mises':       ['mises','clients','commerciaux','primesPaliers','versements'],
-  'saisie-adhesions':   ['adhesionPays','clients','commerciaux'],
+  'saisie-adhesions':   ['adhesionPays','rachatCarnetPays','clients','commerciaux'],
   'com-clients':        ['clients','paiements','commerciaux'],
   'com-nouveau-client': ['commerciaux','agences'],
   'transfert-resiliation': ['clients','paiements','commerciaux','transferts'],
@@ -4085,6 +4114,7 @@ function _queryForCol(col) {
     if (col === 'paiements')   return query(colRef, where('commercialId','==',uid));
     if (col === 'mises')       return query(colRef, where('commercialId','==',uid));
     if (col === 'adhesionPays')return query(colRef, where('commercialId','==',uid));
+    if (col === 'rachatCarnetPays')return query(colRef, where('commercialId','==',uid));
     if (col === 'pointsJour')  return query(colRef, where('commercialId','==',uid));
     if (col === 'versements')  return query(colRef, where('commercialId','==',uid));
     if (col === 'transferts')  return query(colRef, where('operateurId','==',uid));
@@ -4247,7 +4277,7 @@ async function setupPageListeners(pageId) {
       // consulte la fiche de ce client.
       const ficheClientModalOuvert = document.getElementById('m-fiche-client')?.classList.contains('open');
       if (ficheClientModalOuvert && typeof _ficheClientCtxId !== 'undefined' && _ficheClientCtxId
-          && ['paiements','adhesionPays','livraisons','clients'].includes(col)
+          && ['paiements','adhesionPays','rachatCarnetPays','livraisons','clients'].includes(col)
           && typeof ouvrirFicheClient === 'function') {
         ouvrirFicheClient(_ficheClientCtxId);
       }
@@ -4288,6 +4318,7 @@ const _WRITE_ROLES = {
   paiements:     ['admin','commercial','secretaire','chef_agence'],
   livraisons:    ['admin','commercial','secretaire','chef_agence'],
   adhesionPays:  ['admin','commercial','secretaire','chef_agence'],
+  rachatCarnetPays: ['admin','commercial','secretaire','chef_agence'],
   mises:         ['admin','commercial','secretaire','chef_agence'],
   primesPaliers: ['admin','secretaire'],
   pointsJour:    ['admin','commercial','secretaire','chef_agence'],
@@ -13145,8 +13176,8 @@ function afficherRecu(data){
   const emissionDate = now.toLocaleDateString('fr-FR', {day:'2-digit',month:'long',year:'numeric'});
   const emissionHeure = String(now.getHours()).padStart(2,'0') + 'h' + String(now.getMinutes()).padStart(2,'0');
 
-  const typeLabel = data.type === 'adhesion' ? 'ENCAISSEMENT ADHÉSION' : 'PAIEMENT DE COTISATION(S)';
-  const typeIcon  = data.type === 'adhesion' ? '🤝' : '💳';
+  const typeLabel = data.type === 'adhesion' ? 'ENCAISSEMENT ADHÉSION' : data.type === 'rachat_carnet' ? 'RACHAT DE CARNET' : 'PAIEMENT DE COTISATION(S)';
+  const typeIcon  = data.type === 'adhesion' ? '🤝' : data.type === 'rachat_carnet' ? '📘' : '💳';
 
   // Agence du commercial
   const _comObj = DB.commerciaux.find(c=>c._id === data.commercialId) || {};
@@ -13419,7 +13450,7 @@ window.enregistrerMiseSaisie = async function(){
 function renderSaisieAdhesions(){
   if(!['admin','commercial'].includes(session?.role)){
     document.getElementById('tb-saisie-adhesions').innerHTML=
-      '<tr><td colspan="6" class="emp">Accès réservé à l\'admin et aux commerciaux.</td></tr>';
+      '<tr><td colspan="7" class="emp">Accès réservé à l\'admin et aux commerciaux.</td></tr>';
     return;
   }
 
@@ -13489,6 +13520,8 @@ function renderSaisieAdhesions(){
     const com = getCom(c.commercialId);
     const paye = (c.adhesionStatut||'non_paye') === 'paye';
     const adhPay = paye ? (DB.adhesionPays||[]).filter(a=>a.clientId===c._id).sort((a,b)=>b.date.localeCompare(a.date))[0] : null;
+    // ✅ Rachat de carnet : frais séparé, toujours disponible, quel que soit le statut d'adhésion
+    const rachats = (DB.rachatCarnetPays||[]).filter(r=>r.clientId===c._id).sort((a,b)=>b.date.localeCompare(a.date));
     return `<tr>
       <td><span style="font-size:10px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.35);border-radius:4px;padding:1px 7px;color:var(--accent);font-weight:700;">${esc(c.codeClient||'—')}</span></td>
       <td class="fw6">${esc(c.nom)}<div class="tm" style="font-size:10px">${esc(c.ville||'')} ${c.quartier?'· '+esc(c.quartier):''}</div></td>
@@ -13501,13 +13534,20 @@ function renderSaisieAdhesions(){
         }
       </td>
       <td style="text-align:center;">
+        ${canSaisir
+          ? `<button class="adh-btn-encaisser" style="background:rgba(100,160,247,0.15);color:#64a0f7;border:1px solid rgba(100,160,247,0.35);" onclick="ouvrirRachatCarnet('${c._id}')">📘 Racheter 200 FCFA</button>`
+          : `<span style="font-size:10px;color:var(--muted);">Accès refusé</span>`
+        }
+        ${rachats.length>0?`<div style="font-size:9px;color:var(--muted);margin-top:3px;">${rachats.length} rachat(s) — dernier : ${rachats[0].date}</div>`:''}
+      </td>
+      <td style="text-align:center;">
         ${(!paye && canSaisir)
           ? `<button class="adh-btn-encaisser" onclick="ouvrirEncaissementAdh('${c._id}')">🎫 Encaisser 200 FCFA</button>`
           : `<span style="font-size:10px;color:var(--muted);">${paye?'—':'Accès refusé'}</span>`
         }
       </td>
     </tr>`;
-  }).join('') || `<tr><td colspan="6" class="emp">${q||filtComId||filtStatut?'Aucun client pour ces filtres':'Aucun client'}</td></tr>`;
+  }).join('') || `<tr><td colspan="7" class="emp">${q||filtComId||filtStatut?'Aucun client pour ces filtres':'Aucun client'}</td></tr>`;
 }
 
 window.adhResetFiltres = function(){
@@ -13579,6 +13619,78 @@ window.confirmerEncaissementAdh = async function(){
     montant: 200, nbCotis: 1, cotisJour: 200,
     date: TODAY, heure,
     note: note || 'Adhésion encaissée',
+    saisiParNom: session.nom,
+    totalPaye: 200,
+    totalRestant: 0,
+    pct: 100
+  });
+  renderSaisieAdhesions();
+};
+
+// ========= RACHAT DE CARNET (frais séparé, répétable) =========
+// Contrairement à l'adhésion, ce frais n'a pas de statut "payé/non payé" :
+// c'est un historique de paiements, comme les paiements normaux, qu'on peut
+// encaisser autant de fois que nécessaire (ex : perte de carnet).
+window.ouvrirRachatCarnet = function(clientId){
+  if(!['admin','commercial'].includes(session?.role)){ notify('Accès refusé','err'); return; }
+  const c = getCl(clientId);
+  if(!c){ notify('Client introuvable','err'); return; }
+  document.getElementById('m-rachat-client-id').value = clientId;
+  document.getElementById('m-rachat-note').value = '';
+  document.getElementById('m-rachat-client-info').innerHTML =
+    `<strong>Client :</strong> ${c.nom} ${c.codeClient?'<span style="color:var(--accent);font-weight:700;">('+c.codeClient+')</span>':''}<br>
+     <strong>Commercial :</strong> ${getCom(c.commercialId).nom}`;
+  // Champ date visible uniquement pour l'admin (pour antidater un encaissement)
+  const dateRow = document.getElementById('m-rachat-date-row');
+  const dateInput = document.getElementById('m-rachat-date');
+  if(['admin','chef_agence'].includes(session.role)){
+    dateRow.style.display = '';
+    dateInput.value = TODAY;
+  } else {
+    dateRow.style.display = 'none';
+    dateInput.value = TODAY;
+  }
+  openM('m-rachat-carnet');
+};
+
+window.confirmerRachatCarnet = async function(){
+  if(!['admin','commercial'].includes(session?.role)){ notify('Accès refusé','err'); return; }
+  const clientId = document.getElementById('m-rachat-client-id').value;
+  const note = document.getElementById('m-rachat-note').value.trim();
+  const c = getCl(clientId);
+  if(!c){ notify('Client introuvable','err'); return; }
+  if(!(await confirmDialog(`Client : ${c.nom}\nRachat de carnet : 200 FCFA\n\nCet encaissement ne peut pas être annulé.`,{title:'⚠️ Confirmation irréversible',okLabel:'Confirmer',danger:true}))) return;
+  const now = new Date();
+  const heure = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+  // Admin peut choisir une date différente d'aujourd'hui
+  const dateChoisie = (['admin','chef_agence'].includes(session.role) && document.getElementById('m-rachat-date')?.value)
+    ? document.getElementById('m-rachat-date').value
+    : TODAY;
+  // ✅ Frais séparé : on n'écrase jamais adhesionStatut/adhesion — uniquement un nouveau document d'historique
+  await fbAdd('rachatCarnetPays',{
+    clientId,
+    commercialId: c.commercialId,
+    montant: 200,
+    date: dateChoisie,
+    heure: dateChoisie === TODAY ? heure : '00:00',
+    note: note || ('Rachat de carnet encaissé' + (dateChoisie !== TODAY ? ' (date modifiée par admin)' : '')),
+    saisiParId: session.userId,
+    saisiParNom: session.nom,
+    verrouille: true
+  });
+  closeM('m-rachat-carnet');
+  notify(`✅ Rachat de carnet de ${c.nom} encaissé — 200 FCFA`);
+  // Afficher le reçu
+  await new Promise(r=>setTimeout(r,300));
+  afficherRecu({
+    type: 'rachat_carnet',
+    clientNom: c.nom,
+    clientCode: c.codeClient || '',
+    commercialNom: getCom(c.commercialId).nom,
+    commercialId: c.commercialId,
+    montant: 200, nbCotis: 1, cotisJour: 200,
+    date: dateChoisie, heure,
+    note: note || 'Rachat de carnet encaissé',
     saisiParNom: session.nom,
     totalPaye: 200,
     totalRestant: 0,
