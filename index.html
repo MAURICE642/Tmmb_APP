@@ -13350,11 +13350,10 @@ window.enregistrerMiseSaisie = async function(){
   // ✅ Pour les commerciaux : formulaire entièrement vierge après confirmation
   // (déselectionne le client, vide la recherche) — évite tout risque de double saisie
   // sur le même client. Admin/secrétaire gardent le client sélectionné (saisies en série).
-  if(session.role === 'commercial'){
-    renderSaisieMises();
-  } else {
-    selectMiseClient(miseClientCtx);
-  }
+  // ✅ Pour tous les rôles : la page revient entièrement à son état initial
+  // après confirmation du paiement (client désélectionné, champ de recherche
+  // vidé, formulaire vierge) — évite tout risque de double saisie.
+  renderSaisieMises();
 };
 
 // ========= SAISIE DES ADHÉSIONS =========
