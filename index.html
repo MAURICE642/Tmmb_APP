@@ -3916,7 +3916,21 @@ async function ensureCollectionsLoaded(cols) {
   if (!missing.length) return;
   // ✅ FIX LATENCE : toutes les collections chargées en parallèle (Promise.all).
   // Avant : les big cols étaient séquentielles (chacune attendait la précédente).
-  await Promise.all(missing.map(c => _loadCol(c)));
+  // ✅ FIX FIABILITÉ : Promise.allSettled au lieu de Promise.all — si UNE collection
+  // échoue (permission refusée, réseau, index manquant...), les autres se chargent
+  // quand même et la page s'affiche avec ce qui a pu être récupéré, au lieu de
+  // rester entièrement vide à cause d'un seul échec.
+  const results = await Promise.allSettled(missing.map(c => _loadCol(c)));
+  const failed = [];
+  results.forEach((r, i) => {
+    if (r.status === 'rejected') {
+      failed.push(missing[i]);
+      console.error(`[ensureCollectionsLoaded] Échec du chargement de "${missing[i]}" :`, r.reason);
+    }
+  });
+  if (failed.length) {
+    notify(`⚠️ Certaines données n'ont pas pu être chargées (${failed.join(', ')}). La page peut être incomplète.`, 'err');
+  }
 }
 
 // Charger la page suivante d'une collection volumineuse (bouton admin "charger plus")
@@ -4293,6 +4307,21 @@ async function setupPageListeners(pageId) {
       // Le listener peut avoir été ouvert par une autre page : on ne re-rend
       // que si la page actuellement affichée dépend bien de cette collection.
       if (session && (_PAGE_DEPS[curPg]||[]).includes(col)) _debouncedRenderPg(curPg);
+    }, err => {
+      // ✅ FIX ERREUR SILENCIEUSE : sans ce gestionnaire, un échec du listener
+      // (permission-denied, index manquant, quota dépassé, réseau) ne provoquait
+      // RIEN — pas de message, pas de log — et la page restait bloquée en
+      // attente indéfinie du premier snapshot si ce listener était sa seule
+      // source de données.
+      console.error(`[onSnapshot] Erreur sur la collection "${col}" :`, err);
+      _activeListeners.delete(col); // permet une nouvelle tentative de connexion plus tard
+      setSyncStatus(false);
+      if (isSoleLoadSource && session && curPg === pageId) {
+        // Cette collection était l'UNIQUE source de données de la page : sans
+        // rendu de secours, la page resterait vide indéfiniment.
+        notify(`⚠️ Impossible de charger "${col}" (${err.code||err.message||'erreur inconnue'}). Réessayez ou contactez l'administrateur si le problème persiste.`, 'err');
+        renderPg(pageId); // rendu avec les données déjà disponibles (partielles ou vides), plutôt qu'un blocage silencieux
+      }
     });
     _activeListeners.set(col, unsub);
   });
@@ -6634,14 +6663,23 @@ function renderPg(id){
     }
   },controle:renderControle,livraisons:renderLivraisons,articles:renderArticles,produits:renderProduits,catalogue:renderCatalogue,stock:renderStock,commerciaux:renderComs,agences:renderAgences,recouvrement:renderRec,fiche:renderFiche,'saisie-mises':renderSaisieMises,'saisie-adhesions':renderSaisieAdhesions,'com-clients':renderComClients,'com-nouveau-client':renderComNouveauClient,'transfert-resiliation':renderTransfertResiliation};
   if(id==='controle' && !['admin','controleur'].includes(session?.role)){ notify('Accès non autorisé','err'); return; }
-  if(m[id]) m[id]();
-  if(id==='rapport-activite'){
-    if(session?.role!=='admin'){ notify("Accès réservé à l'administrateur",'err'); go('admin-dashboard'); return; }
-    renderRapportActivite();
-  }
-  if(id==='gstock-periode'){
-    if(!['admin','gestionnaire_stock'].includes(session?.role)){ notify('Accès non autorisé','err'); return; }
-    initGstockPeriode();
+  // ✅ FIX ERREUR SILENCIEUSE : avant, une exception dans une fonction de rendu
+  // spécifique (élément DOM manquant, donnée inattendue, etc.) remontait sans
+  // aucun message — la page restait affichée à moitié construite, sans que
+  // l'utilisateur ni la console ne soit informés de la cause.
+  try {
+    if(m[id]) m[id]();
+    if(id==='rapport-activite'){
+      if(session?.role!=='admin'){ notify("Accès réservé à l'administrateur",'err'); go('admin-dashboard'); return; }
+      renderRapportActivite();
+    }
+    if(id==='gstock-periode'){
+      if(!['admin','gestionnaire_stock'].includes(session?.role)){ notify('Accès non autorisé','err'); return; }
+      initGstockPeriode();
+    }
+  } catch(e) {
+    console.error(`[renderPg] Erreur lors de l'affichage de la page "${id}" :`, e);
+    notify(`⚠️ Erreur d'affichage de la page (${e.message||e}). Contactez l'administrateur si le problème persiste.`, 'err');
   }
 }
 
