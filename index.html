@@ -104,6 +104,12 @@
          match /salaires/{d}            { allow read: if isStaff(); allow write: if isComptable(); }
          match /periodesVerrouillees/{d}{ allow read: if isStaff(); allow write: if isComptable(); }
 
+         // ✅ Dépenses des commerciaux (dotations de fonds : entraide, carburant,
+         // vidange, etc.) — saisie réservée à l'admin et au chef d'agence.
+         match /depenses/{d}            { allow read: if isStaff();
+                                           allow create,update: if isOneOf(['admin','chef_agence']);
+                                           allow delete: if isAdmin(); }
+
          // Auto-inscription : un compte 'comptable' peut créer SON PROPRE
          // document dans 'commerciaux' (jamais avec le rôle 'admin').
          // L'admin garde le droit de créer/modifier/supprimer n'importe quel compte.
@@ -2149,6 +2155,85 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
   </div>
   <!-- FIN PAGE TRANSFERT RÉSILIATION -->
 
+  <div id="page-depenses-commerciaux" class="page">
+    <div class="sec-hdr no-print">
+      <div class="sec-title">💸 Dépenses des commerciaux</div>
+    </div>
+
+    <!-- Formulaire de saisie -->
+    <div class="transfert-card">
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;color:var(--accent);margin-bottom:10px;">➕ Nouvelle dotation / dépense</div>
+      <div class="fg">
+        <div class="fr">
+          <label>Commercial</label>
+          <select id="dep-commercial"></select>
+        </div>
+        <div class="fr">
+          <label>Nature de la dépense</label>
+          <select id="dep-nature" onchange="depToggleAutre()">
+            <option value="Entraide">🤝 Entraide</option>
+            <option value="Carburant">⛽ Carburant</option>
+            <option value="Vidange">🛢️ Vidange</option>
+            <option value="Réparation">🔧 Réparation véhicule/moto</option>
+            <option value="Transport">🚕 Transport</option>
+            <option value="Communication">📞 Communication (crédit/appels)</option>
+            <option value="Autre">➕ Autre (préciser)</option>
+          </select>
+        </div>
+      </div>
+      <div class="fg" id="dep-autre-zone" style="display:none;">
+        <div class="fr">
+          <label>Précisez la nature</label>
+          <input type="text" id="dep-nature-autre" placeholder="ex: Achat pièce moto…">
+        </div>
+      </div>
+      <div class="fg">
+        <div class="fr">
+          <label>Montant (FCFA)</label>
+          <input type="number" id="dep-montant" min="1" placeholder="ex: 5000">
+        </div>
+        <div class="fr">
+          <label>Date</label>
+          <input type="date" id="dep-date">
+        </div>
+      </div>
+      <div class="fr">
+        <label>Note (optionnel)</label>
+        <input type="text" id="dep-note" placeholder="Précision, contexte…">
+      </div>
+      <div class="ma" style="margin-top:14px;">
+        <button class="btn btn-ghost" onclick="depResetForm()">✖ Effacer</button>
+        <button class="btn btn-primary" id="dep-btn-save" onclick="depEnregistrer()">💾 Enregistrer la dépense</button>
+      </div>
+    </div>
+
+    <!-- Filtres & totaux -->
+    <div style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+      <select id="dep-filtre-commercial" onchange="renderDepensesCommerciaux()" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:6px 10px;color:var(--text);font-size:11px;outline:none;">
+        <option value="">— Tous les commerciaux —</option>
+      </select>
+      <input type="date" id="dep-filtre-date-debut" onchange="renderDepensesCommerciaux()" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:6px 10px;color:var(--text);font-size:11px;outline:none;">
+      <span style="font-size:11px;color:var(--muted);">à</span>
+      <input type="date" id="dep-filtre-date-fin" onchange="renderDepensesCommerciaux()" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:6px 10px;color:var(--text);font-size:11px;outline:none;">
+      <button class="btn btn-ghost btn-sm" onclick="depResetFiltres()">✖ Réinitialiser filtres</button>
+      <span id="dep-total-filtre" style="margin-left:auto;font-size:12px;font-weight:700;color:var(--accent);"></span>
+    </div>
+
+    <!-- Historique -->
+    <div style="margin-top:14px;">
+      <div class="sec-title" style="font-size:12px;margin-bottom:10px;">📋 Historique des dépenses</div>
+      <div class="tw">
+        <table>
+          <thead><tr>
+            <th>Date</th><th>Commercial</th><th>Nature</th><th>Montant</th><th>Note</th><th>Saisi par</th><th></th>
+          </tr></thead>
+          <tbody id="dep-historique-body"><tr><td colspan="7" class="emp">Aucune dépense enregistrée</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <!-- FIN PAGE DÉPENSES COMMERCIAUX -->
+
   <div id="page-fiche" class="page">
     <div class="sec-hdr no-print">
       <div class="sec-title" id="fiche-page-title">Fiche de recouvrement</div>
@@ -4013,6 +4098,7 @@ const _PAGE_DEPS = {
   'com-clients':        ['clients','paiements','commerciaux'],
   'com-nouveau-client': ['commerciaux','agences'],
   'transfert-resiliation': ['clients','paiements','commerciaux','transferts'],
+  'depenses-commerciaux':  ['depenses','commerciaux','agences'],
 };
 
 // ✅ FIX 10 : constantes nommées pour tous les délais setTimeout
@@ -4353,6 +4439,7 @@ const _WRITE_ROLES = {
   pointsJour:    ['admin','commercial','secretaire','chef_agence'],
   versements:    ['admin','secretaire','chef_agence'],
   transferts:    ['admin','secretaire','chef_agence'],
+  depenses:      ['admin','chef_agence'],
 };
 function _checkWriteRole(col) {
   if (!session) { notify('Accès refusé — non connecté', 'err'); throw new Error('NOT_AUTHENTICATED'); }
@@ -6286,7 +6373,8 @@ const ADMIN_NAV=`<div class="nav-sec">Principal</div>
 <div class="nav-item" id="nav-saisie-adhesions" onclick="go('saisie-adhesions')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>Saisie des adhésions</div>
 <div class="nav-item" id="nav-fiche" onclick="go('fiche')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>Fiche du jour</div>
 <div class="nav-item" id="nav-rapport-activite" onclick="go('rapport-activite')" style="color:var(--accent);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Rapport d'activité</div>
-<div class="nav-item" id="nav-transfert-resiliation" onclick="go('transfert-resiliation')" style="color:var(--danger);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>Transfert & Résiliation</div>`;
+<div class="nav-item" id="nav-transfert-resiliation" onclick="go('transfert-resiliation')" style="color:var(--danger);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>Transfert & Résiliation</div>
+<div class="nav-item" id="nav-depenses-commerciaux" onclick="go('depenses-commerciaux')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Dépenses commerciaux</div>`;
 
 const CHEF_AGENCE_NAV=`<div class="nav-sec">Principal</div>
 <div class="nav-item" id="nav-registre" onclick="go('registre')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Registre par date</div>
@@ -6319,7 +6407,8 @@ const SECRETAIRE_NAV=`<div class="nav-sec">Principal</div>
 <div class="nav-item" id="nav-saisie-adhesions" onclick="go('saisie-adhesions')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>Saisie des adhésions</div>
 <div class="nav-item" id="nav-articles" onclick="go('articles')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>Articles</div>
 <div class="nav-item" id="nav-produits" onclick="go('produits')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>Produits</div>
-<div class="nav-item" id="nav-transfert-resiliation" onclick="go('transfert-resiliation')" style="color:var(--danger);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>Transfert & Résiliation</div>`;
+<div class="nav-item" id="nav-transfert-resiliation" onclick="go('transfert-resiliation')" style="color:var(--danger);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>Transfert & Résiliation</div>
+<div class="nav-item" id="nav-depenses-commerciaux" onclick="go('depenses-commerciaux')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Dépenses commerciaux</div>`;
 
 const CONTROLEUR_NAV=`<div class="nav-sec">Consultation</div>
 <div class="nav-item" id="nav-controle" onclick="go('controle')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>Contrôle</div>
@@ -6374,7 +6463,7 @@ function setupUI(){
   document.getElementById('today-pill').textContent = new Date().toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'long'});
 }
 
-const TITLES={'admin-dashboard':'Tableau de bord',registre:'Registre par date',historique:'Historique','tous-clients':'Clients',controle:'Contrôle',livraisons:'Livraisons',articles:'Articles',produits:'Produits',catalogue:'Catalogue visuel',stock:'Stock',commerciaux:'Utilisateurs',agences:'Agences',recouvrement:'Recouvrement du jour',fiche:'Fiche du jour','saisie-mises':'Saisie de mises','saisie-adhesions':'Saisie des adhésions','com-clients':'Mes clients','com-nouveau-client':'Nouveau client','rapport-activite':"Rapport d'activité",'gstock-periode':'Suivi de période','transfert-resiliation':'Transfert & Résiliation'};
+const TITLES={'admin-dashboard':'Tableau de bord',registre:'Registre par date',historique:'Historique','tous-clients':'Clients',controle:'Contrôle',livraisons:'Livraisons',articles:'Articles',produits:'Produits',catalogue:'Catalogue visuel',stock:'Stock',commerciaux:'Utilisateurs',agences:'Agences',recouvrement:'Recouvrement du jour',fiche:'Fiche du jour','saisie-mises':'Saisie de mises','saisie-adhesions':'Saisie des adhésions','com-clients':'Mes clients','com-nouveau-client':'Nouveau client','rapport-activite':"Rapport d'activité",'gstock-periode':'Suivi de période','transfert-resiliation':'Transfert & Résiliation','depenses-commerciaux':'Dépenses commerciaux'};
 const BTN={'tous-clients':'+ Client',articles:'+ Article',produits:'+ Produit',livraisons:'+ Livraison',stock:'+ Mouvement',commerciaux:'+ Utilisateur'};
 const ACT={'tous-clients':()=>openM('m-client'),articles:()=>openM('m-article'),produits:()=>ouvrirModalProduit(),livraisons:()=>openM('m-livraison'),stock:()=>openM('m-stock-mvt'),commerciaux:()=>openM('m-com')};
 let curPg='';
@@ -6661,7 +6750,7 @@ function renderPg(id){
       if(tw) tw.style.display='none';
       const ct=document.getElementById('search-clients-count'); if(ct) ct.textContent='';
     }
-  },controle:renderControle,livraisons:renderLivraisons,articles:renderArticles,produits:renderProduits,catalogue:renderCatalogue,stock:renderStock,commerciaux:renderComs,agences:renderAgences,recouvrement:renderRec,fiche:renderFiche,'saisie-mises':renderSaisieMises,'saisie-adhesions':renderSaisieAdhesions,'com-clients':renderComClients,'com-nouveau-client':renderComNouveauClient,'transfert-resiliation':renderTransfertResiliation};
+  },controle:renderControle,livraisons:renderLivraisons,articles:renderArticles,produits:renderProduits,catalogue:renderCatalogue,stock:renderStock,commerciaux:renderComs,agences:renderAgences,recouvrement:renderRec,fiche:renderFiche,'saisie-mises':renderSaisieMises,'saisie-adhesions':renderSaisieAdhesions,'com-clients':renderComClients,'com-nouveau-client':renderComNouveauClient,'transfert-resiliation':renderTransfertResiliation,'depenses-commerciaux':renderDepensesCommerciaux};
   if(id==='controle' && !['admin','controleur'].includes(session?.role)){ notify('Accès non autorisé','err'); return; }
   // ✅ FIX ERREUR SILENCIEUSE : avant, une exception dans une fonction de rendu
   // spécifique (élément DOM manquant, donnée inattendue, etc.) remontait sans
@@ -15071,6 +15160,162 @@ window.trReset = function(){
   if(btn){ btn.disabled=false; btn.textContent='🔄 Confirmer le transfert & résilier'; }
 };
 // ═══════════════ FIN TRANSFERT RÉSILIATION ═══════════════════
+
+// ═══════════════ DÉPENSES COMMERCIAUX ═════════════════════════
+// Saisie de dotations de fonds par commercial (entraide, carburant,
+// vidange, réparation, etc.) — réservé à l'admin et au chef d'agence.
+
+function _depCheckAccess(){
+  if(!session){ notify('Non connecté','err'); return false; }
+  if(!['admin','chef_agence'].includes(session.role)){
+    notify("Accès refusé — réservé à l'administrateur ou au chef d'agence","err");
+    go(getRoleHome(session.role));
+    return false;
+  }
+  return true;
+}
+
+window.depToggleAutre = function(){
+  const sel = document.getElementById('dep-nature');
+  const zone = document.getElementById('dep-autre-zone');
+  if(!sel || !zone) return;
+  zone.style.display = (sel.value==='Autre') ? '' : 'none';
+};
+
+function _depPopulateSelects(){
+  const coms = comsDansAgence().filter(c=>c.role==='commercial').sort((a,b)=>(a.nom||'').localeCompare(b.nom||''));
+  const selForm = document.getElementById('dep-commercial');
+  const selFiltre = document.getElementById('dep-filtre-commercial');
+  if(selForm){
+    const prev = selForm.value;
+    selForm.innerHTML = `<option value="">— Sélectionner un commercial —</option>` +
+      coms.map(c=>`<option value="${c._id}"${c._id===prev?' selected':''}>${esc(c.nom)}</option>`).join('');
+  }
+  if(selFiltre){
+    const prev = selFiltre.value;
+    selFiltre.innerHTML = `<option value="">— Tous les commerciaux —</option>` +
+      coms.map(c=>`<option value="${c._id}"${c._id===prev?' selected':''}>${esc(c.nom)}</option>`).join('');
+  }
+}
+
+window.depResetForm = function(){
+  const ids = ['dep-commercial','dep-nature-autre','dep-montant','dep-note'];
+  ids.forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  const nat = document.getElementById('dep-nature'); if(nat) nat.value='Entraide';
+  const dt = document.getElementById('dep-date'); if(dt) dt.value = TODAY;
+  const zone = document.getElementById('dep-autre-zone'); if(zone) zone.style.display='none';
+  const btn = document.getElementById('dep-btn-save');
+  if(btn){ btn.disabled=false; btn.textContent='💾 Enregistrer la dépense'; }
+};
+
+window.depResetFiltres = function(){
+  const ids = ['dep-filtre-commercial','dep-filtre-date-debut','dep-filtre-date-fin'];
+  ids.forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  renderDepensesCommerciaux();
+};
+
+window.depEnregistrer = async function(){
+  if(!_depCheckAccess()) return;
+  const commercialId = (document.getElementById('dep-commercial')||{}).value;
+  if(!commercialId){ notify('Sélectionnez un commercial','err'); return; }
+  const natureSel = (document.getElementById('dep-nature')||{}).value || 'Autre';
+  const montant = parseFloat((document.getElementById('dep-montant')||{}).value)||0;
+  if(montant <= 0){ notify('Montant invalide','err'); return; }
+  const note = ((document.getElementById('dep-note')||{}).value||'').trim();
+  const dateChoisie = (document.getElementById('dep-date')||{}).value || TODAY;
+  const nature = natureSel==='Autre'
+    ? (((document.getElementById('dep-nature-autre')||{}).value||'').trim() || 'Autre')
+    : natureSel;
+
+  if(natureSel==='Autre' && !nature){ notify('Précisez la nature de la dépense','err'); return; }
+
+  const com = DB.commerciaux.find(c=>c._id===commercialId);
+  if(!com){ notify('Commercial introuvable','err'); return; }
+
+  const btn = document.getElementById('dep-btn-save');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Enregistrement…'; }
+
+  try {
+    const now = new Date();
+    const heure = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    await fbAdd('depenses',{
+      commercialId: commercialId,
+      commercialNom: com.nom,
+      nature: nature,
+      montant: montant,
+      note: note,
+      date: dateChoisie,
+      heure: heure,
+      saisiParId: session.userId,
+      saisiParNom: session.nom || session.userId
+    });
+    notify(`✅ Dépense enregistrée — ${fmt(montant)} (${nature}) pour ${com.nom}`);
+    depResetForm();
+    renderDepensesCommerciaux();
+  } catch(e){
+    notify("Erreur lors de l'enregistrement : "+e.message,'err');
+    if(btn){ btn.disabled=false; btn.textContent='💾 Enregistrer la dépense'; }
+  }
+};
+
+window.depSupprimer = async function(id){
+  if(!session || session.role!=='admin'){ notify('Suppression réservée à l\'administrateur','err'); return; }
+  const ok = await confirmDialog('Supprimer définitivement cette dépense ?',{title:'🗑 Suppression',okLabel:'Supprimer',danger:true});
+  if(!ok) return;
+  try {
+    await fbDelete('depenses', id);
+    notify('Dépense supprimée');
+    renderDepensesCommerciaux();
+  } catch(e){
+    notify('Erreur lors de la suppression : '+e.message,'err');
+  }
+};
+
+function renderDepensesCommerciaux(){
+  if(!_depCheckAccess()) return;
+  _depPopulateSelects();
+
+  const dateInput = document.getElementById('dep-date');
+  if(dateInput && !dateInput.value) dateInput.value = TODAY;
+
+  const comIdsVisibles = new Set(comsDansAgence().map(c=>c._id));
+  let depenses = (DB.depenses||[]).filter(d=>comIdsVisibles.has(d.commercialId));
+
+  const filtreCom = (document.getElementById('dep-filtre-commercial')||{}).value||'';
+  const filtreDebut = (document.getElementById('dep-filtre-date-debut')||{}).value||'';
+  const filtreFin = (document.getElementById('dep-filtre-date-fin')||{}).value||'';
+
+  if(filtreCom) depenses = depenses.filter(d=>d.commercialId===filtreCom);
+  if(filtreDebut) depenses = depenses.filter(d=>(d.date||'') >= filtreDebut);
+  if(filtreFin) depenses = depenses.filter(d=>(d.date||'') <= filtreFin);
+
+  depenses = depenses.slice().sort((a,b)=>{
+    const da = (a.date||'')+(a.heure||''), db = (b.date||'')+(b.heure||'');
+    return db.localeCompare(da);
+  });
+
+  const total = depenses.reduce((a,d)=>a+(d.montant||0),0);
+  const totalEl = document.getElementById('dep-total-filtre');
+  if(totalEl) totalEl.textContent = `Total : ${fmt(total)} (${depenses.length} dépense${depenses.length>1?'s':''})`;
+
+  const tbody = document.getElementById('dep-historique-body');
+  if(!tbody) return;
+  if(!depenses.length){
+    tbody.innerHTML = '<tr><td colspan="7" class="emp">Aucune dépense enregistrée</td></tr>';
+    return;
+  }
+  const canDelete = session && session.role==='admin';
+  tbody.innerHTML = depenses.map(d=>`<tr>
+    <td class="tm">${d.date||'—'}</td>
+    <td><strong>${esc(d.commercialNom||'—')}</strong></td>
+    <td>${esc(d.nature||'—')}</td>
+    <td style="color:var(--accent);font-weight:700;">${fmt(d.montant||0)}</td>
+    <td class="tm" style="font-size:11px;">${esc(d.note||'—')}</td>
+    <td class="tm" style="font-size:11px;">${esc(d.saisiParNom||'—')}</td>
+    <td style="text-align:center;">${canDelete?`<button class="btn btn-xs btn-warn" onclick="depSupprimer('${d._id}')" title="Supprimer">🗑</button>`:''}</td>
+  </tr>`).join('');
+}
+// ═══════════════ FIN DÉPENSES COMMERCIAUX ═════════════════════
 
 // ═══════════════ ENREGISTREMENT SERVICE WORKER (PWA) ═════════
 if ('serviceWorker' in navigator) {
