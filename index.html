@@ -85,7 +85,11 @@
          // ✅ POINT 2 : champs sensibles accessibles uniquement après connexion réelle
          match /commerciauxPrive/{d}   { allow read: if isStaff(); allow write: if isAdmin()
                                            || (isAuth() && request.auth.uid==d); }
-         match /clients/{d}            { allow read: if isStaff(); allow create,update: if isOneOf(['admin','commercial','secretaire','chef_agence']); allow delete: if isAdmin() || isOneOf(['chef_agence']); }
+         match /clients/{d}            { allow read: if isStaff();
+                                          allow create: if isOneOf(['admin','commercial','secretaire','chef_agence']);
+                                          allow update: if isOneOf(['admin','commercial','secretaire','chef_agence'])
+                                            || (isOneOf(['controleur']) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['controle']));
+                                          allow delete: if isAdmin() || isOneOf(['chef_agence']); }
          match /paiements/{d}          { allow read: if isStaff(); allow create: if isOneOf(['admin','commercial','secretaire']); allow update,delete: if isAdmin(); }
          match /articles/{d}           { allow read: if isStaff(); allow write: if isOneOf(['admin','gestionnaire_stock']); }
          match /produits/{d}           { allow read: if isStaff(); allow write: if isOneOf(['admin','gestionnaire_stock']); }
@@ -154,7 +158,8 @@
 
          match /clients/{d}     { allow read: if isStaff();
                                    allow create: if isOneOf(['admin','commercial','secretaire','chef_agence']) && validClient();
-                                   allow update: if isOneOf(['admin','commercial','secretaire','chef_agence']) && validClient();
+                                   allow update: if (isOneOf(['admin','commercial','secretaire','chef_agence']) && validClient())
+                                     || (isOneOf(['controleur']) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['controle']));
                                    allow delete: if isAdmin() || isOneOf(['chef_agence']); }
          match /paiements/{d}   { allow read: if isStaff();
                                    allow create: if isOneOf(['admin','commercial','secretaire']) && validPaiement();
@@ -9420,18 +9425,22 @@ window.confirmerControle = async function(){
   const note = (document.getElementById('ctrl-note').value||'').trim().slice(0,300);
   const now = new Date();
   const heure = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
-  await fbUpdate('clients', cid, {
-    controle: {
-      statut: 'controle',
-      date: TODAY,
-      heure,
-      par: session.nom || session.userId,
-      note
-    }
-  });
-  closeM('m-controle');
-  notify('✅ Client marqué comme contrôlé');
-  renderControle();
+  try {
+    await fbUpdate('clients', cid, {
+      controle: {
+        statut: 'controle',
+        date: TODAY,
+        heure,
+        par: session.nom || session.userId,
+        note
+      }
+    });
+    closeM('m-controle');
+    notify('✅ Client marqué comme contrôlé');
+    renderControle();
+  } catch(e) {
+    notify('Erreur lors du marquage : '+(e.message||String(e)), 'err');
+  }
 };
 
 window.annulerControle = async function(cid){
@@ -9439,11 +9448,15 @@ window.annulerControle = async function(cid){
   const c = getCl(cid);
   if(!c){ notify('Client introuvable','err'); return; }
   if(!(await confirmDialog(`Annuler le contrôle de « ${c.nom} » ? Il repassera dans la liste "À contrôler".`,{title:'Annuler le contrôle'}))) return;
-  await fbUpdate('clients', cid, {
-    controle: { statut: 'non_controle', date:'', heure:'', par:'', note:'' }
-  });
-  notify('Contrôle annulé');
-  renderControle();
+  try {
+    await fbUpdate('clients', cid, {
+      controle: { statut: 'non_controle', date:'', heure:'', par:'', note:'' }
+    });
+    notify('Contrôle annulé');
+    renderControle();
+  } catch(e) {
+    notify('Erreur lors de l\'annulation : '+(e.message||String(e)), 'err');
+  }
 };
 
 // ── Rapport de contrôle : synthèse imprimable des clients contrôlés / non contrôlés ──
