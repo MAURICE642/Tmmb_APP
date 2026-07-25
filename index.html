@@ -5950,14 +5950,32 @@ function badgeCorrection(p){
 
 // ─── Debounce générique pour les champs de recherche/filtre ───
 // Évite de re-render toute la liste à CHAQUE frappe clavier : on attend
-// que l'utilisateur arrête de taper (250ms) avant de lancer le rendu.
+// que l'utilisateur arrête de taper (120ms) avant de lancer le rendu.
+// ✅ FIX RÉACTIVITÉ : délai réduit (250ms → 120ms, quasi instantané) et
+// exécution protégée par try/catch — avant, une erreur en cours de rendu
+// s'arrêtait silencieusement (aucun message, aucun plantage visible) et
+// le tableau restait figé jusqu'au rechargement ou au reclic sur le menu.
+// Désormais toute erreur est signalée immédiatement via notify().
 const _debounceTimers = {};
 function dRender(fnName, delay){
-  delay = delay || 250;
+  delay = (delay === undefined || delay === null) ? 120 : delay;
   clearTimeout(_debounceTimers[fnName]);
   _debounceTimers[fnName] = setTimeout(function(){
-    if (typeof window[fnName] === 'function') window[fnName]();
+    safeRender(fnName);
   }, delay);
+}
+
+// ✅ Exécute une fonction de rendu (par nom ou référence) en capturant
+// toute exception, pour que le filtrage/la recherche ne reste JAMAIS
+// bloqué(e) silencieusement — l'erreur est reportée et loggée.
+function safeRender(fnOrName){
+  try {
+    const fn = typeof fnOrName === 'string' ? window[fnOrName] : fnOrName;
+    if (typeof fn === 'function') fn();
+  } catch(e) {
+    console.error('[safeRender] Erreur de rendu :', fnOrName, e);
+    notify('Erreur d\'affichage — réessayez ou changez de page puis revenez : '+(e.message||String(e)), 'err');
+  }
 }
 function getCl(id){ return DB.clients.find(c=>c._id===id)||{nom:'—',contrat:'—'}; }
 function getCom(id){ return DB.commerciaux.find(c=>c._id===id)||{nom:'—'}; }
@@ -15473,6 +15491,46 @@ function renderDepensesCommerciaux(){
   </tr>`).join('');
 }
 // ═══════════════ FIN DÉPENSES COMMERCIAUX ═════════════════════
+
+// ✅ FIX RÉACTIVITÉ FILTRES/RECHERCHE (tous écrans) ═══════════════
+// Ce script est chargé en <script type="module">. Dans un module JS, les
+// fonctions déclarées normalement (function xxx(){...}) restent invisibles
+// depuis les attributs HTML inline (onchange="...", oninput="...") — ceux-ci
+// s'exécutent dans le contexte global, hors du scope du module. Seules les
+// fonctions explicitement assignées à window sont accessibles depuis eux.
+// dRender() (utilisée par presque tous les champs de recherche) et plusieurs
+// fonctions de rendu appelées directement en onchange n'étaient PAS exposées
+// sur window : chaque frappe/sélection déclenchait une erreur silencieuse
+// (aucun message visible), et le filtre ne s'appliquait qu'après un
+// rechargement complet de la page (qui, lui, passe par go() → exposé sur
+// window → appelle ces fonctions en interne, dans le scope du module).
+window.dRender = dRender;
+window.safeRender = safeRender;
+window.toggleSidebar = toggleSidebar;
+window.mettreAJourSelectionBar = mettreAJourSelectionBar;
+window.renderArticles = renderArticles;
+window.renderComClients = renderComClients;
+window.renderControle = renderControle;
+window.renderDepensesCommerciaux = renderDepensesCommerciaux;
+window.renderLivraisons = renderLivraisons;
+window.renderProduits = renderProduits;
+window.renderSaisieAdhesions = renderSaisieAdhesions;
+
+// ✅ Filet de sécurité global : toute erreur JS qui échapperait encore à un
+// try/catch local est désormais signalée à l'utilisateur (au lieu de rester
+// silencieuse) et journalisée en console pour diagnostic.
+window.addEventListener('error', function(e){
+  console.error('[Erreur globale]', e.message, e.error);
+  if (typeof notify === 'function') {
+    notify('Erreur : '+(e.message||'action impossible')+' — réessayez ou changez de page puis revenez.', 'err');
+  }
+});
+window.addEventListener('unhandledrejection', function(e){
+  console.error('[Promesse rejetée]', e.reason);
+  if (typeof notify === 'function') {
+    notify('Erreur : '+((e.reason&&e.reason.message)||'action impossible')+' — réessayez ou changez de page puis revenez.', 'err');
+  }
+});
 
 // ═══════════════ ENREGISTREMENT SERVICE WORKER (PWA) ═════════
 if ('serviceWorker' in navigator) {
