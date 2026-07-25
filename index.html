@@ -1412,7 +1412,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
       </select>
       <span id="ctrl-search-count" style="font-size:11px;color:var(--muted);white-space:nowrap;"></span>
     </div>
-    <div class="tw"><table><thead><tr><th>Client</th><th>Téléphone</th><th class="no-print">Commercial</th><th>Contrat</th><th id="ctrl-th-info">Statut</th><th class="no-print">Actions</th></tr></thead><tbody id="tb-controle"></tbody></table></div>
+    <div class="tw"><table><thead><tr><th>Client</th><th>Téléphone</th><th class="no-print">Commercial</th><th>Contrat</th><th>Dernière MàJ</th><th>Niveau</th><th id="ctrl-th-info">Statut</th><th class="no-print">Actions</th></tr></thead><tbody id="tb-controle"></tbody></table></div>
   </div>
 
   <!-- ADMIN: ARTICLES -->
@@ -6548,12 +6548,17 @@ const BN_CONFIG = {
   },
   controleur: {
     main: [
+      {id:'controle',     icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>', label:'Contrôle'},
       {id:'registre',     icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>', label:'Registre'},
-      {id:'historique',   icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>', label:'Historique'},
       {id:'tous-clients', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>', label:'Clients'},
-      {id:'livraisons',   icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>', label:'Livraisons'},
+      {id:'historique',   icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>', label:'Historique'},
     ],
     drawer: [
+      {id:'livraisons',   icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>', label:'Livraisons'},
+      {id:'articles',     icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>', label:'Articles'},
+      {id:'produits',     icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>', label:'Produits'},
+      {id:'stock',        icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>', label:'Stock'},
+      {id:'commerciaux',  icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>', label:'Utilisateurs'},
       {id:'__bt_printer__', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5"/></svg>', label:'Imprimante BT', special:'bt'},
       {id:'__logout__', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>', label:'Déconnexion', special:'logout'},
     ]
@@ -9371,6 +9376,15 @@ function renderControle(){
       }
       return c.contrat||'—';
     })();
+    const s = stats(c);
+    const dernierPay = s.pays && s.pays.length
+      ? [...s.pays].sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.heure||'').localeCompare(a.heure||''))[0]
+      : null;
+    const majCell = dernierPay
+      ? `<div style="font-size:11px;">${esc(dernierPay.date)}${dernierPay.heure?` <span class="tm" style="font-size:10px">${esc(dernierPay.heure)}</span>`:''}</div>`
+      : `<span class="tm" style="font-size:11px;">—</span>`;
+    const niveauColor = s.joursCouv>=(c.duree||0) && (c.duree||0)>0 ? 'var(--accent2)' : 'var(--accent)';
+    const niveauCell = `<div title="Niveau: ${s.joursCouv}/${c.duree||0} jours" style="font-size:11px;font-weight:700;color:${niveauColor};white-space:nowrap;">${joursEnJM(s.joursCouv)}<span style="font-size:9px;color:var(--muted);font-weight:400;"> /${joursEnJM(c.duree||0)}</span></div>`;
     const infoCell = controleTab==='attente'
       ? sb('À contrôler','sy')
       : `<div style="font-size:11px;">${esc(c.controle.date||'—')} ${esc(c.controle.heure||'')}<div class="tm" style="font-size:10px">par ${esc(c.controle.par||'—')}</div>${c.controle.note?`<div class="tm" style="font-size:10px;font-style:italic;">"${esc(c.controle.note)}"</div>`:''}</div>`;
@@ -9382,10 +9396,12 @@ function renderControle(){
       <td>${esc(c.tel||'—')}</td>
       <td><span class="tag">${esc(getCom(c.commercialId).nom)}</span></td>
       <td style="font-size:11px;">${esc(contratLabel)}</td>
+      <td>${majCell}</td>
+      <td>${niveauCell}</td>
       <td>${infoCell}</td>
       <td>${actionCell}</td>
     </tr>`;
-  }).join('') || `<tr><td colspan="6" class="emp">${controleTab==='attente'?'Aucun client en attente de contrôle':'Aucun client contrôlé pour le moment'}</td></tr>`;
+  }).join('') || `<tr><td colspan="8" class="emp">${controleTab==='attente'?'Aucun client en attente de contrôle':'Aucun client contrôlé pour le moment'}</td></tr>`;
 }
 
 window.ouvrirMarquerControle = function(cid){
