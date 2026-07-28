@@ -74,6 +74,27 @@
          function isStaff(){ return isOneOf(['admin','commercial','secretaire','gestionnaire_stock','controleur','chef_agence','comptable']); }
          function isComptable(){ return isOneOf(['admin','comptable']); }
 
+         // FIX SÉCURITÉ : le filtrage "chaque agence ne voit que ses données" était
+         // fait UNIQUEMENT côté application (JS). Un commercial/secrétaire malveillant
+         // pouvait interroger Firestore directement (SDK, console, script avec la clé
+         // API visible dans le HTML) et lire les clients/paiements de TOUTES les
+         // agences. On ancre maintenant la restriction dans la règle elle-même.
+         // admin et comptable gardent une vue globale (nécessaire pour la compta/reporting).
+         // FIX PERFORMANCE : agenceId est maintenant dénormalisé directement sur
+         // les documents clients/paiements (voir _withAgenceId côté app), donc on
+         // compare resource.data.agenceId sans get() supplémentaire par document.
+         // myAgence() ne coûte qu'UNE lecture par requête (toujours le même uid),
+         // alors que l'ancien ownerAgence(commercialId) en coûtait une PAR document
+         // renvoyé (un par client différent) — bien plus lent et bien plus cher.
+         function myAgence(){
+           return exists(/databases/$(database)/documents/commerciaux/$(request.auth.uid))
+             ? get(/databases/$(database)/documents/commerciaux/$(request.auth.uid)).data.agenceId
+             : null;
+         }
+         function sameAgence(docAgenceId){
+           return isComptable() || myAgence() == docAgenceId;
+         }
+
          // FIX 10 : validation de taille des champs côté serveur (déplacées ici
          // car utilisées par /clients/ et /paiements/ juste en dessous — un seul
          // bloc de règles par collection, les deux définitions dupliquées de
@@ -85,19 +106,37 @@
                && d.ville is string && d.ville.size() <= 80
                && d.contrat is string && d.contrat.size() <= 200
                && d.codeClient is string && d.codeClient.size() <= 20
-               && d.commercialId is string;
+               && d.commercialId is string
+               // FIX PERFORMANCE : agenceId dénormalisé (voir _withAgenceId côté app).
+               // .get(..,null) évite un refus/erreur sur les documents créés avant
+               // ce correctif (encore dépourvus du champ, en attendant la migration).
+               && (d.get('agenceId', null) is string || d.get('agenceId', null) == null);
          }
          function validPaiement() {
            let d = request.resource.data;
            return d.montant is number && d.montant >= 0 && d.montant <= 999999999
                && d.clientId is string
-               && d.commercialId is string;
+               && d.commercialId is string
+               && (d.get('agenceId', null) is string || d.get('agenceId', null) == null);
          }
 
          match /agences/{d}            { allow read: if isStaff(); allow write: if isAdmin(); }
-         match /commerciaux/{d}        { allow read: if isStaff();
+         match /commerciaux/{d}        { allow read: if isAdmin() || isComptable()
+                                           || (isStaff() && myAgence() == resource.data.agenceId);
                                          allow create: if isAdmin()
-                                           || (isAuth() && request.auth.uid==d && request.resource.data.role=='comptable');
+                                           || (isAuth() && request.auth.uid==d
+                                               && request.resource.data.role=='comptable'
+                                               // FIX ÉLÉVATION DE PRIVILÈGE : on limite strictement
+                                               // les champs du document auto-créé, et on interdit de
+                                               // s'auto-assigner une agence (sinon un compte 'comptable'
+                                               // auto-inscrit pourrait apparaître dans les listes d'une
+                                               // agence ciblée). ⚠️ Ceci ne suffit pas à lui seul :
+                                               // vérifiez aussi dans la Console Firebase > Authentication
+                                               // que l'inscription publique par email/mot de passe est
+                                               // DÉSACTIVÉE, sinon n'importe qui peut créer un compte et
+                                               // obtenir ce rôle 'comptable' (accès large en lecture).
+                                               && request.resource.data.agenceId == null
+                                               && request.resource.data.keys().hasOnly(['role','agenceId','nom','email']));
                                          allow delete: if isAdmin();
                                          allow update: if isAdmin() || (isAuth() && request.auth.uid==d
                                            && request.resource.data.role==resource.data.role
@@ -105,16 +144,23 @@
          // ✅ POINT 2 : champs sensibles accessibles uniquement après connexion réelle
          match /commerciauxPrive/{d}   { allow read: if isStaff(); allow write: if isAdmin()
                                            || (isAuth() && request.auth.uid==d); }
-         match /clients/{d}            { allow read: if isStaff();
+         match /clients/{d}            { allow read: if isAdmin() || isComptable()
+                                            || (isStaff() && sameAgence(resource.data.get('agenceId', null)));
                                           allow create: if isOneOf(['admin','commercial','secretaire','chef_agence']) && validClient();
                                           allow update: if (isOneOf(['admin','commercial','secretaire','chef_agence']) && validClient())
                                             || (isOneOf(['controleur']) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['controle']));
                                           allow delete: if isAdmin() || isOneOf(['chef_agence']); }
-         match /paiements/{d}          { allow read: if isStaff();
+         match /paiements/{d}          { allow read: if isAdmin() || isComptable()
+                                            || (isStaff() && sameAgence(resource.data.get('agenceId', null)));
                                           allow create: if isOneOf(['admin','commercial','secretaire']) && validPaiement();
                                           allow update,delete: if isAdmin(); }
          match /articles/{d}           { allow read: if isStaff(); allow write: if isOneOf(['admin','gestionnaire_stock']); }
          match /produits/{d}           { allow read: if isStaff(); allow write: if isOneOf(['admin','gestionnaire_stock']); }
+         // Prix d'achat : document séparé, lisible/écrivable UNIQUEMENT par l'admin.
+         // (le mettre dans /produits/{d} ne suffirait pas : n'importe quel rôle
+         // ayant "allow read: if isStaff()" sur /produits pourrait lire tout le
+         // document, y compris un champ prixAchat qu'on voudrait cacher côté UI).
+         match /produitsPrive/{d}      { allow read, write: if isAdmin(); }
          match /stockMvts/{d}          { allow read: if isStaff(); allow create: if isOneOf(['admin','gestionnaire_stock']); allow update,delete: if isAdmin(); }
          match /livraisons/{d}         { allow read: if isStaff(); allow create,update: if isOneOf(['admin','commercial','secretaire']); allow delete: if isAdmin(); }
          match /adhesionPays/{d}       { allow read: if isStaff(); allow create: if isOneOf(['admin','commercial','secretaire']); allow update,delete: if isAdmin(); }
@@ -147,32 +193,65 @@
                                            allow create: if isOneOf(['admin','commercial','secretaire','chef_agence']);
                                            allow update,delete: if isAdmin(); }
 
-         // ✅ Chat d'assistance (tous rôles). 'chatConversations/{uid}' est
-         // indexé par l'UID Firebase du demandeur (un utilisateur = une seule
-         // conversation avec le staff). isStaffChat() = admin + chef_agence,
-         // qui répondent aux demandes ; les autres rôles ne voient/écrivent
-         // que leur propre conversation. La création est aussi autorisée au
-         // staff (cas où le staff écrit avant que le document existe déjà).
-         // Le filtrage fin par agence pour le chef d'agence (comme pour les
-         // autres collections « staff » de ce fichier) est fait côté
-         // application, pas dans la règle ci-dessous.
-         function isStaffChat(){ return isAuth() && role() in ['admin','chef_agence']; }
-         match /chatConversations/{uid} {
-           allow read:   if isAuth() && (request.auth.uid == uid || isStaffChat());
-           allow create: if isAuth() && (request.auth.uid == uid || isStaffChat());
-           allow update: if isAuth() && (request.auth.uid == uid || isStaffChat());
+         // ✅ Messagerie interne many-to-many (tous rôles peuvent écrire à tous les rôles).
+         // L'identifiant de conversation est la PAIRE d'UID triée : 'uidA__uidB'.
+         // On vérifie l'appartenance simplement en splittant le docId sur '__' —
+         // pas besoin de get()/exists() supplémentaire, donc pas de coût de lecture
+         // additionnel (contrairement au modèle par agence plus haut).
+         function estParticipant(convId){
+           return convId.split('__').hasAny([request.auth.uid]);
+         }
+         match /chatConversations/{convId} {
+           allow read:   if isAuth() && estParticipant(convId);
+           allow create: if isAuth() && estParticipant(convId)
+                           && request.resource.data.participants is list
+                           && request.resource.data.participants.size() == 2
+                           && request.resource.data.participants.hasAll([request.auth.uid]);
+           allow update: if isAuth() && estParticipant(convId);
          }
          match /chatMessages/{id} {
-           allow read:   if isAuth() && (resource.data.conversationId == request.auth.uid || isStaffChat());
-           allow create: if isAuth() && (request.resource.data.conversationId == request.auth.uid || isStaffChat())
-                           && request.resource.data.authorId == request.auth.uid;
+           allow read:   if isAuth() && estParticipant(resource.data.conversationId);
+           // FIX ANTI-SPAM : taille du texte limitée côté serveur (empêche un flood de
+           // messages géants qui gonflerait la facture Firestore et saturerait l'UI).
+           // Deux types de message autorisés : 'texte' (contenu écrit) et 'image'
+           // (photo envoyée via Firebase Storage, imageUrl = URL de téléchargement).
+           allow create: if isAuth() && estParticipant(request.resource.data.conversationId)
+                           && request.resource.data.authorId == request.auth.uid
+                           && (
+                             (request.resource.data.type == 'texte'
+                               && request.resource.data.texte is string
+                               && request.resource.data.texte.size() > 0
+                               && request.resource.data.texte.size() <= 4000)
+                             ||
+                             (request.resource.data.type == 'image'
+                               && request.resource.data.imageUrl is string
+                               && request.resource.data.imageUrl.size() > 0
+                               && request.resource.data.imageUrl.size() <= 600
+                               && request.resource.data.imageUrl.matches('https://.*'))
+                           );
            allow update: if false;
-           allow delete: if isAdmin();
+           // Suppression : l'auteur du message peut le supprimer, ainsi que l'admin.
+           allow delete: if isAdmin() || (isAuth() && resource.data.authorId == request.auth.uid);
          }
          match /chatTyping/{convId} {
-           allow read:  if isAuth() && (convId == request.auth.uid || isStaffChat());
-           allow write: if isAuth() && (convId == request.auth.uid || isStaffChat());
+           allow read:  if isAuth() && estParticipant(convId);
+           allow write: if isAuth() && estParticipant(convId);
          }
+         // ⚠️ RÈGLES STORAGE (fichier storage.rules séparé, PAS dans Firestore !) :
+         // à copier dans Firebase Console → Storage → Rules :
+         //
+         // rules_version = '2';
+         // service firebase.storage {
+         //   match /b/{bucket}/o {
+         //     match /chatImages/{convId}/{fileName} {
+         //       allow read:   if request.auth != null && convId.split('__').hasAny([request.auth.uid]);
+         //       allow write:  if request.auth != null && convId.split('__').hasAny([request.auth.uid])
+         //                       && request.resource.size < 8 * 1024 * 1024
+         //                       && request.resource.contentType.matches('image/.*');
+         //       allow delete: if request.auth != null;
+         //     }
+         //   }
+         // }
 
          // Auto-inscription : un compte 'comptable' peut créer SON PROPRE
          // document dans 'commerciaux' (jamais avec le rôle 'admin').
@@ -184,15 +263,31 @@
            // La lecture côté client se fait avant connexion → on la permet uniquement pour les requêtes
            // non-authentifiées (nécessaire pour bloquer avant auth) mais on restreint l'écriture
            allow get: if true; // nécessaire pré-auth pour vérifier le verrou avant tentative
+           // FIX SÉCURITÉ : windowStart doit être l'heure serveur (pas une valeur fournie par le client),
+           // ce qui empêche de forger une fenêtre déjà expirée.
            allow create: if request.resource.data.count == 1
+                         && request.resource.data.windowStart == request.time
                          && request.resource.data.keys().hasOnly(['count','windowStart']);
            allow update: if request.resource.data.keys().hasOnly(['count','windowStart']) && (
+                           // un échec de plus dans la fenêtre de blocage en cours
                            (request.resource.data.count == resource.data.count + 1
                             && request.resource.data.windowStart == resource.data.windowStart)
                            ||
-                           (request.resource.data.count == 0)
+                           // la fenêtre précédente (60s) est naturellement expirée : on en rouvre une,
+                           // ancrée sur l'heure serveur (pas falsifiable par le client)
+                           (resource.data.windowStart + duration.value(60,'s') < request.time
+                            && request.resource.data.count == 1
+                            && request.resource.data.windowStart == request.time)
                            ||
-                           (request.resource.data.count == 1)
+                           // FIX CRITIQUE : remise à zéro (connexion réussie) autorisée UNIQUEMENT
+                           // pour le titulaire authentifié de cet email — impossible à obtenir sans
+                           // s'être réellement connecté avec succès. Avant ce correctif, n'importe qui
+                           // (même non authentifié) pouvait remettre count à 0 pour désactiver le
+                           // verrou de n'importe quel compte et relancer un bruteforce illimité.
+                           (request.resource.data.count == 0
+                            && isAuth()
+                            && request.auth.token.email != null
+                            && request.auth.token.email.lower() == emailKey)
                          );
            // FIX 9 : seul un admin connecté peut supprimer un verrou manuellement
            allow delete: if isAdmin();
@@ -1173,6 +1268,15 @@ td{padding:9px 12px;font-size:12px;}
 .chat-msg-meta{font-size:9.5px;color:var(--muted);margin-top:3px;}
 .chat-msg-author{font-size:9.5px;font-weight:700;color:var(--accent);margin-bottom:2px;}
 .chat-msg-empty{margin:auto;text-align:center;color:var(--muted);font-size:11.5px;padding:20px;}
+.chat-msg{position:relative;}
+.chat-msg-img{max-width:100%;max-height:220px;border-radius:8px;display:block;cursor:pointer;margin-top:2px;}
+.chat-msg-del{
+  position:absolute;top:2px;right:4px;background:transparent;border:none;color:var(--muted);
+  font-size:11px;cursor:pointer;opacity:0;transition:opacity 0.15s;padding:2px;
+}
+.chat-msg:hover .chat-msg-del{opacity:0.8;}
+.chat-msg-del:hover{opacity:1 !important;color:var(--danger);}
+.chat-msg-deleted{font-style:italic;color:var(--muted);}
 
 .chat-typing-row{align-self:flex-start;display:none;align-items:center;gap:6px;padding:6px 4px;font-size:10.5px;color:var(--muted);}
 .chat-typing-row.visible{display:flex;}
@@ -1193,6 +1297,13 @@ td{padding:9px 12px;font-size:12px;}
   display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;
 }
 #chat-send-btn:disabled{opacity:0.4;cursor:default;}
+#chat-attach-btn{
+  background:transparent;border:none;font-size:19px;cursor:pointer;
+  flex-shrink:0;width:34px;height:34px;border-radius:8px;
+  display:flex;align-items:center;justify-content:center;
+  transition:background 0.15s;
+}
+#chat-attach-btn:hover{background:var(--surface2);}
 </style>
 
 </head>
@@ -3259,6 +3370,8 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         <span id="chat-typing-txt">en train d'écrire…</span>
       </div>
       <div class="chat-input-bar">
+        <input type="file" id="chat-img-input" accept="image/*" style="display:none;" onchange="chatEnvoyerImage(this.files[0])">
+        <button id="chat-attach-btn" onclick="document.getElementById('chat-img-input').click()" title="Envoyer une image" type="button">📷</button>
         <textarea id="chat-input" rows="1" placeholder="Écrivez votre message…" oninput="chatOnInput(this)" onkeydown="chatOnKeydown(event)"></textarea>
         <button id="chat-send-btn" onclick="chatEnvoyer()" title="Envoyer">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="17" height="17"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
@@ -3512,6 +3625,11 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         <label>Référence / Code</label>
         <input type="text" id="prod-ref" placeholder="Ex : PROD-001" autocomplete="off">
       </div>
+    </div>
+    <!-- Prix d'achat : champ réservé à l'admin, masqué par défaut (voir applyProduitAdminVisibility) -->
+    <div class="fr" id="prod-prix-achat-wrap" style="display:none;">
+      <label>Prix d'achat (FCFA) <span style="color:var(--muted);font-weight:400;">— visible admin uniquement</span></label>
+      <input type="number" id="prod-prix-achat" placeholder="0" min="0" oninput="prodCalcInfo()">
     </div>
     <div class="fr">
       <label>Description</label>
@@ -4968,8 +5086,25 @@ async function _assertFirebaseSession() {
   }
 }
 
+// ── FIX PERFORMANCE (point faible #3) : dénormalisation de agenceId ──
+// Avant : les règles Firestore devaient faire un get() supplémentaire sur
+// 'commerciaux' pour connaître l'agence du propriétaire de chaque client/
+// paiement lu (coûteux : double le nombre de lectures facturées + latence).
+// Après : agenceId est recopié directement sur le document client/paiement
+// dès sa création (basé sur l'agence du commercialId), donc la règle peut
+// comparer resource.data.agenceId directement, sans lecture supplémentaire.
+const _AGENCE_DENORM_COLS = new Set(['clients','paiements']);
+function _withAgenceId(col, data){
+  if(!_AGENCE_DENORM_COLS.has(col)) return data;
+  if(data.agenceId !== undefined) return data; // déjà fourni explicitement
+  const uid = data.commercialId;
+  if(!uid) return data;
+  const owner = DB.commerciaux?.find(c => c._id === uid);
+  return {...data, agenceId: owner?.agenceId ?? null};
+}
 async function fbAdd(col, data) {
   _checkWriteRole(col);
+  data = _withAgenceId(col, data);
   if (!isOnline) {
     const item = localAdd(col, data);
     await _enqueueOp('add', col, item);
@@ -4987,8 +5122,40 @@ async function fbAdd(col, data) {
   return item;
 }
 
+// ── OUTIL DE MIGRATION UNIQUE (admin) : backfill agenceId sur les documents ──
+// existants créés AVANT le correctif de dénormalisation. À exécuter UNE FOIS,
+// connecté en tant qu'admin, en tapant `migrerAgenceId()` dans la console du
+// navigateur (F12). Sans cette migration, les nouvelles règles Firestore
+// empêcheront le staff non-admin de voir leurs propres anciens clients/paiements.
+window.migrerAgenceId = async function(){
+  if(!session || session.role !== 'admin'){ console.error('Réservé à l\'admin.'); return; }
+  await ensureCollectionsLoaded(['clients','paiements','commerciaux']);
+  const agenceOf = new Map(DB.commerciaux.map(c => [c._id, c.agenceId ?? null]));
+  let done = 0, skipped = 0, errors = 0;
+  for(const col of ['clients','paiements']){
+    for(const item of DB[col]){
+      if(item.agenceId !== undefined){ skipped++; continue; }
+      const agenceId = agenceOf.get(item.commercialId) ?? null;
+      try{
+        await updateDoc(doc(db_fs, col, item._id), { agenceId });
+        item.agenceId = agenceId;
+        done++;
+      }catch(e){ errors++; console.error('Échec migration', col, item._id, e); }
+    }
+  }
+  console.log(`Migration terminée : ${done} mis à jour, ${skipped} déjà à jour, ${errors} erreurs.`);
+  notify(`Migration agenceId : ${done} document(s) mis à jour`, 'success');
+};
+
 async function fbUpdate(col, id, data) {
   _checkWriteRole(col);
+  // Si le client change de commercial (transfert), on resynchronise agenceId
+  // pour que la règle de sécurité (qui compare agenceId sans get() supplémentaire)
+  // reste exacte après le transfert.
+  if (_AGENCE_DENORM_COLS.has(col) && data.commercialId !== undefined && data.agenceId === undefined) {
+    const owner = DB.commerciaux?.find(c => c._id === data.commercialId);
+    data = {...data, agenceId: owner?.agenceId ?? null};
+  }
   if (!isOnline) {
     localUpdate(col, id, data);
     await _enqueueOp('update', col, data, id);
@@ -5797,7 +5964,7 @@ window.sauvegarderEditionClient = async function(){
   // Vérifier doublon de code si changé
   if(newCode){
     const doublon=DB.clients.find(c=>c._id!==cid&&c.codeClient&&c.codeClient.toUpperCase()===newCode);
-    if(doublon){notify(`Code "${newCode}" déjà utilisé par ${doublon.nom}`,'err');return;}
+    if(doublon){notify(`Code "${newCode}" déjà utilisé par ${esc(doublon.nom)}`,'err');return;}
   }
   // ✅ FIX : les clients importés peuvent porter un champ caché
   // 'cotisationJourFixe' (fixé une fois à l'import) que jm() priorise
@@ -5935,10 +6102,10 @@ window.mcAjouterParCode = function(){
   const existing = _mcArticles.find(a=>a.artId===prod._id);
   if(existing){
     existing.qty += qty;
-    _mcShowMsg(msgEl,`✓ Quantité mise à jour : ${existing.nom} × ${existing.qty}`,'ok');
+    _mcShowMsg(msgEl,`✓ Quantité mise à jour : ${esc(existing.nom)} × ${existing.qty}`,'ok');
   } else {
     _mcArticles.push({artId:prod._id, nom:prod.nom, qty, pv:prod.prix||0});
-    _mcShowMsg(msgEl,`✓ « ${prod.nom} » ajouté au contrat.`,'ok');
+    _mcShowMsg(msgEl,`✓ « ${esc(prod.nom)} » ajouté au contrat.`,'ok');
   }
   codeEl.value='';
   if(qtyEl) qtyEl.value=1;
@@ -6066,7 +6233,7 @@ window.sauvegarderModifContrat = async function(){
   const now = new Date();
   const heureModif = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
 
-  let noteHistorique = `[Modif ${dateModif} ${heureModif} par ${session.nom}]`;
+  let noteHistorique = `[Modif ${dateModif} ${heureModif} par ${esc(session.nom)}]`;
   noteHistorique += ` Ancien contrat : « ${ancienContratLabel} » — ${fmt(ancienMontant)} — ${ancienDuree}j.`;
   if(articlesAjoutes.length)   noteHistorique += ` +Ajout : ${articlesAjoutes.map(a=>a.nom+(a.qty>1?' ×'+a.qty:'')).join(', ')}.`;
   if(articlesSupprimés.length) noteHistorique += ` −Retrait : ${articlesSupprimés.map(a=>a.nom).join(', ')}.`;
@@ -6122,9 +6289,9 @@ window.sauvegarderModifContrat = async function(){
 
 window.supprimerClient = async function(cid){
   const c=getCl(cid);
-  if(!(await confirmDialog(`Supprimer définitivement le client "${c.nom}" ?\n\nTous ses paiements et historique seront conservés mais le client sera retiré de la liste.`,{title:'🗑 Suppression client',okLabel:'Supprimer',danger:true}))) return;
+  if(!(await confirmDialog(`Supprimer définitivement le client "${esc(c.nom)}" ?\n\nTous ses paiements et historique seront conservés mais le client sera retiré de la liste.`,{title:'🗑 Suppression client',okLabel:'Supprimer',danger:true}))) return;
   await fbDelete('clients',cid);
-  notify(`Client ${c.nom} supprimé`);
+  notify(`Client ${esc(c.nom)} supprimé`);
 };
 
 // ── Suppression d'un frais d'adhésion (réservé admin — règles Firestore) ──
@@ -6343,8 +6510,9 @@ function _getLoginAttempt(key){
 }
 function _setLoginAttempt(key,val){ try{ localStorage.setItem(_lgaKey(key), JSON.stringify(val)); }catch(e){} }
 
-// Verrou serveur Firestore — clé normalisée sur l'email
-function _lgsKey(email){ return email.replace(/[^a-z0-9._-]/gi,'_').slice(0,100); }
+// Verrou serveur Firestore — clé = email normalisé (minuscules), doit correspondre
+// EXACTEMENT à request.auth.token.email.lower() côté règles pour permettre le reset sécurisé.
+function _lgsKey(email){ return String(email).trim().toLowerCase().slice(0,150); }
 
 async function _checkServerLock(email) {
   if (!db_fs) return null; // mode local : pas de verrou serveur
@@ -6361,15 +6529,14 @@ async function _incServerLock(email) {
     const key = _lgsKey(email);
     const ref = doc(db_fs, 'loginAttempts', key);
     const snap = await getDoc(ref);
-    const now = new Date();
     if (!snap.exists()) {
-      await setDoc(ref, { count: 1, windowStart: now, keys: ['count','windowStart'] });
+      await setDoc(ref, { count: 1, windowStart: serverTimestamp() });
     } else {
       const d = snap.data();
       const windowMs = 60 * 1000;
       const windowStart = d.windowStart?.toDate ? d.windowStart.toDate() : new Date(d.windowStart);
       if (Date.now() - windowStart.getTime() > windowMs) {
-        await setDoc(ref, { count: 1, windowStart: now });
+        await setDoc(ref, { count: 1, windowStart: serverTimestamp() });
       } else {
         await updateDoc(ref, { count: (d.count||0) + 1 });
       }
@@ -6380,7 +6547,7 @@ async function _incServerLock(email) {
 async function _resetServerLock(email) {
   if (!db_fs) return;
   try {
-    await setDoc(doc(db_fs, 'loginAttempts', _lgsKey(email)), { count: 0, windowStart: new Date() });
+    await setDoc(doc(db_fs, 'loginAttempts', _lgsKey(email)), { count: 0, windowStart: serverTimestamp() });
   } catch(e) {}
 }
 window.doLogin = async function(){
@@ -6534,8 +6701,8 @@ window.doLogout = function(){
   fillLogin();
 };
 
-// ========= TIMEOUT DE SESSION (inactivité 30 min) =========
-const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+// ========= TIMEOUT DE SESSION (inactivité 3h) =========
+const SESSION_TIMEOUT_MS = 3 * 60 * 60 * 1000; // 3 heures
 let _sessionTimer = null;
 let _sessionWarningTimer = null;
 let _tokenRefreshInterval = null; // Point 5 : rafraîchissement proactif du token
@@ -6624,13 +6791,22 @@ function _startTokenRefresh() {
 // ║  chatTyping — indépendantes du moteur DB[col] générique       ║
 // ║  (flux temps réel léger, non chargé en pagination complète).  ║
 // ╚══════════════════════════════════════════════════════════════╝
-const CHAT_STAFF_ROLES = ['admin','chef_agence']; // rôles qui répondent aux demandes
 const CHAT_ROLE_LABELS = {admin:'Administrateur',commercial:'Commercial',secretaire:'Secrétaire',
-  gestionnaire_stock:'Gest. de stock',controleur:'Contrôleur',chef_agence:"Chef d'Agence"};
+  gestionnaire_stock:'Gest. de stock',controleur:'Contrôleur',chef_agence:"Chef d'Agence",comptable:'Comptable'};
 
-let _chatIsStaff = false;          // l'utilisateur courant répond-il aux demandes ?
+// ── Modèle : messagerie many-to-many. Un id de conversation = paire d'UID
+// triée alphabétiquement : "uidA__uidB". N'importe quel rôle peut écrire à
+// n'importe quel autre rôle (plus de distinction staff/non-staff).
+function _chatPairId(a,b){ return [a,b].sort().join('__'); }
+function _chatOtherUid(convId){
+  const conv = _chatConversations.get(convId);
+  if(conv?.participants) return conv.participants.find(u=>u!==session.userId) || conv.participants[0];
+  const parts = String(convId).split('__');
+  return parts.find(u=>u!==session.userId) || parts[0];
+}
+
 let _chatConvId = null;            // conversation actuellement ouverte dans le fil
-let _chatConversations = new Map();// (staff) toutes les conversations visibles, convId -> data
+let _chatConversations = new Map();// toutes mes conversations, convId -> data
 let _chatMessages = [];            // messages de la conversation actuellement ouverte
 let _chatConvListReady = false;    // évite les notifications sur le snapshot initial
 let _chatMsgsReady = false;
@@ -6733,80 +6909,63 @@ function _chatApplyPos(left, top){
 // Démarré une seule fois à la connexion (comme setupRealtimeListeners()).
 function chatInit(){
   if(!session || !db_fs) return;
-  _chatIsStaff = CHAT_STAFF_ROLES.includes(session.role);
   _chatConversations.clear();
   _chatMessages = [];
-  _chatConvId = _chatIsStaff ? null : session.userId;
+  _chatConvId = null;
   _chatConvListReady = false;
   _chatMsgsReady = false;
 
   const bubble = document.getElementById('chat-bubble');
   if(bubble) bubble.style.display = 'flex';
   _chatInitDrag();
+  chatDemanderPermissionNotif();
+  ensureCollectionsLoaded(['commerciaux']).catch(()=>{});
 
-  if(_chatIsStaff){
-    document.getElementById('chat-hdr-title').textContent = '💬 Assistance';
-    document.getElementById('chat-hdr-sub').textContent = 'Sélectionnez une conversation';
-    const newBtn = document.getElementById('chat-hdr-new');
-    if(newBtn) newBtn.style.display = 'inline-block';
-    _chatSubscribeConvList();
-  } else {
-    document.getElementById('chat-hdr-title').textContent = '💬 Assistance';
-    document.getElementById('chat-hdr-sub').textContent = 'Une question ? Écrivez-nous';
-    _chatSubscribeMessages(session.userId);
-    _chatSubscribeTyping(session.userId);
-    _chatSubscribeOwnConv(session.userId);
-    // Assure l'existence du document conversation pour recevoir les réponses du staff.
-    _chatEnsureConversation(session.userId).catch(()=>{});
-  }
+  document.getElementById('chat-hdr-title').textContent = '💬 Messagerie';
+  document.getElementById('chat-hdr-sub').textContent = 'Sélectionnez une conversation';
+  const newBtn = document.getElementById('chat-hdr-new');
+  if(newBtn) newBtn.style.display = 'inline-block';
+  _chatSubscribeConvList();
 }
 
-// (utilisateur non-staff) écoute son propre document conversation, uniquement
-// pour dériver le badge « non lu » — plus fiable qu'une lecture ponctuelle.
-function _chatSubscribeOwnConv(convId){
-  const ref = doc(db_fs,'chatConversations',convId);
-  const unsub = onSnapshot(ref, snap => {
-    const d = snap.exists() ? snap.data() : null;
-    _chatUpdateBadge(d ? (d.unreadForUser||0) : 0);
-  }, err => console.error('[chat] listener conv propre', err));
-  _activeListeners.set('chat_own_conv', unsub);
-}
-
-async function _chatEnsureConversation(convId){
-  const u = DB.commerciaux.find(c=>c._id===session.userId) || {};
+async function _chatEnsureConversation(convId, otherUid){
+  const other = DB.commerciaux.find(c=>c._id===otherUid) || {};
   await setDoc(doc(db_fs,'chatConversations',convId), {
-    userId: session.userId,
-    userNom: session.nom,
-    userRole: session.role,
-    agenceId: u.agenceId || null,
+    participants: [session.userId, otherUid].sort(),
+    names: {[session.userId]: session.nom, [otherUid]: other.nom||'—'},
+    roles: {[session.userId]: session.role, [otherUid]: other.role||''},
     updatedAt: Date.now()
   }, {merge:true});
 }
 
-// ── Liste des conversations (staff : admin voit tout, chef d'agence sa propre agence) ──
+// ── Liste de MES conversations (tous rôles) ──
 function _chatSubscribeConvList(){
   const colRef = collection(db_fs,'chatConversations');
-  const aid = sessionAgenceId(); // null pour admin
-  const q = aid ? query(colRef, where('agenceId','==',aid)) : colRef;
+  const q = query(colRef, where('participants','array-contains',session.userId));
   const unsub = onSnapshot(q, snap => {
     let totalUnread = 0;
     snap.forEach(d => {
       const data = {...d.data(), _id:d.id};
       _chatConversations.set(d.id, data);
-      totalUnread += (data.unreadForStaff||0);
+      totalUnread += (data.unread?.[session.userId] || 0);
     });
     // Suppression des conversations disparues côté serveur (rare)
     const liveIds = new Set(); snap.forEach(d=>liveIds.add(d.id));
     for(const id of [..._chatConversations.keys()]) if(!liveIds.has(id)) _chatConversations.delete(id);
 
     if(_chatConvListReady){
-      // Notifie tout compte actif du côté staff, pour toute nouvelle demande ou réponse cliente,
-      // sauf si c'est le message qu'on vient d'envoyer soi-même.
+      // Notifie pour toute nouvelle conversation ou réponse reçue d'un AUTRE utilisateur,
+      // sauf si c'est le message qu'on vient d'envoyer soi-même ou la conv déjà ouverte.
       snap.docChanges().forEach(ch=>{
         if(ch.type==='modified' || ch.type==='added'){
           const d = {...ch.doc.data(), _id:ch.doc.id};
-          if(d.lastAuthorRole && !CHAT_STAFF_ROLES.includes(d.lastAuthorRole) && d._id !== _chatConvId){
-            notify(`💬 Nouveau message de ${d.userNom||'un utilisateur'} — assistance`);
+          if(d.lastAuthorId && d.lastAuthorId !== session.userId && d._id !== _chatConvId){
+            const nomExp = d.names?.[d.lastAuthorId] || 'un utilisateur';
+            playChatNotifSound();
+            notify(`💬 Nouveau message de ${nomExp}`);
+            if(document.hidden || !document.hasFocus()){
+              chatNotifNavigateur(`💬 ${nomExp}`, d.lastMsg||'Nouveau message');
+            }
           }
         }
       });
@@ -6818,6 +6977,58 @@ function _chatSubscribeConvList(){
   }, err => console.error('[chat] listener conversations', err));
   _activeListeners.set('chat_conv_list', unsub);
 }
+
+// ── Notifications navigateur (hors page / onglet en arrière-plan) ──
+function chatDemanderPermissionNotif(){
+  if(!('Notification' in window)) return;
+  if(Notification.permission === 'default'){
+    Notification.requestPermission().catch(()=>{});
+  }
+}
+function chatNotifNavigateur(titre, corps){
+  if(!('Notification' in window) || Notification.permission !== 'granted') return;
+  try{
+    const n = new Notification(titre, {
+      body: corps,
+      icon: '🔔', // remplacé silencieusement si non supporté ; ok de laisser tel quel
+      tag: 'chat-assistance', // regroupe les notifs successives au lieu d'en empiler 10
+      renotify: true
+    });
+    n.onclick = ()=>{ window.focus(); chatToggle(true); n.close(); };
+    setTimeout(()=>n.close(), 8000);
+  }catch(e){ /* certains navigateurs mobiles n'autorisent pas new Notification() direct */ }
+}
+
+// ── Son de notification pour nouveau message de chat ──
+let _chatAudioCtx = null;
+function playChatNotifSound(){
+  try{
+    if(!_chatAudioCtx) _chatAudioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    const ctx = _chatAudioCtx;
+    if(ctx.state === 'suspended') ctx.resume();
+    const now = ctx.currentTime;
+    // Petit "ding" à deux notes, doux et discret
+    [[880,now,0.11],[1175,now+0.09,0.13]].forEach(([freq,t,dur])=>{
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.18, t+0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(t); osc.stop(t+dur+0.02);
+    });
+  }catch(e){ /* audio non disponible (autoplay bloqué avant 1ère interaction) */ }
+}
+// Débloque l'audio dès la première interaction de l'utilisateur avec la page
+// (obligatoire dans les navigateurs modernes avant de pouvoir jouer un son)
+['click','keydown','touchstart'].forEach(evt=>{
+  document.addEventListener(evt, ()=>{
+    if(!_chatAudioCtx){ try{ _chatAudioCtx = new (window.AudioContext||window.webkitAudioContext)(); }catch(_){} }
+    if(session) chatDemanderPermissionNotif();
+  }, {once:true, passive:true});
+});
 
 // ── Messages d'une conversation ──
 function _chatSubscribeMessages(convId){
@@ -6835,8 +7046,14 @@ function _chatSubscribeMessages(convId){
       snap.docChanges().forEach(ch=>{
         if(ch.type==='added'){
           const m = ch.doc.data();
-          if(m.authorId !== session.userId && (!_chatPanelOpen || _chatConvId!==convId)){
-            notify(`💬 Nouveau message de ${m.authorNom||'assistance'}`);
+          if(m.authorId !== session.userId){
+            playChatNotifSound();
+            if(!_chatPanelOpen || _chatConvId!==convId){
+              notify(`💬 Nouveau message de ${m.authorNom||'assistance'}`);
+            }
+            if(document.hidden || !document.hasFocus()){
+              chatNotifNavigateur(`💬 ${m.authorNom||'Assistance'}`, m.texte||'Nouveau message');
+            }
           }
         }
       });
@@ -6850,18 +7067,14 @@ function _chatSubscribeMessages(convId){
 // ── Indicateur « en train d'écrire » ──
 function _chatSubscribeTyping(convId){
   const old = _activeListeners.get('chat_typing'); if(old){ try{old();}catch(_){} }
+  const otherUid = _chatOtherUid(convId);
   const ref = doc(db_fs,'chatTyping',convId);
   const unsub = onSnapshot(ref, snap => {
     if(!snap.exists()) { _chatRenderTyping(false); return; }
     const d = snap.data();
     const now = Date.now();
-    if(_chatIsStaff){
-      const actif = d.userTyping && (now - (d.userTypingAt||0) < 6000);
-      _chatRenderTyping(actif, d.userNom);
-    } else {
-      const actif = d.staffTyping && (now - (d.staffTypingAt||0) < 6000);
-      _chatRenderTyping(actif, "l'assistance");
-    }
+    const actif = d[`typing_${otherUid}`] && (now - (d[`typingAt_${otherUid}`]||0) < 6000);
+    _chatRenderTyping(actif, d[`nom_${otherUid}`]);
   }, err => console.error('[chat] listener typing', err));
   _activeListeners.set('chat_typing', unsub);
 }
@@ -6892,13 +7105,7 @@ window.chatToggle = function(force){
   _chatPanelOpen = (typeof force==='boolean') ? force : !_chatPanelOpen;
   panel.classList.toggle('open', _chatPanelOpen);
   if(_chatPanelOpen){
-    if(_chatIsStaff){
-      if(_chatConvId) chatSelectConv(_chatConvId); else { renderChatConvList(); _chatShowView('list'); }
-    } else {
-      _chatShowView('thread');
-      renderChatMessages();
-      _chatMarkRead();
-    }
+    if(_chatConvId) chatSelectConv(_chatConvId); else { renderChatConvList(); _chatShowView('list'); }
   }
 };
 function _chatShowView(view){
@@ -6911,8 +7118,8 @@ function _chatShowView(view){
   if(view==='list'){
     list.classList.add('visible'); thread.classList.remove('visible');
     back?.classList.remove('visible');
-    if(_chatIsStaff && newBtn) newBtn.style.display = 'inline-block';
-    document.getElementById('chat-hdr-title').textContent = '💬 Assistance';
+    if(newBtn) newBtn.style.display = 'inline-block';
+    document.getElementById('chat-hdr-title').textContent = '💬 Messagerie';
     document.getElementById('chat-hdr-sub').textContent = 'Sélectionnez une conversation';
   } else if(view==='picker'){
     list.classList.remove('visible'); thread.classList.remove('visible');
@@ -6923,7 +7130,7 @@ function _chatShowView(view){
     document.getElementById('chat-hdr-sub').textContent = 'Choisissez un destinataire';
   } else {
     list.classList.remove('visible'); thread.classList.add('visible');
-    if(_chatIsStaff){ back?.classList.add('visible'); if(newBtn) newBtn.style.display='none'; }
+    back?.classList.add('visible'); if(newBtn) newBtn.style.display='none';
   }
 }
 window.chatBackToList = function(){
@@ -6934,9 +7141,8 @@ window.chatBackToList = function(){
   renderChatConvList();
 };
 
-// ── Nouveau message (staff) : choisir un destinataire et démarrer/rouvrir sa conversation ──
+// ── Nouveau message : TOUS les rôles peuvent écrire à TOUS les rôles ──
 window.chatOpenNewConvPicker = function(){
-  if(!_chatIsStaff) return;
   const search = document.getElementById('chat-new-search');
   if(search) search.value = '';
   _chatShowView('picker');
@@ -6946,7 +7152,8 @@ window.renderChatNewPicker = function(){
   const el = document.getElementById('chat-new-picker-list');
   if(!el) return;
   const q = (document.getElementById('chat-new-search')||{}).value?.trim().toLowerCase() || '';
-  let users = comsDansAgence().filter(c=>c._id !== session.userId);
+  // Tous les utilisateurs de l'app, tous rôles et toutes agences confondus, sauf soi-même.
+  let users = (DB.commerciaux||[]).filter(c=>c._id !== session.userId);
   if(q) users = users.filter(c=>(c.nom||'').toLowerCase().includes(q));
   users = users.slice().sort((a,b)=>(a.nom||'').localeCompare(b.nom||''));
   if(!users.length){
@@ -6963,34 +7170,35 @@ window.renderChatNewPicker = function(){
   `).join('');
 };
 window.chatStartConvWith = async function(userId){
-  if(!_chatIsStaff) return;
   const u = DB.commerciaux.find(c=>c._id===userId);
   if(!u){ notify('Utilisateur introuvable','err'); return; }
+  const convId = _chatPairId(session.userId, userId);
   try{
-    // Crée le document conversation s'il n'existe pas encore (le staff peut initier).
-    await setDoc(doc(db_fs,'chatConversations',userId), {
-      userId: userId,
-      userNom: u.nom,
-      userRole: u.role,
-      agenceId: u.agenceId || null,
-      updatedAt: Date.now()
-    }, {merge:true});
-    if(!_chatConversations.has(userId)){
-      _chatConversations.set(userId, {userId, userNom:u.nom, userRole:u.role, agenceId:u.agenceId||null, updatedAt:Date.now(), _id:userId});
+    await _chatEnsureConversation(convId, userId);
+    if(!_chatConversations.has(convId)){
+      _chatConversations.set(convId, {
+        participants:[session.userId, userId].sort(),
+        names:{[session.userId]:session.nom, [userId]:u.nom},
+        roles:{[session.userId]:session.role, [userId]:u.role},
+        _id:convId
+      });
     }
-    chatSelectConv(userId);
+    chatSelectConv(convId);
   }catch(e){
     console.error('[chat] démarrage conversation', e);
     notify("Erreur lors de l'ouverture de la conversation","err");
   }
 };
 
-// ── Sélection d'une conversation (staff) ──
+// ── Sélection d'une conversation ──
 window.chatSelectConv = function(convId){
   _chatConvId = convId;
   const conv = _chatConversations.get(convId) || {};
-  document.getElementById('chat-hdr-title').textContent = '💬 ' + (conv.userNom || 'Utilisateur');
-  document.getElementById('chat-hdr-sub').textContent = CHAT_ROLE_LABELS[conv.userRole] || conv.userRole || '';
+  const otherUid = _chatOtherUid(convId);
+  const otherNom = conv.names?.[otherUid] || 'Utilisateur';
+  const otherRole = conv.roles?.[otherUid];
+  document.getElementById('chat-hdr-title').textContent = '💬 ' + otherNom;
+  document.getElementById('chat-hdr-sub').textContent = CHAT_ROLE_LABELS[otherRole] || otherRole || '';
   _chatShowView('thread');
   _chatSubscribeMessages(convId);
   _chatSubscribeTyping(convId);
@@ -7000,8 +7208,7 @@ window.chatSelectConv = function(convId){
 async function _chatMarkRead(){
   if(!_chatConvId) return;
   try{
-    const field = _chatIsStaff ? {unreadForStaff:0} : {unreadForUser:0};
-    await setDoc(doc(db_fs,'chatConversations',_chatConvId), field, {merge:true});
+    await setDoc(doc(db_fs,'chatConversations',_chatConvId), {unread:{[session.userId]:0}}, {merge:true});
   }catch(e){ console.error('[chat] marquage lu', e); }
 }
 
@@ -7011,19 +7218,24 @@ function renderChatConvList(){
   if(!el) return;
   const convs = [..._chatConversations.values()].sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
   if(!convs.length){
-    el.innerHTML = '<div class="chat-conv-empty">Aucune demande d\'assistance pour le moment</div>';
+    el.innerHTML = '<div class="chat-conv-empty">Aucune conversation pour le moment — cliquez sur ✎ pour écrire à quelqu\'un</div>';
     return;
   }
-  el.innerHTML = convs.map(c=>`
+  el.innerHTML = convs.map(c=>{
+    const otherUid = c.participants?.find(p=>p!==session.userId) || _chatOtherUid(c._id);
+    const nom = c.names?.[otherUid] || '—';
+    const role = c.roles?.[otherUid] || '';
+    const unread = c.unread?.[session.userId] || 0;
+    return `
     <div class="chat-conv-item" onclick="chatSelectConv('${c._id}')">
-      <div class="chat-conv-avatar">${esc(_chatInitiales(c.userNom))}</div>
+      <div class="chat-conv-avatar">${esc(_chatInitiales(nom))}</div>
       <div class="chat-conv-info">
-        <div class="chat-conv-name">${esc(c.userNom||'—')} <span style="color:var(--muted);font-weight:400;">· ${esc(CHAT_ROLE_LABELS[c.userRole]||'')}</span></div>
+        <div class="chat-conv-name">${esc(nom)} <span style="color:var(--muted);font-weight:400;">· ${esc(CHAT_ROLE_LABELS[role]||role)}</span></div>
         <div class="chat-conv-last">${esc(c.lastMsg||'—')}</div>
       </div>
-      ${c.unreadForStaff?`<div class="chat-conv-badge">${c.unreadForStaff>99?'99+':c.unreadForStaff}</div>`:''}
-    </div>
-  `).join('');
+      ${unread?`<div class="chat-conv-badge">${unread>99?'99+':unread}</div>`:''}
+    </div>`;
+  }).join('');
 }
 
 function renderChatMessages(){
@@ -7035,9 +7247,17 @@ function renderChatMessages(){
   }
   el.innerHTML = _chatMessages.map(m=>{
     const mine = m.authorId === session.userId;
+    const peutSupprimer = mine || session.role === 'admin';
+    const delBtn = peutSupprimer
+      ? `<button class="chat-msg-del" title="Supprimer" onclick="chatSupprimerMessage('${m._id}', ${m.storagePath?`'${esc(m.storagePath)}'`:'null'})">✕</button>`
+      : '';
+    const contenu = m.type === 'image'
+      ? `<img src="${esc(m.imageUrl)}" class="chat-msg-img" onclick="window.open('${esc(m.imageUrl)}','_blank')" alt="Image envoyée">`
+      : esc(m.texte||'');
     return `<div class="chat-msg ${mine?'chat-msg-mine':'chat-msg-theirs'}">
+      ${delBtn}
       ${!mine?`<div class="chat-msg-author">${esc(m.authorNom||'—')}</div>`:''}
-      ${esc(m.texte||'')}
+      ${contenu}
       <div class="chat-msg-meta">${esc(m.date||'')} ${esc(m.heure||'')}</div>
     </div>`;
   }).join('');
@@ -7052,16 +7272,16 @@ window.chatOnInput = function(el){
   const now = Date.now();
   if(now - _chatTypingSentAt > 1500){
     _chatTypingSentAt = now;
-    const field = _chatIsStaff
-      ? {staffTyping:true, staffTypingAt:now, staffNom:session.nom}
-      : {userTyping:true, userTypingAt:now, userNom:session.nom};
-    setDoc(doc(db_fs,'chatTyping',_chatConvId), field, {merge:true}).catch(()=>{});
+    setDoc(doc(db_fs,'chatTyping',_chatConvId), {
+      [`typing_${session.userId}`]: true,
+      [`typingAt_${session.userId}`]: now,
+      [`nom_${session.userId}`]: session.nom
+    }, {merge:true}).catch(()=>{});
   }
   clearTimeout(_chatTypingResetTimer);
   _chatTypingResetTimer = setTimeout(()=>{
     if(!_chatConvId) return;
-    const field = _chatIsStaff ? {staffTyping:false} : {userTyping:false};
-    setDoc(doc(db_fs,'chatTyping',_chatConvId), field, {merge:true}).catch(()=>{});
+    setDoc(doc(db_fs,'chatTyping',_chatConvId), {[`typing_${session.userId}`]:false}, {merge:true}).catch(()=>{});
   }, 3000);
 };
 window.chatOnKeydown = function(ev){
@@ -7072,16 +7292,19 @@ window.chatOnKeydown = function(ev){
 window.chatEnvoyer = async function(){
   const input = document.getElementById('chat-input');
   const texte = (input?.value||'').trim();
+  if(texte.length > 4000){ notify('Message trop long (max 4000 caractères)','err'); return; }
   if(!texte) return;
-  const convId = _chatIsStaff ? _chatConvId : session.userId;
+  const convId = _chatConvId;
   if(!convId){ notify('Sélectionnez une conversation','err'); return; }
+  const otherUid = _chatOtherUid(convId);
   const btn = document.getElementById('chat-send-btn');
   if(btn) btn.disabled = true;
   try{
     const now = Date.now();
-    if(!_chatIsStaff) await _chatEnsureConversation(convId);
+    await _chatEnsureConversation(convId, otherUid);
     await addDoc(collection(db_fs,'chatMessages'), {
       conversationId: convId,
+      type: 'texte',
       authorId: session.userId,
       authorNom: session.nom,
       authorRole: session.role,
@@ -7091,20 +7314,18 @@ window.chatEnvoyer = async function(){
       heure: _chatHeureNow(),
       _ts: serverTimestamp()
     });
-    const u = _chatIsStaff ? null : (DB.commerciaux.find(c=>c._id===session.userId)||{});
-    const maj = {
+    const conv = _chatConversations.get(convId) || {};
+    const otherUnread = (conv.unread?.[otherUid] || 0) + 1;
+    await setDoc(doc(db_fs,'chatConversations',convId), {
       lastMsg: texte.slice(0,120),
+      lastAuthorId: session.userId,
       lastAuthorRole: session.role,
-      updatedAt: now
-    };
-    if(_chatIsStaff){ maj.unreadForUser = ((_chatConversations.get(convId)||{}).unreadForUser||0) + 1; maj.unreadForStaff = 0; }
-    else { maj.unreadForStaff = ((_chatConversations.get(convId)||{}).unreadForStaff||0) + 1; maj.unreadForUser = 0;
-           maj.userNom = session.nom; maj.userRole = session.role; if(u) maj.agenceId = u.agenceId || null; maj.userId = session.userId; }
-    await setDoc(doc(db_fs,'chatConversations',convId), maj, {merge:true});
+      updatedAt: now,
+      unread: {[otherUid]: otherUnread, [session.userId]: 0}
+    }, {merge:true});
 
     // Fin immédiate de l'indicateur de frappe
-    const stopField = _chatIsStaff ? {staffTyping:false} : {userTyping:false};
-    setDoc(doc(db_fs,'chatTyping',convId), stopField, {merge:true}).catch(()=>{});
+    setDoc(doc(db_fs,'chatTyping',convId), {[`typing_${session.userId}`]:false}, {merge:true}).catch(()=>{});
 
     if(input){ input.value=''; input.style.height='auto'; }
   } catch(e){
@@ -7112,6 +7333,76 @@ window.chatEnvoyer = async function(){
     notify("Erreur lors de l'envoi du message","err");
   } finally {
     if(btn) btn.disabled = false;
+  }
+};
+
+// ── Envoi d'une image ──
+window.chatEnvoyerImage = async function(file){
+  const imgInput = document.getElementById('chat-img-input');
+  if(!file) return;
+  if(!_chatConvId){ notify('Sélectionnez une conversation','err'); if(imgInput) imgInput.value=''; return; }
+  if(!file.type?.startsWith('image/')){ notify('Seules les images sont acceptées','err'); if(imgInput) imgInput.value=''; return; }
+  const MAX = 8 * 1024 * 1024; // 8 Mo, doit correspondre à la règle Storage
+  if(file.size > MAX){ notify('Image trop lourde (8 Mo max)','err'); if(imgInput) imgInput.value=''; return; }
+  if(!storage){ notify('Firebase Storage non initialisé','err'); return; }
+
+  const convId = _chatConvId;
+  const otherUid = _chatOtherUid(convId);
+  const btn = document.getElementById('chat-attach-btn');
+  if(btn) btn.disabled = true;
+  try{
+    const ext = (file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'') || 'jpg';
+    const path = `chatImages/${convId}/${Date.now()}_${session.userId}.${ext}`;
+    const fileRef = storageRef(storage, path);
+    await uploadBytes(fileRef, file, { contentType: file.type });
+    const url = await getDownloadURL(fileRef);
+
+    const now = Date.now();
+    await _chatEnsureConversation(convId, otherUid);
+    await addDoc(collection(db_fs,'chatMessages'), {
+      conversationId: convId,
+      type: 'image',
+      imageUrl: url,
+      storagePath: path,
+      authorId: session.userId,
+      authorNom: session.nom,
+      authorRole: session.role,
+      texte: '',
+      tsMs: now,
+      date: TODAY,
+      heure: _chatHeureNow(),
+      _ts: serverTimestamp()
+    });
+    const conv = _chatConversations.get(convId) || {};
+    const otherUnread = (conv.unread?.[otherUid] || 0) + 1;
+    await setDoc(doc(db_fs,'chatConversations',convId), {
+      lastMsg: '📷 Photo',
+      lastAuthorId: session.userId,
+      lastAuthorRole: session.role,
+      updatedAt: now,
+      unread: {[otherUid]: otherUnread, [session.userId]: 0}
+    }, {merge:true});
+  }catch(e){
+    console.error('[chat] envoi image', e);
+    notify("Erreur lors de l'envoi de l'image","err");
+  }finally{
+    if(btn) btn.disabled = false;
+    if(imgInput) imgInput.value = '';
+  }
+};
+
+// ── Suppression d'un message (par son auteur, ou par un admin) ──
+window.chatSupprimerMessage = async function(msgId, storagePath){
+  if(!confirm('Supprimer ce message ?')) return;
+  try{
+    await deleteDoc(doc(db_fs,'chatMessages',msgId));
+    if(storagePath){
+      try{ await deleteObject(storageRef(storage, storagePath)); }
+      catch(e){ /* non bloquant : l'image peut déjà avoir été supprimée */ }
+    }
+  }catch(e){
+    console.error('[chat] suppression message', e);
+    notify("Impossible de supprimer ce message","err");
   }
 };
 
@@ -7977,7 +8268,7 @@ async function renderAdminDash(){
         <button class="dash-ag-chip${dashAgenceFilter===ag._id?' active':''}"
           onclick="setDashAgence('${ag._id}',this)"
           style="padding:4px 14px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-size:11px;cursor:pointer;transition:all 0.15s;">
-          🏢 ${ag.nom}
+          🏢 ${esc(ag.nom)}
         </button>`).join('');
     // Style actif via JS car pas de <style> inline dynamique
     chipsEl.querySelectorAll('.dash-ag-chip').forEach(b=>{
@@ -8025,12 +8316,12 @@ async function renderAdminDash(){
     const totCotis=myCls.reduce((a,cl)=>a+jm(cl),0);
     const mT=mPays.filter(p=>p.commercialId===c._id).reduce((a,p)=>a+p.montant,0);
     const ag=getAgence(c.agenceId);
-    return`<tr><td class="fw6">${c.nom}<div class="tm" style="font-size:10px">${c.zone} · <span style="color:var(--accent)">${ag.nom}</span></div></td><td class="tm">${c.zone}</td><td>${myCls.length}</td><td><span class="cotis-badge" style="font-size:10px">💰 ${fmt(totCotis)}</span></td><td style="color:var(--accent2);font-weight:600">${fmt(mT)}</td></tr>`;
+    return`<tr><td class="fw6">${esc(c.nom)}<div class="tm" style="font-size:10px">${c.zone} · <span style="color:var(--accent)">${esc(ag.nom)}</span></div></td><td class="tm">${c.zone}</td><td>${myCls.length}</td><td><span class="cotis-badge" style="font-size:10px">💰 ${fmt(totCotis)}</span></td><td style="color:var(--accent2);font-weight:600">${fmt(mT)}</td></tr>`;
   }).join('')||'<tr><td colspan="5" class="emp">Aucun commercial</td></tr>';
 
   document.getElementById('ad-today').innerHTML=tPays.slice(0,8).map(p=>{
     const c=getCl(p.clientId),com=getCom(p.commercialId);
-    return`<tr><td class="fw6">${c.nom}</td><td><span class="tag">${com.nom}</span></td><td><span class="cotis-badge" style="font-size:10px">💰 ${fmt(p.cotisJour||jm(c))}</span></td><td style="color:var(--accent2);font-weight:700">${fmt(p.montant)}</td><td>${ratio(p.montant,p.cotisJour||jm(c))}</td></tr>`;
+    return`<tr><td class="fw6">${esc(c.nom)}</td><td><span class="tag">${esc(com.nom)}</span></td><td><span class="cotis-badge" style="font-size:10px">💰 ${fmt(p.cotisJour||jm(c))}</span></td><td style="color:var(--accent2);font-weight:700">${fmt(p.montant)}</td><td>${ratio(p.montant,p.cotisJour||jm(c))}</td></tr>`;
   }).join('')||'<tr><td colspan="5" class="emp">Aucun paiement aujourd\'hui</td></tr>';
 
   const alertArts=DB.articles.filter(a=>a.stock<=a.stockMin);
@@ -8187,7 +8478,7 @@ function renderProdCoursDetailTable(clients){
     return `<tr>
       <td class="tm">${i+1}</td>
       <td><span style="font-weight:700;">${esc(c.nom)}</span>${c.code?`<br><span style="font-size:10px;color:var(--accent);">Code : ${c.code}</span>`:''}</td>
-      <td style="font-size:12px;">${c.tel||'—'}</td>
+      <td style="font-size:12px;">${esc(c.tel||'—')}</td>
       <td style="font-size:12px;">${getCom(c.commercialId)}</td>
       <td style="font-size:11px;color:var(--subtle);">${c.debut||'—'}</td>
       <td style="font-size:11px;color:var(--subtle);">${finStr}</td>
@@ -8219,7 +8510,7 @@ window.exportDetailProdCoursCSV = function(){
     const debut = new Date(c.debut+'T12:00:00');
     const fin   = new Date(debut); fin.setDate(fin.getDate()+(c.duree||372)-1);
     const joursR = Math.max(0,Math.round((fin-new Date(TODAY+'T12:00:00'))/86400000));
-    csv += `"${c.nom.replace(/"/g,'""')}";"${c.tel||''}";"${getCom(c.commercialId)}";"${c.debut||''}";"${fin.toISOString().slice(0,10)}";${joursR}\n`;
+    csv += `"${c.nom.replace(/"/g,'""')}";"${esc(c.tel||'')}";"${getCom(c.commercialId)}";"${c.debut||''}";"${fin.toISOString().slice(0,10)}";${joursR}\n`;
   });
   const label = _prodCoursDetailLabel.replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,30);
   const a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);
@@ -8323,7 +8614,7 @@ function renderProduits() {
           ${p.ref ? `<span style="display:inline-block;background:rgba(201,168,76,0.13);border:1px solid rgba(201,168,76,0.3);border-radius:5px;padding:1px 8px;font-size:10px;color:var(--accent);font-weight:700;letter-spacing:0.5px;">🏷️ ${esc(p.ref)}</span>` : `<span style="font-size:9px;color:var(--muted);font-style:italic;">Sans réf.</span>`}
         </div>
         ${p.cat ? `<div class="prod-card-cat">${p.cat}</div>` : ''}
-        <div class="prod-card-nom">${p.nom||'—'}</div>
+        <div class="prod-card-nom">${esc(p.nom||'—')}</div>
         ${p.desc ? `<div class="prod-card-desc">${p.desc}</div>` : ''}
         <div class="prod-card-footer">
           <div class="prod-card-prix">${p.prix > 0 ? fmt(p.prix) + ' F' : '—'}</div>
@@ -8343,7 +8634,7 @@ window.filtrerProduits = function(cat, btn) {
 };
 
 // ─── Modal création/édition produit ───
-window.ouvrirModalProduit = function(id) {
+window.ouvrirModalProduit = async function(id) {
   const p = id ? DB.produits.find(x => x._id === id) : null;
   document.getElementById('m-produit-title').textContent = p ? '✏️ Modifier le produit' : '📦 Nouveau produit';
   document.getElementById('prod-nom').value = p?.nom || '';
@@ -8352,6 +8643,19 @@ window.ouvrirModalProduit = function(id) {
   document.getElementById('prod-ref').value = p?.ref || '';
   document.getElementById('prod-desc').value = p?.desc || '';
   document.getElementById('prod-edit-id').value = p?._id || '';
+  // Prix d'achat : champ réservé à l'admin, valeur lue depuis le document
+  // séparé 'produitsPrive' (jamais présente dans le document 'produits' que
+  // les autres rôles peuvent lire).
+  const paWrap = document.getElementById('prod-prix-achat-wrap');
+  const paInput = document.getElementById('prod-prix-achat');
+  if(paWrap) paWrap.style.display = (session?.role === 'admin') ? 'block' : 'none';
+  if(paInput) paInput.value = '';
+  if(session?.role === 'admin' && p?._id){
+    try{
+      const snap = await getDoc(doc(db_fs,'produitsPrive',p._id));
+      if(paInput) paInput.value = snap.exists() ? (snap.data().prixAchat || '') : '';
+    }catch(e){ console.error('[produit] lecture prix achat', e); }
+  }
   // Image
   const prevWrap = document.getElementById('prod-img-preview-wrap');
   const prevImg  = document.getElementById('prod-img-preview');
@@ -8430,7 +8734,7 @@ window.prodArtSearch = function() {
       onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''"
     >
       <span style="${dejaAjoute?'color:var(--accent2);':''}">
-        ${dejaAjoute?'✓ ':''}${a.nom||'—'}
+        ${dejaAjoute?'✓ ':''}${esc(a.nom||'—')}
         <span style="font-size:10px;color:var(--muted);margin-left:5px;">${a.unite||'pcs'}</span>
       </span>
       <span style="font-size:11px;color:var(--muted);">Stock: ${a.stock||0}</span>
@@ -8446,7 +8750,7 @@ window.prodSelectionnerArt = function(artId) {
   document.getElementById('prod-art-search').value = art.nom;
   document.getElementById('prod-art-results').style.display = 'none';
   const selEl = document.getElementById('prod-art-selected');
-  selEl.textContent = `✓ Sélectionné : ${art.nom} (stock : ${art.stock||0} ${art.unite||'pcs'})`;
+  selEl.textContent = `✓ Sélectionné : ${esc(art.nom)} (stock : ${art.stock||0} ${art.unite||'pcs'})`;
   selEl.style.display = 'block';
 };
 
@@ -8488,7 +8792,7 @@ function renderProdCompositionList() {
     const dispo = Math.floor(stock / c.qte);
     const stockColor = dispo <= 0 ? 'var(--danger)' : dispo <= 2 ? 'var(--accent)' : 'var(--accent2)';
     return `<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--surface);border-radius:7px;border:1px solid var(--border);">
-      <span style="flex:1;font-size:12px;font-weight:600;">${c.nom}</span>
+      <span style="flex:1;font-size:12px;font-weight:600;">${esc(c.nom)}</span>
       <span style="font-size:11px;color:var(--muted);">×</span>
       <input type="number" value="${c.qte}" min="1"
         style="width:52px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:3px 6px;color:var(--text);font-size:12px;text-align:center;outline:none;"
@@ -8589,6 +8893,7 @@ window.saveProduit = async function() {
     composition: prodComposition.map(c => ({ articleId: c.articleId, nom: c.nom, qte: c.qte, unite: c.unite })),
     updatedAt: TODAY,
   };
+  let produitId = editId;
   if (editId) {
     const ancienPrix = prodActuel ? prodActuel.prix : null;
     await fbUpdate('produits', editId, data);
@@ -8600,8 +8905,18 @@ window.saveProduit = async function() {
     } else { notify('Produit mis à jour ✓'); }
   } else {
     data.createdAt = TODAY;
-    await fbAdd('produits', data);
+    const created = await fbAdd('produits', data);
+    produitId = created?._id;
     notify('Produit créé ✓');
+  }
+  // Prix d'achat : document séparé réservé à l'admin (voir règle produitsPrive).
+  // Écrit seulement si le champ est visible, donc seulement pour un admin —
+  // pour tout autre rôle ce bloc est ignoré et la valeur existante n'est
+  // jamais touchée.
+  if (session?.role === 'admin' && produitId) {
+    const prixAchat = parseFloat(document.getElementById('prod-prix-achat')?.value) || 0;
+    try { await setDoc(doc(db_fs,'produitsPrive',produitId), {prixAchat}, {merge:true}); }
+    catch(e){ console.error('[produit] sauvegarde prix achat', e); notify("Prix d'achat non enregistré (erreur)","err"); }
   }
   // Nettoyage best-effort de l'ancienne photo dans Storage si elle a été
   // remplacée ou supprimée (non bloquant : une erreur ici n'empêche pas
@@ -8681,7 +8996,7 @@ window.ouvrirZoomProduit = function(id) {
 window.supprimerProduit = async function(id) {
   const p = DB.produits.find(x => x._id === id);
   if (!p) return;
-  if (!(await confirmDialog(`Supprimer le produit "${p.nom}" ? Cette action est irréversible.`,{title:'🗑 Suppression produit',okLabel:'Supprimer',danger:true}))) return;
+  if (!(await confirmDialog(`Supprimer le produit "${esc(p.nom)}" ? Cette action est irréversible.`,{title:'🗑 Suppression produit',okLabel:'Supprimer',danger:true}))) return;
   await fbDelete('produits', id);
   closeM('m-prod-zoom');
   renderProduits();
@@ -8791,7 +9106,7 @@ function prepareProdImportPreview() {
   const warningEl = document.getElementById('import-prod-warnings');
   if (nonTrouves > 0) {
     const noms = [...new Set(
-      importProdData.flatMap(r => r.composition.filter(c => !c.found).map(c => `"${c.nomArt}"`))
+      importProdData.flatMap(r => r.composition.filter(c => !c.found).map(c => `"${esc(c.nomArt)}"`))
     )];
     warningEl.style.display = 'block';
     warningEl.innerHTML = `⚠️ Articles introuvables (seront ignorés dans la composition) : ${noms.map(n=>esc(n)).join(', ')}<br>
@@ -8807,7 +9122,7 @@ function prepareProdImportPreview() {
       : r.composition.map(c => {
           const color = c.found ? 'var(--accent2)' : 'var(--danger)';
           const icon  = c.found ? '✓' : '✗';
-          return `<span style="font-size:10px;color:${color};margin-right:5px;">${icon} ${c.nomArt}×${c.qte}</span>`;
+          return `<span style="font-size:10px;color:${color};margin-right:5px;">${icon} ${esc(c.nomArt)}×${c.qte}</span>`;
         }).join('');
     const hasWarn = r.composition.some(c => !c.found);
     const statut = hasWarn
@@ -8815,7 +9130,7 @@ function prepareProdImportPreview() {
       : `<span style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(34,212,160,0.1);color:var(--accent2);border:1px solid rgba(34,212,160,0.25);font-weight:700;">✓ OK</span>`;
     return `<tr>
       <td class="tm">${i + 1}</td>
-      <td class="fw6">${r.nom}</td>
+      <td class="fw6">${esc(r.nom)}</td>
       <td>${r.cat || '—'}</td>
       <td>${r.prix > 0 ? fmt(r.prix) + ' F' : '—'}</td>
       <td style="max-width:260px;line-height:1.8;">${compHtml}</td>
@@ -9402,7 +9717,7 @@ function renderArticles(){
     ? '<div class="emp" style="padding:40px;grid-column:1/-1;">Aucun article trouvé.</div>'
     : arts.map(a=>{
         const imgHtml = a.image
-          ? `<img src="${a.image}" alt="${a.nom}" style="width:100%;height:140px;object-fit:cover;display:block;">`
+          ? `<img src="${a.image}" alt="${esc(a.nom)}" style="width:100%;height:140px;object-fit:cover;display:block;">`
           : `<div style="width:100%;height:140px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:48px;">${catEmoji(a.cat)}</div>`;
         const stockColor = a.stock<=0?'var(--danger)':a.stock<=a.stockMin?'var(--accent3)':'var(--accent2)';
         const adminBtns = isAdmin ? `
@@ -9415,7 +9730,7 @@ function renderArticles(){
           ${imgHtml}
           <div class="art-card-body">
             <div style="margin-bottom:3px;">${refBadge}</div>
-            <div class="art-card-nom" title="${a.nom}">${esc(a.nom)}</div>
+            <div class="art-card-nom" title="${esc(a.nom)}">${esc(a.nom)}</div>
             <div style="font-size:9.5px;color:var(--muted);margin-bottom:4px;">${esc(a.cat||'—')}</div>
             <div class="art-card-prix">${fmt(a.pv)}</div>
             <div class="art-card-stock" style="color:${stockColor}">Stock : ${a.stock} ${a.unite||'pcs'} ${stockStatut(a)}</div>
@@ -9697,7 +10012,7 @@ window.renderStockParAgence = function(){
         <div style="width:38px;height:38px;border-radius:9px;background:rgba(212,137,58,0.15);border:1px solid rgba(212,137,58,0.3);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">🏢</div>
         <div style="flex:1;min-width:0;">
           <div style="font-weight:700;font-size:14px;color:var(--text);">${esc(ag.nom)}</div>
-          <div style="font-size:11px;color:var(--muted);">${ag.ville||''} &nbsp;·&nbsp; ${comIds.length} commercial(aux) &nbsp;·&nbsp; ${clIds.length} client(s)</div>
+          <div style="font-size:11px;color:var(--muted);">${esc(ag.ville||'')} &nbsp;·&nbsp; ${comIds.length} commercial(aux) &nbsp;·&nbsp; ${clIds.length} client(s)</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <div style="background:rgba(212,137,58,0.1);border:1px solid rgba(212,137,58,0.3);border-radius:8px;padding:6px 14px;text-align:center;">
@@ -9877,10 +10192,10 @@ function renderLivraisons(){
   if(labelEl){
     const parts = [];
     if(filtDate){ const ds = new Date(filtDate+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'}); parts.push(`📅 ${ds}`); }
-    if(agId){ const ag = DB.agences.find(a=>a._id===agId); if(ag) parts.push(`🏢 ${ag.nom}`); }
-    if(filtComId){ const com = DB.commerciaux.find(c=>c._id===filtComId); if(com) parts.push(`👤 ${com.nom}`); }
+    if(agId){ const ag = DB.agences.find(a=>a._id===agId); if(ag) parts.push(`🏢 ${esc(ag.nom)}`); }
+    if(filtComId){ const com = DB.commerciaux.find(c=>c._id===filtComId); if(com) parts.push(`👤 ${esc(com.nom)}`); }
     if(filtStatut){ parts.push(filtStatut==='en_attente'?'⏳ En attente':filtStatut==='livre'?'✅ Livrées':'❌ Annulées'); }
-    if(filtArticleId){ const prod = (DB.produits||[]).find(p=>p._id===filtArticleId); if(prod) parts.push(`📦 ${prod.nom}`); }
+    if(filtArticleId){ const prod = (DB.produits||[]).find(p=>p._id===filtArticleId); if(prod) parts.push(`📦 ${esc(prod.nom)}`); }
     if(q) parts.push(`🔍 "${q}"`);
     labelEl.innerHTML = parts.length
       ? `<span style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.2);border-radius:6px;padding:3px 10px;">Filtres actifs : ${parts.join(' · ')}</span>`
@@ -9890,9 +10205,9 @@ function renderLivraisons(){
   // ── Tableau ──
   document.getElementById('tb-livraisons').innerHTML=livs.map(l=>{
     const c=getCl(l.clientId),a=getProd(l.produitId),com=getCom(l.commercialId);
-    return`<tr><td>${esc(l.date)}</td><td class="fw6">${esc(c.nom)}${c.codeClient?`<div style="font-size:9px;color:var(--accent);font-weight:700;">${c.codeClient}</div>`:''}</td>
-    <td><span class="tag">${com.nom}</span></td>
-    <td style="font-size:11px">${a.nom}</td><td>${l.qty}</td><td>${fmt(l.montant)}</td><td>${livStatut(l.statut)}</td>
+    return`<tr><td>${esc(l.date)}</td><td class="fw6">${esc(c.nom)}${c.codeClient?`<div style="font-size:9px;color:var(--accent);font-weight:700;">${esc(c.codeClient)}</div>`:''}</td>
+    <td><span class="tag">${esc(com.nom)}</span></td>
+    <td style="font-size:11px">${esc(a.nom)}</td><td>${l.qty}</td><td>${fmt(l.montant)}</td><td>${livStatut(l.statut)}</td>
     <td>${(l.statut==='en_attente'&&['admin','secretaire'].includes(session.role))?`<button class="btn btn-success btn-xs" onclick="marquerLivre('${l._id}')" style="margin-right:3px">✓ Livré</button>`:''}
     ${(session.role==='admin'||(session.role==='secretaire'&&l.date===TODAY))?`<button class="btn btn-xs btn-warn" onclick="delLiv('${l._id}')">✕</button>`:livStatut(l.statut)}</td></tr>`;
   }).join('')||`<tr><td colspan="8" class="emp">${(q||filtDate||filtComId||filtStatut||agId)?'Aucune livraison pour ces filtres':'Aucune livraison'}</td></tr>`;
@@ -10201,7 +10516,7 @@ window.annulerControle = async function(cid){
   if(!['admin','controleur'].includes(session?.role)){ notify('Accès non autorisé','err'); return; }
   const c = getCl(cid);
   if(!c){ notify('Client introuvable','err'); return; }
-  if(!(await confirmDialog(`Annuler le contrôle de « ${c.nom} » ? Il repassera dans la liste "À contrôler".`,{title:'Annuler le contrôle'}))) return;
+  if(!(await confirmDialog(`Annuler le contrôle de « ${esc(c.nom)} » ? Il repassera dans la liste "À contrôler".`,{title:'Annuler le contrôle'}))) return;
   try {
     await fbUpdate('clients', cid, {
       controle: { statut: 'non_controle', date:'', heure:'', par:'', note:'' }
@@ -10265,8 +10580,9 @@ window.genererRapportControle = function(){
     const statutCell = estFait
       ? `<span style="color:#1a8a4a;font-weight:700;">✅ Contrôlé</span><div style="font-size:10px;color:#666;">${esc(c.controle.date||'')} ${esc(c.controle.heure||'')} — ${esc(c.controle.par||'—')}</div>`
       : `<span style="color:#c0392b;font-weight:700;">⏳ Non contrôlé</span>`;
-    return `<tr><td style="padding:6px 8px;">${esc(c.nom)}${c.codeClient?` (${esc(c.codeClient)})`:''}</td><td style="padding:6px 8px;">${esc(c.tel||'—')}</td><td style="padding:6px 8px;">${esc(getCom(c.commercialId).nom)}</td><td style="padding:6px 8px;">${statutCell}</td></tr>`;
-  }).join('') || `<tr><td colspan="4" style="padding:10px;text-align:center;color:#888;">Aucun client</td></tr>`;
+    const noteCell = c.controle?.note ? `<span style="font-style:italic;color:#444;">"${esc(c.controle.note)}"</span>` : `<span style="color:#aaa;">—</span>`;
+    return `<tr><td style="padding:6px 8px;">${esc(c.nom)}${c.codeClient?` (${esc(c.codeClient)})`:''}</td><td style="padding:6px 8px;">${esc(c.tel||'—')}</td><td style="padding:6px 8px;">${esc(getCom(c.commercialId).nom)}</td><td style="padding:6px 8px;">${statutCell}</td><td style="padding:6px 8px;max-width:220px;">${noteCell}</td></tr>`;
+  }).join('') || `<tr><td colspan="5" style="padding:10px;text-align:center;color:#888;">Aucun client</td></tr>`;
 
   const now = new Date();
   const dateGen = now.toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'}) + ' à ' + String(now.getHours()).padStart(2,'0')+'h'+String(now.getMinutes()).padStart(2,'0');
@@ -10303,7 +10619,7 @@ window.genererRapportControle = function(){
   <h2>Répartition par commercial</h2>
   <table><thead><tr><th>Commercial</th><th style="text-align:center;">Total</th><th style="text-align:center;">Contrôlés</th><th style="text-align:center;">Non contrôlés</th><th style="text-align:center;">Taux</th></tr></thead><tbody>${lignesCom}</tbody></table>
   <h2>Détail — ${esc(statutLabel)} (${liste.length})</h2>
-  <table><thead><tr><th>Client</th><th>Téléphone</th><th>Commercial</th><th>Statut</th></tr></thead><tbody>${lignesDetail}</tbody></table>
+  <table><thead><tr><th>Client</th><th>Téléphone</th><th>Commercial</th><th>Statut</th><th>Note du contrôleur</th></tr></thead><tbody>${lignesDetail}</tbody></table>
   <button class="btn-print no-print" onclick="window.print()">🖨️ Imprimer</button>
 </body></html>`);
   win.document.close();
@@ -10424,7 +10740,7 @@ window.delPaiementVerrouille = async function(id){
 
   const etape1 = await confirmDialog(
     `⚠️ Ce paiement est VERROUILLÉ (protection normale).\n\n`+
-    `Client : ${c.nom||'—'}\nCommercial : ${com.nom||'—'}\nDate : ${p.date||'—'} ${p.heure||''}\nMontant : ${fmt(p.montant)}\n${p.note?'Note : '+p.note+'\n':''}\n`+
+    `Client : ${esc(c.nom||'—')}\nCommercial : ${esc(com.nom||'—')}\nDate : ${p.date||'—'} ${p.heure||''}\nMontant : ${fmt(p.montant)}\n${p.note?'Note : '+p.note+'\n':''}\n`+
     `La suppression d'un paiement verrouillé est une action EXCEPTIONNELLE, tracée et non standard.\nVoulez-vous continuer ?`,
     {title:'🔒 Suppression exceptionnelle', okLabel:'Continuer', danger:true}
   );
@@ -10479,7 +10795,7 @@ window.delPaiement = async function(id){
   const c = getCl(p.clientId);
   const com = getCom(p.commercialId);
   const ok = await confirmDialog(
-    `Client : ${c.nom||'—'}\nCommercial : ${com.nom||'—'}\nDate : ${p.date||'—'} ${p.heure||''}\nMontant : ${fmt(p.montant)}\n${p.note?'Note : '+p.note+'\n':''}\nCette suppression est définitive et irréversible.`,
+    `Client : ${esc(c.nom||'—')}\nCommercial : ${esc(com.nom||'—')}\nDate : ${p.date||'—'} ${p.heure||''}\nMontant : ${fmt(p.montant)}\n${p.note?'Note : '+p.note+'\n':''}\nCette suppression est définitive et irréversible.`,
     {title:'🗑 Supprimer ce paiement ?', okLabel:'Supprimer', danger:true}
   );
   if(!ok) return;
@@ -10875,7 +11191,7 @@ function renderAgences(){
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">
         <div>
           <div style="font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:800;color:var(--accent);">🏢 ${esc(ag.nom)}</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px;">📍 ${ag.ville||'—'} ${ag.description?'· '+ag.description:''}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">📍 ${esc(ag.ville||'—')} ${ag.description?'· '+ag.description:''}</div>
         </div>
         <div style="display:flex;gap:5px;">
           <button class="btn btn-ghost btn-xs" onclick="editAgence('${ag._id}')">✏️</button>
@@ -10950,9 +11266,9 @@ window.deleteAgence = async function(id){
     notify(`Impossible : ${membres.length} membre(s) appartiennent à cette agence. Réassignez-les d'abord.`,'err');
     return;
   }
-  if(!(await confirmDialog(`Supprimer l'agence "${ag.nom}" ? Cette action est irréversible.`,{title:'🗑 Suppression agence',okLabel:'Supprimer',danger:true}))) return;
+  if(!(await confirmDialog(`Supprimer l'agence "${esc(ag.nom)}" ? Cette action est irréversible.`,{title:'🗑 Suppression agence',okLabel:'Supprimer',danger:true}))) return;
   await fbDelete('agences', id);
-  notify(`Agence "${ag.nom}" supprimée`);
+  notify(`Agence "${esc(ag.nom)}" supprimée`);
 };
 
 function renderComs(){
@@ -11102,7 +11418,7 @@ window.sauvegarderUtilisateur = async function(){
       const prefix = document.getElementById('eu-prefix').value.trim().toUpperCase();
       if(!prefix){ notify('Le préfixe est obligatoire pour un commercial','err'); return; }
       const doublon = DB.commerciaux.find(c=>c._id!==uid && c.role==='commercial' && (c.codePrefix||'').toUpperCase()===prefix);
-      if(doublon){ notify(`Le préfixe "${prefix}" est déjà utilisé par ${doublon.nom}`,'err'); return; }
+      if(doublon){ notify(`Le préfixe "${prefix}" est déjà utilisé par ${esc(doublon.nom)}`,'err'); return; }
       const u = DB.commerciaux.find(c=>c._id===uid);
       if(u && u.codePrefix && u.codePrefix.toUpperCase()!==prefix){
         warn.style.display='block';
@@ -11149,8 +11465,8 @@ window.ouvrirTransfertClients = function(sourceId){
       return`<label style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:7px;cursor:pointer;transition:background 0.1s;" onmouseover="this.style.background='rgba(201,168,76,0.05)'" onmouseout="this.style.background=''">
         <input type="checkbox" class="tr-cl-check" value="${c._id}" checked style="width:15px;height:15px;accent-color:var(--accent);flex-shrink:0;" onchange="trUpdateCount()">
         <div style="flex:1;min-width:0;">
-          <div style="font-size:13px;font-weight:600;">${c.nom}${c.codeClient?` <span style="font-size:10px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.3);border-radius:4px;padding:0 5px;color:var(--accent);">${c.codeClient}</span>`:''}</div>
-          <div style="font-size:10px;color:var(--muted);">${c.ville||''} · ${c.contrat||''} · ${s.pct}% payé${s.joursRetard>0?' · <span style="color:var(--danger)">'+s.joursRetard+'j retard</span>':''}</div>
+          <div style="font-size:13px;font-weight:600;">${esc(c.nom)}${c.codeClient?` <span style="font-size:10px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.3);border-radius:4px;padding:0 5px;color:var(--accent);">${esc(c.codeClient)}</span>`:''}</div>
+          <div style="font-size:10px;color:var(--muted);">${esc(c.ville||'')} · ${esc(c.contrat||'')} · ${s.pct}% payé${s.joursRetard>0?' · <span style="color:var(--danger)">'+s.joursRetard+'j retard</span>':''}</div>
         </div>
         <span style="font-size:11px;color:var(--accent2);font-weight:600;flex-shrink:0;">${fmt(s.m)}/j</span>
       </label>`;
@@ -11181,7 +11497,7 @@ window.confirmerTransfert = async function(){
   if(!selected.length){ notify('Sélectionnez au moins un client','err'); return; }
   const dest = DB.commerciaux.find(c=>c._id===destId);
   const source = DB.commerciaux.find(c=>c._id===sourceId);
-  if(!(await confirmDialog(`Transférer ${selected.length} client(s) de "${source.nom}" vers "${dest.nom}" ?\n\nCette action est irréversible.`,{title:'Transfert de clients',okLabel:'Transférer'}))) return;
+  if(!(await confirmDialog(`Transférer ${selected.length} client(s) de "${esc(source.nom)}" vers "${esc(dest.nom)}" ?\n\nCette action est irréversible.`,{title:'Transfert de clients',okLabel:'Transférer'}))) return;
   warn.style.display='none';
   let ok=0, err=0;
   for(const cid of selected){
@@ -11190,7 +11506,7 @@ window.confirmerTransfert = async function(){
   }
   closeM('m-transfert');
   if(err>0) notify(`${ok} client(s) transférés, ${err} erreur(s)`, 'err');
-  else notify(`&#10003; ${ok} client(s) transférés vers ${dest.nom}`);
+  else notify(`&#10003; ${ok} client(s) transférés vers ${esc(dest.nom)}`);
 };
 
 let _recDateQueryToken = 0;
@@ -11219,7 +11535,7 @@ async function renderRec(){
   document.getElementById('tb-rec').innerHTML=cls.map(c=>{
     const s=stats(c);const pt=tp.find(p=>p.clientId===c._id);
     return`<tr>
-      <td><div class="fw6">${esc(c.nom)}</div><div class="tm" style="font-size:10px">${esc(c.ville)} · ${esc(c.quartier)}</div>${c.codeClient?`<span style="font-size:9px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.3);border-radius:4px;padding:0 4px;color:var(--accent);font-weight:700;">${c.codeClient}</span>`:''}</td>
+      <td><div class="fw6">${esc(c.nom)}</div><div class="tm" style="font-size:10px">${esc(c.ville)} · ${esc(c.quartier)}</div>${c.codeClient?`<span style="font-size:9px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.3);border-radius:4px;padding:0 4px;color:var(--accent);font-weight:700;">${esc(c.codeClient)}</span>`:''}</td>
       <td>${esc(c.tel)}</td><td style="font-size:11px">${esc(c.contrat)}</td>
       <td><span class="cotis-badge">💰 ${fmt(s.m)}</span></td>
       <td title="Niveau: ${s.joursCouv}/${c.duree} jours">${joursEnJM(s.joursCouv)}</td>
@@ -11478,8 +11794,8 @@ async function renderFiche(){
             <th>Code</th><th>Nom</th><th>Montant contrat</th><th>Adhésion</th>
           </tr></thead>
           <tbody>${nouveauxClients.map(c=>`<tr>
-            <td><span style="font-size:10px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.3);border-radius:4px;padding:0 5px;color:var(--accent);font-weight:700;">${c.codeClient||'—'}</span></td>
-            <td class="fw6">${c.nom}${c.origine==='import'?'<span style="font-size:9px;background:rgba(79,142,247,0.18);border:1px solid rgba(79,142,247,0.35);border-radius:4px;padding:0 5px;color:var(--accent);margin-left:5px;">📥 Importé</span>':''}</td>
+            <td><span style="font-size:10px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.3);border-radius:4px;padding:0 5px;color:var(--accent);font-weight:700;">${esc(c.codeClient||'—')}</span></td>
+            <td class="fw6">${esc(c.nom)}${c.origine==='import'?'<span style="font-size:9px;background:rgba(79,142,247,0.18);border:1px solid rgba(79,142,247,0.35);border-radius:4px;padding:0 5px;color:var(--accent);margin-left:5px;">📥 Importé</span>':''}</td>
             <td style="font-weight:700;color:var(--accent);">${fmt(c.montantTotal||0)}</td>
             <td style="text-align:center;">
               ${c.adhesionStatut==='paye'
@@ -11501,13 +11817,13 @@ async function renderFiche(){
 window.encaisserAdhesionFiche = async function(cid){
   const c = getCl(cid);
   if(!c || c.adhesionStatut==='paye'){ notify('Adhésion déjà encaissée','err'); return; }
-  if(!(await confirmDialog(`Encaisser le droit d'adhésion de 200 FCFA pour ${c.nom} ?\n\nCette action marquera l'adhésion comme payée.`,{title:'💰 Encaissement adhésion',okLabel:'Encaisser'}))) return;
+  if(!(await confirmDialog(`Encaisser le droit d'adhésion de 200 FCFA pour ${esc(c.nom)} ?\n\nCette action marquera l'adhésion comme payée.`,{title:'💰 Encaissement adhésion',okLabel:'Encaisser'}))) return;
   try{
     await fbUpdate('clients', cid, {adhesionStatut:'paye', adhesion:200});
     const _now = new Date();
     const _heure = String(_now.getHours()).padStart(2,'0')+':'+String(_now.getMinutes()).padStart(2,'0');
     await fbAdd('adhesionPays', {clientId:cid, commercialId:session.userId, montant:200, date:TODAY, heure:_heure, note:"Adhésion encaissée par commercial", saisiParId:session.userId, saisiParNom:session.nom, verrouille:true});
-    notify(`✅ Adhésion de ${c.nom} encaissée — 200 FCFA`);
+    notify(`✅ Adhésion de ${esc(c.nom)} encaissée — 200 FCFA`);
     renderFiche();
   }catch(e){
     console.error('Échec encaissement adhésion:', e);
@@ -11583,7 +11899,7 @@ window.openPay = function(cid){
   const c=getCl(cid),s=stats(c);
   // ── Bloquer si contrat résilié ──
   if(c.statutContrat==='resilie'){
-    notify(`🚫 Contrat de ${c.nom} résilié — aucune cotisation possible.`,'err');
+    notify(`🚫 Contrat de ${esc(c.nom)} résilié — aucune cotisation possible.`,'err');
     return;
   }
   const contratSolde = c.montantTotal>0 && s.totalPaye>=c.montantTotal;
@@ -11643,7 +11959,7 @@ window.savePay = async function(){
   // ── Bloquer si contrat résilié ──
   const _clResilie = getCl(payCtx);
   if(_clResilie && _clResilie.statutContrat==='resilie'){
-    notify(`🚫 Contrat de ${_clResilie.nom} résilié — aucune cotisation possible.`,'err');
+    notify(`🚫 Contrat de ${esc(_clResilie.nom)} résilié — aucune cotisation possible.`,'err');
     closeM('m-pay'); payCtx=null; return;
   }
   // ── Bloquer si montant contrat totalement atteint (non-admin) ──
@@ -11651,7 +11967,7 @@ window.savePay = async function(){
     const _cl = getCl(payCtx);
     const _totalPaye = DB.paiements.filter(p=>p.clientId===payCtx).reduce((a,p)=>a+p.montant,0);
     if(_cl.montantTotal>0 && _totalPaye>=_cl.montantTotal){
-      notify(`🔒 Contrat de ${_cl.nom} totalement soldé (${fmt(_cl.montantTotal)}). Aucun encaissement supplémentaire autorisé.`,'err');
+      notify(`🔒 Contrat de ${esc(_cl.nom)} totalement soldé (${fmt(_cl.montantTotal)}). Aucun encaissement supplémentaire autorisé.`,'err');
       return;
     }
   }
@@ -11750,7 +12066,7 @@ window.saveAdhesion = async function(){
 
 window.openDet = function(cid){
   const c=getCl(cid),s=stats(c);
-  document.getElementById('det-title').textContent=`👤 ${c.nom} — ${c.contrat}`;
+  document.getElementById('det-title').textContent=`👤 ${esc(c.nom)} — ${esc(c.contrat)}`;
   document.getElementById('det-kpi').style.gridTemplateColumns='repeat(auto-fill,minmax(130px,1fr))';
   document.getElementById('det-kpi').innerHTML=`
     <div class="kpi-card kc-green"><div class="kpi-lbl">Total payé</div><div class="kpi-val kv-green" style="font-size:16px">${fmt(s.totalPaye)}</div></div>
@@ -11781,7 +12097,7 @@ window.openDet = function(cid){
     const btnDelPai2 = (session&&['admin','chef_agence'].includes(session.role)&&!p.verrouille)
       ? `<td style="text-align:center;"><button onclick="delPaiement('${p._id}')" title="Supprimer ce paiement" style="background:rgba(224,92,82,0.12);border:1px solid rgba(224,92,82,0.35);border-radius:6px;padding:2px 7px;color:var(--danger);font-size:11px;cursor:pointer;" onmouseover="this.style.background='rgba(224,92,82,0.28)'" onmouseout="this.style.background='rgba(224,92,82,0.12)'">🗑</button></td>`
       : (session&&['admin','chef_agence'].includes(session.role) ? `<td style="text-align:center;"><button onclick="delPaiementVerrouille('${p._id}')" title="Paiement verrouillé — cliquer pour une suppression exceptionnelle" style="background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.3);border-radius:6px;padding:2px 7px;color:var(--accent);font-size:11px;cursor:pointer;">🔒</button></td>` : '<td></td>');
-    return`<tr><td>${p.date}</td><td class="tm">${p.heure||'—'}</td><td><span class="cotis-badge" style="font-size:10px">💰 ${fmt(p.cotisJour||s.m)}</span></td><td style="color:var(--accent2);font-weight:700">${fmt(p.montant)}</td><td>${ratio(p.montant,p.cotisJour||s.m)}</td><td style="font-size:12px;font-weight:700;color:${nivColor2};white-space:nowrap;">${nivLabel2}<span style="font-size:9px;color:var(--muted);font-weight:400;"> /${joursEnJM(duree2)}</span></td><td class="tm" style="font-size:10px">${p.note||'—'}${locked?'<span style="margin-left:4px;color:var(--accent2);" title="Saisi par commercial — verrouillé">🔒</span>':''}${badgeCorrection(p)}</td>${btnDelPai2}</tr>`;
+    return`<tr><td>${p.date}</td><td class="tm">${p.heure||'—'}</td><td><span class="cotis-badge" style="font-size:10px">💰 ${fmt(p.cotisJour||s.m)}</span></td><td style="color:var(--accent2);font-weight:700">${fmt(p.montant)}</td><td>${ratio(p.montant,p.cotisJour||s.m)}</td><td style="font-size:12px;font-weight:700;color:${nivColor2};white-space:nowrap;">${nivLabel2}<span style="font-size:9px;color:var(--muted);font-weight:400;"> /${joursEnJM(duree2)}</span></td><td class="tm" style="font-size:10px">${esc(p.note||'—')}${locked?'<span style="margin-left:4px;color:var(--accent2);" title="Saisi par commercial — verrouillé">🔒</span>':''}${badgeCorrection(p)}</td>${btnDelPai2}</tr>`;
   }).join('')||`<tr><td colspan="${session&&['admin','chef_agence'].includes(session.role)?8:7}" class="emp">Aucun paiement</td></tr>`;
   const detPaysTh = document.getElementById('det-pays-th-actions');
   if(detPaysTh) detPaysTh.style.display = (session&&['admin','chef_agence'].includes(session.role)) ? '' : 'none';
@@ -11831,12 +12147,12 @@ window.ajouterArticleParCode = function(prefix){
 
   // Vérifier doublon
   if(_articlesAdded[prefix].find(x=>x._id===prod._id)){
-    showMsg(msgEl,`« ${prod.nom} » est déjà dans le contrat.`,'warn'); return;
+    showMsg(msgEl,`« ${esc(prod.nom)} » est déjà dans le contrat.`,'warn'); return;
   }
 
   _articlesAdded[prefix].push(prod);
   codeEl.value='';
-  showMsg(msgEl,`✓ « ${prod.nom} » ajouté.`,'ok');
+  showMsg(msgEl,`✓ « ${esc(prod.nom)} » ajouté.`,'ok');
   renderArticlesList(prefix);
 };
 
@@ -11875,7 +12191,7 @@ function renderArticlesList(prefix){
       <div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:6px 10px;font-size:12px;">
         <div>
           <span style="color:var(--accent);font-weight:700;font-size:10px;margin-right:6px;">${p.ref||'—'}</span>
-          <span style="font-weight:600;">${p.nom}</span>
+          <span style="font-weight:600;">${esc(p.nom)}</span>
         </div>
         <div style="display:flex;align-items:center;gap:10px;">
           <span style="color:var(--accent2);font-weight:700;">${fmt(p.prix)}</span>
@@ -12129,7 +12445,7 @@ async function deduireStockLivraison(prod, qty, clientNom){
   const warnings=[];
   const comp = prod.composition||[];
   if(!comp.length){
-    warnings.push(`(« ${prod.nom} » n'a pas de composition d'articles définie)`);
+    warnings.push(`(« ${esc(prod.nom)} » n'a pas de composition d'articles définie)`);
     return warnings;
   }
   for(const c of comp){
@@ -12139,8 +12455,8 @@ async function deduireStockLivraison(prod, qty, clientNom){
     const deduct=Math.min(needed, compArt.stock);
     const ns=Math.max(0,compArt.stock-needed);
     await fbUpdate('articles',c.articleId,{stock:ns});
-    await fbAdd('stockMvts',{articleId:c.articleId,type:'sortie',qty:deduct,stockApres:ns,date:TODAY,note:`Produit livré: ${prod.nom} × ${qty} → client ${clientNom}`});
-    if(deduct<needed) warnings.push(`${compArt.nom} (manque ${needed-deduct})`);
+    await fbAdd('stockMvts',{articleId:c.articleId,type:'sortie',qty:deduct,stockApres:ns,date:TODAY,note:`Produit livré: ${esc(prod.nom)} × ${qty} → client ${clientNom}`});
+    if(deduct<needed) warnings.push(`${esc(compArt.nom)} (manque ${needed-deduct})`);
   }
   return warnings;
 }
@@ -12271,7 +12587,7 @@ window.openMise = function(comId){
   const tot = DB.paiements.filter(p=>p.commercialId===comId).reduce((a,p)=>a+p.montant,0);
   const totMises = (DB.mises||[]).filter(m=>m.commercialId===comId).reduce((a,m)=>a+m.montant,0);
   document.getElementById('mise-info').innerHTML =
-    `<strong>${c.nom}</strong> — Collecté : <strong style="color:var(--accent2)">${fmt(tot)}</strong> &nbsp;|&nbsp; Mises versées : <strong style="color:var(--danger)">${fmt(totMises)}</strong> &nbsp;|&nbsp; Solde : <strong style="color:var(--accent)">${fmt(tot-totMises)}</strong>`;
+    `<strong>${esc(c.nom)}</strong> — Collecté : <strong style="color:var(--accent2)">${fmt(tot)}</strong> &nbsp;|&nbsp; Mises versées : <strong style="color:var(--danger)">${fmt(totMises)}</strong> &nbsp;|&nbsp; Solde : <strong style="color:var(--accent)">${fmt(tot-totMises)}</strong>`;
   document.getElementById('mise-amt').value='';
   document.getElementById('mise-note').value='';
   document.getElementById('mise-date').value=TODAY;
@@ -12285,7 +12601,7 @@ window.openMise = function(comId){
          <tbody>${hist.map(m=>`<tr style="border-top:1px solid var(--border);font-size:12px">
            <td style="padding:5px 8px;color:var(--muted)">${m.date}</td>
            <td style="padding:5px 8px;color:var(--danger);font-weight:600">${fmt(m.montant)}</td>
-           <td style="padding:5px 8px;font-size:11px">${m.note||'—'}</td>
+           <td style="padding:5px 8px;font-size:11px">${esc(m.note||'—')}</td>
            <td style="padding:5px 8px"><button class="btn btn-xs btn-warn" onclick="delMise('${m._id}')">✕</button></td>
          </tr>`).join('')}</tbody>
        </table>
@@ -12299,7 +12615,7 @@ window.marquerVerseRegistre = async function(comId, date){
   if(!['admin','secretaire'].includes(role)){ notify('Accès refusé','err'); return; }
   const com = DB.commerciaux.find(c=>c._id===comId)||{nom:'?'};
   const existing = getVersementDuJour(comId, date);
-  if(existing){ notify(`⚠️ Déjà marqué versé pour ${com.nom}`,'err'); return; }
+  if(existing){ notify(`⚠️ Déjà marqué versé pour ${esc(com.nom)}`,'err'); return; }
   // Calculer total du jour
   const cls = DB.clients.filter(c=>c.commercialId===comId);
   const pays = DB.paiements.filter(p=>p.date===date && cls.some(c=>c._id===p.clientId));
@@ -12308,7 +12624,7 @@ window.marquerVerseRegistre = async function(comId, date){
   const adhJour = (DB.adhesionPays||[]).filter(a=>a.date===date && clientIdsC.has(a.clientId));
   const totalAdh = adhJour.reduce((a,x)=>a+Number(x.montant||0),0);
   const totalJour = totalCotis + totalAdh;
-  if(!(await confirmDialog(`Marquer les points de ${com.nom} du ${date} comme versés ?\nTotal : ${fmt(totalJour)}`,{title:'✅ Marquer versé',okLabel:'Confirmer'}))) return;
+  if(!(await confirmDialog(`Marquer les points de ${esc(com.nom)} du ${date} comme versés ?\nTotal : ${fmt(totalJour)}`,{title:'✅ Marquer versé',okLabel:'Confirmer'}))) return;
   const now = new Date();
   const heure = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
   try{
@@ -12318,7 +12634,7 @@ window.marquerVerseRegistre = async function(comId, date){
       marqueParId:session.userId, marqueParNom:session.nom,
       marqueParRole:session.role, heureMarquage:heure, dateMarquage:TODAY
     });
-    notify(`✅ Points de ${com.nom} marqués versés — ${fmt(totalJour)}`);
+    notify(`✅ Points de ${esc(com.nom)} marqués versés — ${fmt(totalJour)}`);
     renderRegistre();
   }catch(e){
     console.error('Échec marquage versement:', e);
@@ -12378,7 +12694,7 @@ window.marquerPointsVerses = async function(){
   const com = DB.commerciaux.find(c=>c._id===comId)||{nom:'?'};
   const existing = getVersementDuJour(comId, date);
   if(existing){
-    notify(`⚠️ Points du ${date} déjà marqués comme versés pour ${com.nom}`, 'err');
+    notify(`⚠️ Points du ${date} déjà marqués comme versés pour ${esc(com.nom)}`, 'err');
     return;
   }
   // Calculer le total du jour
@@ -12390,7 +12706,7 @@ window.marquerPointsVerses = async function(){
   const totalAdh = adhJour.reduce((a,x)=>a+Number(x.montant||0),0);
   const totalJour = totalCotis + totalAdh;
 
-  if(!(await confirmDialog(`Marquer les points du ${new Date(date+'T12:00:00').toLocaleDateString('fr-FR')} comme versés pour ${com.nom} ?\n\nMontant total : ${fmt(totalJour)}\n\n⚠️ Le commercial ne pourra plus enregistrer de mise pour cette date.`,{title:'✅ Marquer versé',okLabel:'Confirmer'}))) return;
+  if(!(await confirmDialog(`Marquer les points du ${new Date(date+'T12:00:00').toLocaleDateString('fr-FR')} comme versés pour ${esc(com.nom)} ?\n\nMontant total : ${fmt(totalJour)}\n\n⚠️ Le commercial ne pourra plus enregistrer de mise pour cette date.`,{title:'✅ Marquer versé',okLabel:'Confirmer'}))) return;
 
   const now = new Date();
   const heure = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
@@ -12406,7 +12722,7 @@ window.marquerPointsVerses = async function(){
     heureMarquage: heure,
     dateMarquage: TODAY
   });
-  notify(`✅ Points de ${com.nom} du ${date} marqués comme versés — ${fmt(totalJour)}`);
+  notify(`✅ Points de ${esc(com.nom)} du ${date} marqués comme versés — ${fmt(totalJour)}`);
   renderFiche();
 };
 
@@ -12423,7 +12739,7 @@ window.livFiltrerClients = function(){
   sel.innerHTML = '<option value="">— Sélectionner un client —</option>' +
     clients.map(c=>{
       const com = getCom(c.commercialId);
-      return `<option value="${c._id}"${prev===c._id?' selected':''}>${c.codeClient?c.codeClient+' — ':''} ${c.nom} · ${com.nom||''}` + `</option>`;
+      return `<option value="${c._id}"${prev===c._id?' selected':''}>${c.codeClient?c.codeClient+' — ':''} ${esc(c.nom)} · ${esc(com.nom||'')}` + `</option>`;
     }).join('');
   // Si le client précédemment sélectionné n'est plus dans la liste, réinitialiser l'info
   if(prev && !clients.find(c=>c._id===prev)){
@@ -12639,7 +12955,7 @@ window.openM = function(id){
     const comsActifs = DB.commerciaux.filter(c=>c.role==='commercial');
     document.getElementById('liv-filter-com').innerHTML =
       '<option value="">— Tous les commerciaux —</option>' +
-      comsActifs.map(c=>`<option value="${c._id}">${c.nom}${c.prefixCode?' ('+c.prefixCode+')':''}</option>`).join('');
+      comsActifs.map(c=>`<option value="${c._id}">${esc(c.nom)}${c.prefixCode?' ('+c.prefixCode+')':''}</option>`).join('');
     // Reset champs de recherche
     document.getElementById('liv-search-code').value = '';
     document.getElementById('liv-client-info').style.display = 'none';
@@ -12882,7 +13198,7 @@ function prepareImportPreview(rows){
     const estClientExistant = r.codeClient && codesExistants.has(r.codeClient) && !estDoublonFichier;
     const doublon = estDoublonFichier; // seul un doublon DANS LE FICHIER est bloquant désormais
     const codeBadge = r.codeClient
-      ? `<span style="font-size:10px;padding:1px 6px;border-radius:4px;font-weight:700;background:${doublon?'rgba(224,92,82,0.14)':(estClientExistant?'rgba(56,201,160,0.14)':'rgba(201,168,76,0.15)')};color:${doublon?'var(--danger)':(estClientExistant?'var(--accent2)':'var(--accent)')};border:1px solid ${doublon?'rgba(247,97,79,0.4)':(estClientExistant?'rgba(56,201,160,0.4)':'rgba(201,168,76,0.35)')};">${r.codeClient}${doublon?' ⚠️':''}</span>`
+      ? `<span style="font-size:10px;padding:1px 6px;border-radius:4px;font-weight:700;background:${doublon?'rgba(224,92,82,0.14)':(estClientExistant?'rgba(56,201,160,0.14)':'rgba(201,168,76,0.15)')};color:${doublon?'var(--danger)':(estClientExistant?'var(--accent2)':'var(--accent)')};border:1px solid ${doublon?'rgba(247,97,79,0.4)':(estClientExistant?'rgba(56,201,160,0.4)':'rgba(201,168,76,0.35)')};">${esc(r.codeClient)}${doublon?' ⚠️':''}</span>`
       : `<span style="font-size:10px;color:var(--accent);font-style:italic;">auto</span>`;
     const statut = doublon ? sb('Doublon (ignoré)','sr') : (estClientExistant ? sb('🔄 Client existant — MAJ','sg') : sb('Nouveau','sg'));
     const cotisCell = r.cotisationJour>0
@@ -12899,10 +13215,10 @@ function prepareImportPreview(rows){
       : '<span style="color:var(--muted);font-size:10px;">—</span>';
     return `<tr${doublon?' style="background:rgba(247,97,79,0.05);"':(estClientExistant?' style="background:rgba(56,201,160,0.05);"':'')}>
       <td class="tm">${i+1}</td>
-      <td class="fw6">${r.nom}</td>
-      <td>${r.tel||'—'}</td>
-      <td>${r.ville||'—'}</td>
-      <td style="font-size:11px">${r.contrat||'<span style="color:var(--muted);font-style:italic;">À définir</span>'}</td>
+      <td class="fw6">${esc(r.nom)}</td>
+      <td>${esc(r.tel||'—')}</td>
+      <td>${esc(r.ville||'—')}</td>
+      <td style="font-size:11px">${esc(r.contrat||'<span style="color:var(--muted);font-style:italic;">À définir</span>')}</td>
       <td>${cotisCell}</td>
       <td>${paiCell}</td>
       <td style="font-size:10px;color:var(--subtle);">${r.debut||'—'}</td>
@@ -13561,7 +13877,7 @@ function renderComClients(){
 window.voirDetailComClient = function(cid){
   // Ouvre le modal de détail en lecture seule (sans bouton payer)
   const c=getCl(cid),s=stats(c);
-  document.getElementById('det-title').textContent=`👤 ${c.nom} — ${c.contrat}`;
+  document.getElementById('det-title').textContent=`👤 ${esc(c.nom)} — ${esc(c.contrat)}`;
   document.getElementById('det-kpi').style.gridTemplateColumns='repeat(auto-fill,minmax(130px,1fr))';
   document.getElementById('det-kpi').innerHTML=`
     <div class="kpi-card kc-green"><div class="kpi-lbl">Total payé</div><div class="kpi-val kv-green" style="font-size:16px">${fmt(s.totalPaye)}</div></div>
@@ -13580,7 +13896,7 @@ window.voirDetailComClient = function(cid){
   document.getElementById('det-pays-list').innerHTML=pays.map(p=>{
     const key3=p._id||(p.date+p.montant); const niv3=niveauxMap3.get(key3);
     const nivLabel3=niv3!==undefined?joursEnJM(niv3):'—'; const nivColor3=niv3!==undefined&&niv3>=duree3?'var(--accent2)':'var(--accent)';
-    return`<tr><td>${p.date}</td><td class="tm">${p.heure||'—'}</td><td><span class="cotis-badge" style="font-size:10px">💰 ${fmt(p.cotisJour||s.m)}</span></td><td style="color:var(--accent2);font-weight:700">${fmt(p.montant)}</td><td>${ratio(p.montant,p.cotisJour||s.m)}</td><td style="font-size:12px;font-weight:700;color:${nivColor3};white-space:nowrap;">${nivLabel3}<span style="font-size:9px;color:var(--muted);font-weight:400;"> /${joursEnJM(duree3)}</span></td><td class="tm" style="font-size:10px">${p.note||'—'}${badgeCorrection(p)}</td></tr>`;
+    return`<tr><td>${p.date}</td><td class="tm">${p.heure||'—'}</td><td><span class="cotis-badge" style="font-size:10px">💰 ${fmt(p.cotisJour||s.m)}</span></td><td style="color:var(--accent2);font-weight:700">${fmt(p.montant)}</td><td>${ratio(p.montant,p.cotisJour||s.m)}</td><td style="font-size:12px;font-weight:700;color:${nivColor3};white-space:nowrap;">${nivLabel3}<span style="font-size:9px;color:var(--muted);font-weight:400;"> /${joursEnJM(duree3)}</span></td><td class="tm" style="font-size:10px">${esc(p.note||'—')}${badgeCorrection(p)}</td></tr>`;
   }).join('')||'<tr><td colspan="7" class="emp">Aucun paiement</td></tr>';
   const livs=DB.livraisons.filter(l=>l.clientId===cid).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   document.getElementById('det-liv-list').innerHTML=livs.map(l=>`<tr><td>${esc(l.date)}</td><td class="fw6">${esc(getProd(l.produitId).nom)}</td><td>${esc(String(l.qty||""))}</td><td>${fmt(l.montant)}</td><td>${livStatut(l.statut)}</td></tr>`).join('')||'<tr><td colspan="5" class="emp">Aucune livraison</td></tr>';
@@ -13720,7 +14036,7 @@ window.saveComNouveauClient = async function(){
   const doublon = DB.clients.find(c => c.codeClient && c.codeClient.toUpperCase() === codeClient);
   if(doublon){
     const comD=getCom(doublon.commercialId);
-    notify(`Code "${codeClient}" déjà utilisé par ${doublon.nom} (${comD.nom})`, 'err');
+    notify(`Code "${codeClient}" déjà utilisé par ${esc(doublon.nom)} (${esc(comD.nom)})`, 'err');
     return;
   }
   const comId=session.userId;
@@ -13892,8 +14208,8 @@ window.miseLiveSearch = function(){
       style="padding:9px 12px;border-radius:7px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;margin-top:4px;background:var(--surface2);border:1px solid var(--border);transition:border-color 0.15s;"
       onmouseover="this.style.borderColor='rgba(201,168,76,0.5)'" onmouseout="this.style.borderColor='var(--border)'">
       <div>
-        <div style="font-weight:600;font-size:13px;">${c.nom}</div>
-        <div style="font-size:10px;color:var(--muted);margin-top:2px;">${c.tel||'-'} - ${c.ville||'-'} ${c.codeClient?`<span style="color:var(--accent);font-weight:700;">· ${c.codeClient}</span>`:''}</div>
+        <div style="font-weight:600;font-size:13px;">${esc(c.nom)}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px;">${esc(c.tel||'-')} - ${esc(c.ville||'-')} ${c.codeClient?`<span style="color:var(--accent);font-weight:700;">· ${esc(c.codeClient)}</span>`:''}</div>
       </div>
       <div style="text-align:right;">
         <div style="font-size:11px;color:var(--accent2);font-weight:600;">${fmt(s.totalPaye)}</div>
@@ -13966,7 +14282,7 @@ function miseAdhRefresh(id){
     sw.innerHTML = `<div class="ib ib-yellow" style="margin:0;display:flex;align-items:center;gap:10px;">
       <span style="font-size:18px;">⚠️</span>
       <div>
-        <div style="font-weight:700;font-size:12px;">Adhésion non encaissée — Client : <strong>${c.nom}</strong></div>
+        <div style="font-weight:700;font-size:12px;">Adhésion non encaissée — Client : <strong>${esc(c.nom)}</strong></div>
         <div style="font-size:11px;color:var(--muted);margin-top:2px;">Saisissez le montant et confirmez l'encaissement ci-dessous.</div>
       </div>
     </div>`;
@@ -14348,7 +14664,7 @@ window.enregistrerMiseSaisie = async function(){
 
   // Confirmation irréversible obligatoire
   const dateMention = dateChoisie !== TODAY ? `\nDate : ${dateChoisie} ⚠️ (correction admin — motif : ${motifCorrection})` : '';
-  if(!(await confirmDialog(`Client : ${c.nom}\nCotisations : ${nb}x\nMontant : ${fmt(montant)}${dateMention}\n\nCe paiement ne pourra pas être modifié.`,{title:'⚠️ Confirmation irréversible',okLabel:'Confirmer le paiement',danger:true}))) return;
+  if(!(await confirmDialog(`Client : ${esc(c.nom)}\nCotisations : ${nb}x\nMontant : ${fmt(montant)}${dateMention}\n\nCe paiement ne pourra pas être modifié.`,{title:'⚠️ Confirmation irréversible',okLabel:'Confirmer le paiement',danger:true}))) return;
   try{
     // Enregistrer dans paiements (pas mises) — verrouillé (source: commercial)
     const paiementMiseData = {
@@ -14535,7 +14851,7 @@ window.ouvrirEncaissementAdh = function(clientId){
   document.getElementById('m-adh-client-id').value = clientId;
   document.getElementById('m-adh-note').value = '';
   document.getElementById('m-adh-client-info').innerHTML =
-    `<strong>Client :</strong> ${c.nom} ${c.codeClient?'<span style="color:var(--accent);font-weight:700;">('+c.codeClient+')</span>':''}<br>
+    `<strong>Client :</strong> ${esc(c.nom)} ${c.codeClient?'<span style="color:var(--accent);font-weight:700;">('+c.codeClient+')</span>':''}<br>
      <strong>Commercial :</strong> ${getCom(c.commercialId).nom}`;
   // Champ date visible uniquement pour l'admin (pour antidater un encaissement)
   const dateRow = document.getElementById('m-adh-date-row');
@@ -14557,7 +14873,7 @@ window.confirmerEncaissementAdh = async function(){
   const c = getCl(clientId);
   if(!c){ notify('Client introuvable','err'); return; }
   if(c.adhesionStatut==='paye'){ notify('Adhésion déjà encaissée','err'); closeM('m-encaisser-adh'); return; }
-  if(!(await confirmDialog(`Client : ${c.nom}\nMontant : 200 FCFA\n\nCet encaissement ne peut pas être annulé.`,{title:'⚠️ Confirmation irréversible',okLabel:'Confirmer',danger:true}))) return;
+  if(!(await confirmDialog(`Client : ${esc(c.nom)}\nMontant : 200 FCFA\n\nCet encaissement ne peut pas être annulé.`,{title:'⚠️ Confirmation irréversible',okLabel:'Confirmer',danger:true}))) return;
   const now = new Date();
   const heure = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
   // Admin peut choisir une date différente d'aujourd'hui
@@ -14577,7 +14893,7 @@ window.confirmerEncaissementAdh = async function(){
     verrouille: true
   });
   closeM('m-encaisser-adh');
-  notify(`✅ Adhésion de ${c.nom} encaissée — 200 FCFA`);
+  notify(`✅ Adhésion de ${esc(c.nom)} encaissée — 200 FCFA`);
   // Afficher le reçu
   await new Promise(r=>setTimeout(r,300));
   afficherRecu({
@@ -14608,7 +14924,7 @@ window.ouvrirRachatCarnet = function(clientId){
   document.getElementById('m-rachat-client-id').value = clientId;
   document.getElementById('m-rachat-note').value = '';
   document.getElementById('m-rachat-client-info').innerHTML =
-    `<strong>Client :</strong> ${c.nom} ${c.codeClient?'<span style="color:var(--accent);font-weight:700;">('+c.codeClient+')</span>':''}<br>
+    `<strong>Client :</strong> ${esc(c.nom)} ${c.codeClient?'<span style="color:var(--accent);font-weight:700;">('+c.codeClient+')</span>':''}<br>
      <strong>Commercial :</strong> ${getCom(c.commercialId).nom}`;
   // Champ date visible uniquement pour l'admin (pour antidater un encaissement)
   const dateRow = document.getElementById('m-rachat-date-row');
@@ -14629,7 +14945,7 @@ window.confirmerRachatCarnet = async function(){
   const note = document.getElementById('m-rachat-note').value.trim();
   const c = getCl(clientId);
   if(!c){ notify('Client introuvable','err'); return; }
-  if(!(await confirmDialog(`Client : ${c.nom}\nRachat de carnet : 200 FCFA\n\nCet encaissement ne peut pas être annulé.`,{title:'⚠️ Confirmation irréversible',okLabel:'Confirmer',danger:true}))) return;
+  if(!(await confirmDialog(`Client : ${esc(c.nom)}\nRachat de carnet : 200 FCFA\n\nCet encaissement ne peut pas être annulé.`,{title:'⚠️ Confirmation irréversible',okLabel:'Confirmer',danger:true}))) return;
   const now = new Date();
   const heure = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
   // Admin peut choisir une date différente d'aujourd'hui
@@ -14649,7 +14965,7 @@ window.confirmerRachatCarnet = async function(){
     verrouille: true
   });
   closeM('m-rachat-carnet');
-  notify(`✅ Rachat de carnet de ${c.nom} encaissé — 200 FCFA`);
+  notify(`✅ Rachat de carnet de ${esc(c.nom)} encaissé — 200 FCFA`);
   // Afficher le reçu
   await new Promise(r=>setTimeout(r,300));
   afficherRecu({
@@ -14680,7 +14996,7 @@ window.enregistrerAdhesionMise = async function(){
   const note = document.getElementById('mise-adh-note').value.trim();
   const now = new Date();
   const heure = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
-  if(!(await confirmDialog(`Client : ${c.nom}\nAdhésion : ${fmt(montant)} FCFA\n\nCet encaissement ne pourra pas être modifié.`,{title:'⚠️ Confirmation irréversible',okLabel:'Confirmer',danger:true}))) return;
+  if(!(await confirmDialog(`Client : ${esc(c.nom)}\nAdhésion : ${fmt(montant)} FCFA\n\nCet encaissement ne pourra pas être modifié.`,{title:'⚠️ Confirmation irréversible',okLabel:'Confirmer',danger:true}))) return;
   await fbUpdate('clients', miseClientCtx, { adhesionStatut:'paye', adhesion: montant });
   await fbAdd('adhesionPays', {
     clientId: miseClientCtx,
@@ -14690,7 +15006,7 @@ window.enregistrerAdhesionMise = async function(){
     saisiParId: session.userId, saisiParNom: session.nom,
     verrouille: true
   });
-  notify(`✅ Adhésion de ${c.nom} encaissée — ${fmt(montant)} FCFA`);
+  notify(`✅ Adhésion de ${esc(c.nom)} encaissée — ${fmt(montant)} FCFA`);
   // Afficher le reçu imprimable
   const comAdh = getCom(c.commercialId);
   await new Promise(r=>setTimeout(r,350));
@@ -15195,12 +15511,12 @@ window.exportGstockCSV = function(){
   csv+=`MOUVEMENTS DE STOCK\nDate;Article;Type;Quantité;Stock après;Destination;Note\n`;
   mvts.forEach(m=>{
     const a=(DB.articles||[]).find(x=>x._id===m.articleId)||{};
-    csv+=`${m.date||''};${a.nom||''};${m.type};${m.qty};${m.stockApres!=null?m.stockApres:''};${m.destinationNom||m.destinationLibre||''};${m.note||''}\n`;
+    csv+=`${m.date||''};${esc(a.nom||'')};${m.type};${m.qty};${m.stockApres!=null?m.stockApres:''};${m.destinationNom||m.destinationLibre||''};${esc(m.note||'')}\n`;
   });
   csv+=`\nLIVRAISONS\nDate;Client;Statut;Note\n`;
   livraisons.forEach(l=>{
     const cl=(DB.clients||[]).find(c=>c._id===l.clientId);
-    csv+=`${l.date||''};${cl?cl.nom:''};${l.statut||''};${l.note||''}\n`;
+    csv+=`${l.date||''};${cl?cl.nom:''};${l.statut||''};${esc(l.note||'')}\n`;
   });
 
   const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
@@ -15403,7 +15719,7 @@ function renderRapportActivite(){
     <div class="rapport-kpi-grid">
       ${Object.values(caParAgence).sort((a,b)=>b.total-a.total).map(ag=>`
         <div class="rapport-kpi">
-          <div class="rk-label">${ag.nom||'—'}</div>
+          <div class="rk-label">${esc(ag.nom||'—')}</div>
           <div class="rk-val" style="font-size:14px;">${_fmtMoney(ag.total)}</div>
         </div>
       `).join('')||'<div style="color:var(--muted);font-size:12px;padding:8px;">Aucune donnée agence</div>'}
@@ -15419,7 +15735,7 @@ function renderRapportActivite(){
       perfCom.map((c,i)=>`
         <div class="com-rank-row">
           <div class="com-rank-pos">${i+1}</div>
-          <div class="com-rank-name">${c.nom}</div>
+          <div class="com-rank-name">${esc(c.nom)}</div>
           <div class="com-rank-bar-wrap"><div class="com-rank-bar" style="width:${maxCa>0?Math.round(c.ca/maxCa*100):0}%"></div></div>
           <div class="com-rank-val">${_fmtMoney(c.ca)}</div>
           <div style="font-size:10px;color:var(--muted);margin-left:6px;">${c.nbClients} client(s)</div>
@@ -15574,7 +15890,7 @@ window.exportRapportCSV = function(){
   let csv=`Rapport d'activité — ${_periodeLabel(p)}\n\n`;
   csv+=`FINANCIER\nTotal encaissements;${paiements.reduce((s,x)=>s+(Number(x.montant)||0),0)} FCFA\nCotisations collectées;${adhesions.reduce((s,x)=>s+(Number(x.montant)||0),0)} FCFA\nNouveaux clients;${clients.length}\n\n`;
   csv+=`PAIEMENTS\nDate;Client;Montant;Note\n`;
-  paiements.forEach(x=>{ const cl=(DB.clients||[]).find(c=>c._id===x.clientId); csv+=`${x.date||''};${cl?cl.nom:'—'};${x.montant||0};${x.note||''}\n`; });
+  paiements.forEach(x=>{ const cl=(DB.clients||[]).find(c=>c._id===x.clientId); csv+=`${x.date||''};${cl?cl.nom:'—'};${x.montant||0};${esc(x.note||'')}\n`; });
   csv+=`\nLIVRAISONS\nDate;Client;Statut\n`;
   livraisons.forEach(x=>{ const cl=(DB.clients||[]).find(c=>c._id===x.clientId); csv+=`${x.date||''};${cl?cl.nom:'—'};${x.statut||''}\n`; });
   csv+=`\nSTOCK\nDate;Article;Type;Quantité\n`;
@@ -15923,10 +16239,10 @@ window.trConfirmer = async function(){
 
   // Confirmation double
   const ok = await confirmDialog(
-    `Source (à résilier) : ${srcClient.nom}\n`+
-    `Destination : ${dstClient.nom}\n`+
+    `Source (à résilier) : ${esc(srcClient.nom)}\n`+
+    `Destination : ${esc(dstClient.nom)}\n`+
     `Montant : ${fmt(montant)}\n\n`+
-    `Le contrat de ${srcClient.nom} sera marqué RÉSILIÉ.\n`+
+    `Le contrat de ${esc(srcClient.nom)} sera marqué RÉSILIÉ.\n`+
     `Cette action est irréversible.`,
     {title:'⚠️ Confirmation du transfert', okLabel:'Continuer', danger:true}
   );
@@ -15948,7 +16264,7 @@ window.trConfirmer = async function(){
       montant: montant,
       date: TODAY,
       heure: heure,
-      note: `Transfert depuis ${srcClient.nom}${srcClient.codeClient?' ('+srcClient.codeClient+')':''} · ${motif||'Transfert de contrat'}`,
+      note: `Transfert depuis ${esc(srcClient.nom)}${srcClient.codeClient?' ('+srcClient.codeClient+')':''} · ${motif||'Transfert de contrat'}`,
       saisiParId: session.userId,
       saisiParNom: operateur,
       source: 'transfert',
@@ -15975,7 +16291,7 @@ window.trConfirmer = async function(){
       operateurId: session.userId
     });
 
-    notify(`✅ Transfert effectué — ${srcClient.nom} résilié · ${fmt(montant)} ajouté au contrat de ${dstClient.nom}`);
+    notify(`✅ Transfert effectué — ${esc(srcClient.nom)} résilié · ${fmt(montant)} ajouté au contrat de ${esc(dstClient.nom)}`);
     trReset();
     renderTransfertResiliation();
 
@@ -16091,7 +16407,7 @@ window.depEnregistrer = async function(){
       saisiParId: session.userId,
       saisiParNom: session.nom || session.userId
     });
-    notify(`✅ Dépense enregistrée — ${fmt(montant)} (${nature}) pour ${com.nom}`);
+    notify(`✅ Dépense enregistrée — ${fmt(montant)} (${nature}) pour ${esc(com.nom)}`);
     depResetForm();
     renderDepensesCommerciaux();
   } catch(e){
