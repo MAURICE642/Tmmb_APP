@@ -12031,7 +12031,34 @@ window.savePay = async function(){
   }catch(e){
     console.error('Échec enregistrement paiement:', e);
     notify("Échec de l'enregistrement du paiement — vérifiez votre connexion et réessayez avant de fermer cette fenêtre.", 'err');
+    return;
   }
+  // FIX : ce flux de paiement (modale "m-pay", utilisée depuis la fiche
+  // client) ne générait PAS de reçu automatiquement, contrairement à la
+  // "Saisie de mises" — d'où des reçus manquants dans l'historique pour
+  // certains paiements. On l'aligne ici sur le même comportement partout
+  // (reçu généré à chaque enregistrement, correction incluse, comme le
+  // fait déjà la Saisie de mises).
+  await new Promise(r=>setTimeout(r,350));
+  const sApres = stats(c);
+  const com = getCom(paiementData.commercialId);
+  afficherRecu({
+    type: 'cotisation',
+    clientNom: c.nom,
+    clientCode: c.codeClient || '',
+    commercialNom: com.nom,
+    commercialId: paiementData.commercialId,
+    montant: amt,
+    nbCotis: s.m>0 ? Math.round(amt/s.m*10)/10 : 0,
+    cotisJour: s.m,
+    date: payDate,
+    heure: heureSaisie,
+    note: autoNote,
+    saisiParNom: session.nom,
+    totalPaye: sApres.totalPaye,
+    totalRestant: sApres.totalRestant,
+    pct: sApres.pct
+  });
 };
 
 window.openAdh = function(cid){
