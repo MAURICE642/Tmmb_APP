@@ -3797,7 +3797,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
 
 <script type="module">
 import { initializeApp, getApps, getApp, deleteApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-import { getFirestore, collection, doc, setDoc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, where, limit, startAfter, serverTimestamp, writeBatch, Timestamp, getAggregateFromServer, sum } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentSingleTabManager, collection, doc, setDoc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, where, limit, startAfter, serverTimestamp, writeBatch, Timestamp, getAggregateFromServer, sum } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js';
 
@@ -3957,7 +3957,20 @@ async function initFB(cfg) {
     } else {
       app = initializeApp(cfg);
     }
-    db_fs = getFirestore(app);
+    // ✅ CACHE PERSISTANT (IndexedDB) : au rechargement de la page, les données
+    // déjà lues s'affichent instantanément depuis le disque local pendant que
+    // Firestore resynchronise en tâche de fond. Fallback sur getFirestore()
+    // classique si initializeFirestore() a déjà été appelé pour cette app
+    // (ex: reconnexion sans deleteApp) ou si le navigateur refuse IndexedDB
+    // (mode privé strict, très vieux navigateur, etc.).
+    try {
+      db_fs = initializeFirestore(app, {
+        localCache: persistentLocalCache({ tabManager: persistentSingleTabManager({}) })
+      });
+    } catch(e) {
+      console.warn('[Firestore] Cache persistant indisponible, fallback mémoire :', e.message);
+      db_fs = getFirestore(app);
+    }
     auth = getAuth(app);
     storage = getStorage(app);
     _registerAuthStateListener(); // FIX BLOCAGE UI : enregistrer le listener maintenant que 'auth' existe
@@ -10675,7 +10688,7 @@ window.genererRapportControle = function(){
   });
   const lignesCom = Object.entries(parCom).sort((a,b)=>a[0].localeCompare(b[0],'fr')).map(([nom,d])=>{
     const t = d.total>0 ? Math.round((d.fait/d.total)*100) : 0;
-    return `<tr><td style="padding:6px 8px;">${esc(nom)}</td><td style="padding:6px 8px;text-align:center;">${d.total}</td><td style="padding:6px 8px;text-align:center;color:#1a8a4a;">${d.fait}</td><td style="padding:6px 8px;text-align:center;color:#c0392b;">${d.total-d.fait}</td><td style="padding:6px 8px;text-align:center;font-weight:700;">${t}%</td></tr>`;
+    return `<tr><td style="padding:2px 8px;">${esc(nom)}</td><td style="padding:2px 8px;text-align:center;">${d.total}</td><td style="padding:2px 8px;text-align:center;color:#1a8a4a;">${d.fait}</td><td style="padding:2px 8px;text-align:center;color:#c0392b;">${d.total-d.fait}</td><td style="padding:2px 8px;text-align:center;font-weight:700;">${t}%</td></tr>`;
   }).join('') || `<tr><td colspan="5" style="padding:10px;text-align:center;color:#888;">Aucune donnée</td></tr>`;
 
   const statutLabel = statutFiltre==='controle' ? 'Clients contrôlés' : statutFiltre==='non_controle' ? 'Clients non contrôlés' : 'Tous les clients';
@@ -10687,7 +10700,7 @@ window.genererRapportControle = function(){
       ? `<span style="color:#1a8a4a;font-weight:700;">✅ Contrôlé</span><div style="font-size:10px;color:#666;">${esc(c.controle.date||'')} ${esc(c.controle.heure||'')} — ${esc(c.controle.par||'—')}</div>`
       : `<span style="color:#c0392b;font-weight:700;">⏳ Non contrôlé</span>`;
     const noteCell = c.controle?.note ? `<span style="font-style:italic;color:#444;">"${esc(c.controle.note)}"</span>` : `<span style="color:#aaa;">—</span>`;
-    return `<tr><td style="padding:6px 8px;">${esc(c.nom)}${c.codeClient?` (${esc(c.codeClient)})`:''}</td><td style="padding:6px 8px;">${esc(c.tel||'—')}</td><td style="padding:6px 8px;">${esc(getCom(c.commercialId).nom)}</td><td style="padding:6px 8px;">${statutCell}</td><td style="padding:6px 8px;max-width:220px;">${noteCell}</td></tr>`;
+    return `<tr><td style="padding:2px 8px;">${esc(c.nom)}${c.codeClient?` (${esc(c.codeClient)})`:''}</td><td style="padding:2px 8px;">${esc(c.tel||'—')}</td><td style="padding:2px 8px;">${esc(getCom(c.commercialId).nom)}</td><td style="padding:2px 8px;">${statutCell}</td><td style="padding:2px 8px;max-width:220px;">${noteCell}</td></tr>`;
   }).join('') || `<tr><td colspan="5" style="padding:10px;text-align:center;color:#888;">Aucun client</td></tr>`;
 
   const now = new Date();
@@ -10708,8 +10721,9 @@ window.genererRapportControle = function(){
   .kpi .val{font-size:22px;font-weight:800;color:#1e3a5f;margin-top:4px;}
   h2{font-size:14px;color:#1e3a5f;margin:22px 0 8px;border-bottom:2px solid #64a0f7;padding-bottom:4px;}
   table{width:100%;border-collapse:collapse;font-size:12px;}
-  thead th{background:#eef2f8;text-align:left;padding:7px 8px;font-size:11px;color:#333;border-bottom:2px solid #ccc;}
+  thead th{background:#eef2f8;text-align:left;padding:4px 8px;font-size:11px;color:#333;border-bottom:2px solid #ccc;}
   tbody tr{border-top:1px solid #e5e5e5;}
+  tbody td{line-height:1.25;}
   .btn-print{margin-top:20px;padding:10px 20px;background:#64a0f7;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;}
   @media print{ .no-print{display:none!important;} }
 </style></head>
