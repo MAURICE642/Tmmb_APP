@@ -99,24 +99,51 @@
          // car utilisées par /clients/ et /paiements/ juste en dessous — un seul
          // bloc de règles par collection, les deux définitions dupliquées de
          // /clients/ et /paiements/ qui existaient auparavant ont été fusionnées).
+         // FIX AUDIT #2 : valide que chaque prix figé du panier correspond bien
+         // au prix RÉEL du produit au moment de l'écriture — empêche un client
+         // malveillant (SDK/console) de forger un pvFige arbitraire (ex: 1 FCFA)
+         // pour contourner le blocage "solde insuffisant" à la livraison.
+         function prixFigesValides(produits) {
+           return produits.all(p =>
+             p.produitId is string
+             && p.pvFige is number
+             && p.pvFige == get(/databases/$(database)/documents/produits/$(p.produitId)).data.pv
+           );
+         }
          function validClient() {
            let d = request.resource.data;
            return d.nom is string && d.nom.size() <= 100
                && d.tel is string && d.tel.size() <= 20
                && d.ville is string && d.ville.size() <= 80
-               && d.contrat is string && d.contrat.size() <= 200
+               // FIX AUDIT #6 : 200 → 500 (la désignation auto-générée à partir des
+               // noms de produits sélectionnés dépassait 200 caractères dès 4-5 produits,
+               // ce qui provoquait un refus silencieux de la règle, perçu à tort comme
+               // une "erreur de connexion" par l'utilisateur).
+               && d.contrat is string && d.contrat.size() <= 500
                && d.codeClient is string && d.codeClient.size() <= 20
                && d.commercialId is string
+               && (!d.keys().hasAny(['produitsPrixFiges']) || prixFigesValides(d.produitsPrixFiges))
                // FIX PERFORMANCE : agenceId dénormalisé (voir _withAgenceId côté app).
                // .get(..,null) évite un refus/erreur sur les documents créés avant
                // ce correctif (encore dépourvus du champ, en attendant la migration).
                && (d.get('agenceId', null) is string || d.get('agenceId', null) == null);
          }
+         // FIX AUDIT #3 : rien n'empêchait auparavant un commercial/secretaire de
+         // créer un paiement pour un client hors de son agence, gonflant
+         // artificiellement le solde d'un client qu'il ne gère pas. On ne peut
+         // PAS exiger commercialId == request.auth.uid : une secretaire saisit
+         // légitimement des paiements au nom du commercial titulaire du client
+         // (voir paiementData.commercialId = c.commercialId côté app). On vérifie
+         // donc plutôt : (a) saisiParId = l'auteur réel authentifié de l'écriture
+         // (empêche d'usurper l'identité du saisisseur dans l'historique),
+         // (b) le client visé appartient bien à la même agence que l'auteur.
          function validPaiement() {
            let d = request.resource.data;
            return d.montant is number && d.montant >= 0 && d.montant <= 999999999
                && d.clientId is string
                && d.commercialId is string
+               && d.saisiParId is string && d.saisiParId == request.auth.uid
+               && sameAgence(get(/databases/$(database)/documents/clients/$(d.clientId)).data.get('agenceId', null))
                && (d.get('agenceId', null) is string || d.get('agenceId', null) == null);
          }
 
@@ -144,10 +171,22 @@
          // ✅ POINT 2 : champs sensibles accessibles uniquement après connexion réelle
          match /commerciauxPrive/{d}   { allow read: if isStaff(); allow write: if isAdmin()
                                            || (isAuth() && request.auth.uid==d); }
+         // FIX AUDIT #1 : un simple 'commercial'/'secretaire' pouvait auparavant
+         // modifier N'IMPORTE QUEL client de l'agence (y compris ceux d'un autre
+         // commercial) et même réassigner commercialId — vol de client possible.
+         // Seuls admin/chef_agence gardent un droit de modification total ;
+         // commercial/secretaire ne peuvent modifier QUE leurs propres clients,
+         // et ne peuvent pas changer le commercialId (anti-réassignation).
+         function isProprietaireClient() {
+           return resource.data.commercialId == request.auth.uid;
+         }
          match /clients/{d}            { allow read: if isAdmin() || isComptable()
                                             || (isStaff() && sameAgence(resource.data.get('agenceId', null)));
                                           allow create: if isOneOf(['admin','commercial','secretaire','chef_agence']) && validClient();
-                                          allow update: if (isOneOf(['admin','commercial','secretaire','chef_agence']) && validClient())
+                                          allow update: if (isOneOf(['admin','chef_agence']) && validClient())
+                                            || (isOneOf(['commercial','secretaire']) && validClient()
+                                                && isProprietaireClient()
+                                                && request.resource.data.commercialId == resource.data.commercialId)
                                             || (isOneOf(['controleur']) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['controle']));
                                           allow delete: if isAdmin() || isOneOf(['chef_agence']); }
          match /paiements/{d}          { allow read: if isAdmin() || isComptable()
@@ -6622,7 +6661,17 @@ async function _incServerLock(email) {
         await updateDoc(ref, { count: (d.count||0) + 1 });
       }
     }
-  } catch(e) { /* non bloquant */ }
+  } catch(e) {
+    // FIX AUDIT #4 : auparavant cette erreur était totalement avalée — si le
+    // verrou serveur échouait (règles, réseau, quota), le compteur d'échecs ne
+    // s'incrémentait plus SANS AUCUNE trace, rouvrant la porte au brute-force
+    // illimité pendant que tout semblait fonctionner normalement (seule la
+    // couche 1 localStorage, trivialement contournable, restait active).
+    // On journalise l'échec ET on ralentit artificiellement le flux pour
+    // limiter le débit d'un script automatisé tant que le verrou serveur est down.
+    console.error('⚠️ Verrou anti-bruteforce serveur en échec — protection dégradée (localStorage uniquement) :', e);
+    await new Promise(r => setTimeout(r, 2000));
+  }
 }
 
 async function _resetServerLock(email) {
@@ -7369,12 +7418,30 @@ window.chatOnKeydown = function(ev){
   if(ev.key==='Enter' && !ev.shiftKey){ ev.preventDefault(); chatEnvoyer(); }
 };
 
+// FIX AUDIT #5 : les règles Firestore ne limitaient que la TAILLE d'un message,
+// pas la FRÉQUENCE d'envoi — un compte compromis ou un utilisateur malveillant
+// pouvait spammer des milliers de messages/s dans une conversation (coût
+// Firestore + saturation de l'UI de la victime). Throttle client minimal en
+// attendant une vraie limite serveur (Cloud Function, hors portée des règles
+// Firestore qui ne peuvent pas compter les écritures récentes sans lecture
+// supplémentaire coûteuse). Ceci freine un script naïf, mais n'empêche pas un
+// script qui appelle directement le SDK en contournant l'UI — seule une
+// Cloud Function de rate-limiting serait une protection complète.
+let _chatLastSendAt = 0;
+const _CHAT_MIN_INTERVAL_MS = 600;
+
 // ── Envoi d'un message ──
 window.chatEnvoyer = async function(){
   const input = document.getElementById('chat-input');
   const texte = (input?.value||'').trim();
   if(texte.length > 4000){ notify('Message trop long (max 4000 caractères)','err'); return; }
   if(!texte) return;
+  const nowThrottle = Date.now();
+  if(nowThrottle - _chatLastSendAt < _CHAT_MIN_INTERVAL_MS){
+    notify('Envoi trop rapide — patientez un instant','warn');
+    return;
+  }
+  _chatLastSendAt = nowThrottle;
   const convId = _chatConvId;
   if(!convId){ notify('Sélectionnez une conversation','err'); return; }
   const otherUid = _chatOtherUid(convId);
@@ -12423,7 +12490,14 @@ window.saveCl = async function(){
     closeM('m-client');notify(`Client ${nom} créé ✓ — Code : ${codeClient}`);
   }catch(e){
     console.error('Échec création client:', e);
-    notify("Échec de la création du client — vérifiez votre connexion et réessayez. Si le problème persiste, contactez l'administrateur.", 'err');
+    // FIX AUDIT #6 (suite) : un refus de règle Firestore (permission-denied,
+    // ex. champ trop long ou format invalide) était auparavant confondu avec
+    // une panne réseau — message trompeur pour l'utilisateur ET pour le support.
+    if(e && e.code === 'permission-denied'){
+      notify("Échec de la création du client — une donnée saisie ne respecte pas le format attendu (ex. désignation du contrat trop longue). Vérifiez les champs et réessayez. Si le problème persiste, contactez l'administrateur.", 'err');
+    } else {
+      notify("Échec de la création du client — vérifiez votre connexion et réessayez. Si le problème persiste, contactez l'administrateur.", 'err');
+    }
   }
 };
 
@@ -13448,7 +13522,8 @@ window.confirmImport = async function(){
           await fbAdd('adhesionPays', {
             clientId, commercialId: clientExistant.commercialId || comId,
             montant: adhesionMontant, date: dateImportCli, heure: '00:00',
-            note: 'Adhésion reportée via import', origine: 'import_historique'
+            note: 'Adhésion reportée via import', origine: 'import_historique',
+            saisiParId: session.userId, saisiParNom: session.nom
           });
         }
         // Montant déjà payé : ajouté comme paiement historique
@@ -13460,7 +13535,8 @@ window.confirmImport = async function(){
             cotisJour: cotisRef, montant: montantDejaPaye,
             date: datePai, heure: '00:00',
             note: r.notePaiement || "Paiement reporté à l'import (client existant)",
-            origine: 'import_historique'
+            origine: 'import_historique',
+            saisiParId: session.userId, saisiParNom: session.nom
           });
           paiementsReportes++;
         }
@@ -13471,7 +13547,8 @@ window.confirmImport = async function(){
             type: 'divers', montant: montantDivers,
             date: dateImportCli, heure: '00:00',
             note: r.noteDivers || 'Montant divers (pénalité/remise/frais) — import',
-            origine: 'import_divers'
+            origine: 'import_divers',
+            saisiParId: session.userId, saisiParNom: session.nom
           });
         }
 
@@ -13516,7 +13593,8 @@ window.confirmImport = async function(){
           cotisJour: cotisRef, montant: montantDejaPaye,
           date: datePai, heure: '00:00',
           note: r.notePaiement || "Paiement reporté à l'import",
-          origine: 'import_historique'
+          origine: 'import_historique',
+          saisiParId: session.userId, saisiParNom: session.nom
         });
         paiementsReportes++;
       }
@@ -13526,7 +13604,8 @@ window.confirmImport = async function(){
           type: 'divers', montant: montantDivers,
           date: dateImportCli, heure: '00:00',
           note: r.noteDivers || 'Montant divers (pénalité/remise/frais) — import',
-          origine: 'import_divers'
+          origine: 'import_divers',
+          saisiParId: session.userId, saisiParNom: session.nom
         });
       }
 
@@ -14201,39 +14280,57 @@ window.saveComNouveauClient = async function(){
   const comNclAdhStatut = comNclAdhRadio ? comNclAdhRadio.value : 'non_paye';
   // Figer les prix des produits au moment de la création du contrat
   const produitsPrixFigesNcl = _articlesAdded['com-ncl'].map(p=>({produitId:p._id, pvFige:p.prix, nom:p.nom}));
-  const newClientRef = await fbAdd('clients',{nom,tel,ville,quartier:qrt,contrat:ct,montantTotal:mt,duree:parseInt(document.getElementById('com-ncl-duree').value)||365,debut,note:document.getElementById('com-ncl-note').value,commercialId:comId,adhesion:200,adhesionStatut:comNclAdhStatut,codeClient,produitsPrixFiges:produitsPrixFigesNcl});
-  // Si adhésion payée à la création → enregistrer dans adhesionPays pour le registre
-  if(comNclAdhStatut === 'paye'){
-    const now = new Date();
-    const heure = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
-    const clientId = newClientRef && newClientRef._id ? newClientRef._id : null;
-    if(clientId){
-      await fbAdd('adhesionPays',{
-        clientId, commercialId: comId,
-        montant: 200, date: TODAY, heure,
-        note: "Adhésion encaissée à l'inscription",
-        saisiParId: session.userId, saisiParNom: session.nom,
-        verrouille: true
-      });
+  // FIX AUDIT #6 (suite) : cette création n'était entourée d'AUCUN try/catch —
+  // un refus de règle Firestore (permission-denied) ou une coupure réseau
+  // provoquait une exception JS non gérée, sans aucun message pour le
+  // commercial (pire que le modal admin qui avait déjà un catch générique).
+  try{
+    const newClientRef = await fbAdd('clients',{nom,tel,ville,quartier:qrt,contrat:ct,montantTotal:mt,duree:parseInt(document.getElementById('com-ncl-duree').value)||365,debut,note:document.getElementById('com-ncl-note').value,commercialId:comId,adhesion:200,adhesionStatut:comNclAdhStatut,codeClient,produitsPrixFiges:produitsPrixFigesNcl});
+    // Si adhésion payée à la création → enregistrer dans adhesionPays pour le registre
+    if(comNclAdhStatut === 'paye'){
+      const now = new Date();
+      const heure = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+      const clientId = newClientRef && newClientRef._id ? newClientRef._id : null;
+      if(clientId){
+        try{
+          await fbAdd('adhesionPays',{
+            clientId, commercialId: comId,
+            montant: 200, date: TODAY, heure,
+            note: "Adhésion encaissée à l'inscription",
+            saisiParId: session.userId, saisiParNom: session.nom,
+            verrouille: true
+          });
+        }catch(e){
+          console.error('Échec enregistrement adhésion à la création (com-ncl):', e);
+          notify(`Client ${nom} créé ✓ — Code : ${codeClient}, mais l'adhésion n'a pas pu être enregistrée (vérifiez la connexion et ressaisissez-la depuis le registre)`, 'err');
+        }
+      }
+    }
+    // Afficher le résultat
+    const res=document.getElementById('com-ncl-result');
+    res.style.display='block';
+    res.innerHTML=`&#9989; Client créé avec succès !<br><strong style="font-size:16px;color:var(--accent);">Code : ${codeClient}</strong><br><span style="font-size:11px;color:var(--muted);">Ce code permet de retrouver le client rapidement en saisie de mises.</span>`;
+    notify(`Client ${nom} créé — Code : ${codeClient}`);
+    // Réinitialiser
+    ['com-ncl-nom','com-ncl-tel','com-ncl-ville','com-ncl-qrt','com-ncl-contrat','com-ncl-note'].forEach(i=>document.getElementById(i).value='');
+    document.getElementById('com-ncl-montant').value='';
+    document.getElementById('com-ncl-duree').value='372';document.getElementById('com-ncl-duree').style.display='none';document.getElementById('com-ncl-duree-sel').value='372';
+    document.getElementById('com-ncl-debut').value=TODAY;
+    document.getElementById('com-ncl-adhesion').value='0';
+    document.getElementById('com-ncl-calc-info').style.display='none';
+    document.getElementById('com-ncl-code-status').innerHTML='';
+    document.getElementById('com-ncl-seq').value='';
+    document.getElementById('com-ncl-code').value='';
+    // Suggérer le prochain code auto
+    setTimeout(suggererProchainCode, DELAY_CODE_SUGGEST2_MS);
+  }catch(e){
+    console.error('Échec création client (com-ncl):', e);
+    if(e && e.code === 'permission-denied'){
+      notify("Échec de la création du client — une donnée saisie ne respecte pas le format attendu (ex. désignation du contrat trop longue). Vérifiez les champs et réessayez. Si le problème persiste, contactez l'administrateur.", 'err');
+    } else {
+      notify("Échec de la création du client — vérifiez votre connexion et réessayez. Si le problème persiste, contactez l'administrateur.", 'err');
     }
   }
-  // Afficher le résultat
-  const res=document.getElementById('com-ncl-result');
-  res.style.display='block';
-  res.innerHTML=`&#9989; Client créé avec succès !<br><strong style="font-size:16px;color:var(--accent);">Code : ${codeClient}</strong><br><span style="font-size:11px;color:var(--muted);">Ce code permet de retrouver le client rapidement en saisie de mises.</span>`;
-  notify(`Client ${nom} créé — Code : ${codeClient}`);
-  // Réinitialiser
-  ['com-ncl-nom','com-ncl-tel','com-ncl-ville','com-ncl-qrt','com-ncl-contrat','com-ncl-note'].forEach(i=>document.getElementById(i).value='');
-  document.getElementById('com-ncl-montant').value='';
-  document.getElementById('com-ncl-duree').value='372';document.getElementById('com-ncl-duree').style.display='none';document.getElementById('com-ncl-duree-sel').value='372';
-  document.getElementById('com-ncl-debut').value=TODAY;
-  document.getElementById('com-ncl-adhesion').value='0';
-  document.getElementById('com-ncl-calc-info').style.display='none';
-  document.getElementById('com-ncl-code-status').innerHTML='';
-  document.getElementById('com-ncl-seq').value='';
-  document.getElementById('com-ncl-code').value='';
-  // Suggérer le prochain code auto
-  setTimeout(suggererProchainCode, DELAY_CODE_SUGGEST2_MS);
 };
 
 // ╔══════════════════════════════════════════════════════════════╗
