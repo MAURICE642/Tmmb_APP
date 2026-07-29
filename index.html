@@ -3838,7 +3838,7 @@ let DB = {
 // Incrémenté à chaque mutation de DB.paiements / DB.livraisons (ajout, modif, suppression,
 // snapshot Firestore). Permet à stats() d'éviter un .filter() sur TOUTE la collection
 // pour CHAQUE client affiché (gain majeur sur la page "Tous les clients").
-const _dbVer = { paiements: 0, livraisons: 0 };
+const _dbVer = { paiements: 0, livraisons: 0, commerciaux: 0 };
 function _touchVer(col){ if(_dbVer[col] !== undefined) _dbVer[col]++; }
 
 
@@ -4360,6 +4360,21 @@ async function _fetchColByDate(col, date) {
   return docs;
 }
 
+// ✅ PERF/COÛT : verrou "chargement en cours" par collection. Sans ça, deux
+// appels à ensureCollectionsLoaded() pour la même collection avant que le
+// premier _loadCol() ait fini (ex: deux recherches rapides, deux pages
+// ouvertes coup sur coup) déclenchaient CHACUN leur propre getDocs() en
+// double, puisque _loadedCols n'est marqué qu'à la fin du chargement. On
+// fait maintenant attendre la même promesse en cours au lieu d'en relancer
+// une nouvelle.
+const _loadColInFlight = new Map(); // col -> Promise en cours
+function _loadColOnce(col) {
+  if (_loadColInFlight.has(col)) return _loadColInFlight.get(col);
+  const p = _loadCol(col).finally(() => _loadColInFlight.delete(col));
+  _loadColInFlight.set(col, p);
+  return p;
+}
+
 async function ensureCollectionsLoaded(cols) {
   const missing = cols.filter(c => !_loadedCols.has(c));
   if (!missing.length) return;
@@ -4369,7 +4384,7 @@ async function ensureCollectionsLoaded(cols) {
   // échoue (permission refusée, réseau, index manquant...), les autres se chargent
   // quand même et la page s'affiche avec ce qui a pu être récupéré, au lieu de
   // rester entièrement vide à cause d'un seul échec.
-  const results = await Promise.allSettled(missing.map(c => _loadCol(c)));
+  const results = await Promise.allSettled(missing.map(c => _loadColOnce(c)));
   const failed = [];
   results.forEach((r, i) => {
     if (r.status === 'rejected') {
@@ -4385,7 +4400,7 @@ async function ensureCollectionsLoaded(cols) {
 // Charger la page suivante d'une collection volumineuse (bouton admin "charger plus")
 window.loadMoreCol = async function(col) {
   if (!_pageCursors[col]) { notify('Toutes les données sont chargées'); return; }
-  await _loadCol(col);
+  await _loadColOnce(col);
   if (session && curPg) renderPg(curPg);
   notify(`${DB[col].length} enregistrements chargés`);
 };
@@ -6365,7 +6380,40 @@ function safeRender(fnOrName){
   }
 }
 function getCl(id){ return DB.clients.find(c=>c._id===id)||{nom:'—',contrat:'—'}; }
-function getCom(id){ return DB.commerciaux.find(c=>c._id===id)||{nom:'—'}; }
+// ✅ PERF : getCom() est appelée ~30 fois dans l'app, dont une fois PAR LIGNE
+// de chaque tableau client affiché. Avec un .find() linéaire sur
+// DB.commerciaux à chaque appel, le coût grandit avec le nombre de
+// commerciaux × le nombre de lignes affichées. On indexe une seule fois
+// dans une Map, invalidée automatiquement via _dbVer.commerciaux (déjà mis
+// à jour par _touchVer() sur tout ajout/modif/suppression/snapshot de la
+// collection 'commerciaux').
+let _comIdxCache = null, _comIdxVer = -1;
+function _comIndex(){
+  if(_comIdxCache && _comIdxVer === _dbVer.commerciaux) return _comIdxCache;
+  const m = new Map();
+  for(const c of (DB.commerciaux||[])) m.set(c._id, c);
+  _comIdxCache = m; _comIdxVer = _dbVer.commerciaux;
+  return m;
+}
+function getCom(id){ return _comIndex().get(id)||{nom:'—'}; }
+
+// ✅ PERF : index combiné produits+articles, pour remplacer le motif
+// `DB.produits.find(x=>x._id===id)||DB.articles.find(x=>x._id===id)` répété
+// dans les boucles de rendu des contrats clients (une recherche linéaire
+// double PAR ARTICLE de contrat PAR CLIENT affiché). Invalidé via
+// _dbVer.produits/_dbVer.articles (déjà mis à jour par _touchVer()).
+const _dbVer2 = _dbVer; // (même objet, ajout des clés ci-dessous)
+_dbVer2.produits = 0; _dbVer2.articles = 0;
+let _prodArtIdxCache = null, _prodArtIdxVerP = -1, _prodArtIdxVerA = -1;
+function _prodArtIndex(){
+  if(_prodArtIdxCache && _prodArtIdxVerP===_dbVer.produits && _prodArtIdxVerA===_dbVer.articles) return _prodArtIdxCache;
+  const m = new Map();
+  for(const x of (DB.produits||[])) if(!m.has(x._id)) m.set(x._id, x);
+  for(const x of (DB.articles||[])) if(!m.has(x._id)) m.set(x._id, x);
+  _prodArtIdxCache = m; _prodArtIdxVerP = _dbVer.produits; _prodArtIdxVerA = _dbVer.articles;
+  return m;
+}
+function getProdOuArticle(id){ return _prodArtIndex().get(id); }
 function getArt(id){ return DB.articles.find(a=>a._id===id)||{nom:'—',unite:'pcs'}; }
 function getProd(id){ return (DB.produits||[]).find(p=>p._id===id)||{nom:'—',prix:0,composition:[]}; }
 
@@ -6447,7 +6495,23 @@ function soldeClient(cl){
   return totalPaye - totalLiv;
 }
 
+// ── PERF : cache mémoïsé de stats() par client ──────────────────────────
+// stats(cl) est appelée plusieurs fois pour le MÊME client dans une seule
+// passe (une fois pour le tri retard-desc/cotis-desc, une ou plusieurs fois
+// pour l'affichage de la ligne), sur des listes pouvant compter des
+// milliers de clients. Le calcul lui-même est déjà bon marché (grâce aux
+// index _payIndex()/_livIndex()), mais le refaire 2-3x par client par
+// rendu reste un gaspillage évitable. On mémoïse le résultat par client,
+// invalidé automatiquement si : la référence de l'objet client change
+// (mise à jour de ses champs), les paiements/livraisons ont changé
+// (_dbVer), ou si TODAY a changé (changement de jour).
+const _statsCache = new Map(); // clientId -> {obj, verP, verL, today, result}
 function stats(cl){
+  const cached = _statsCache.get(cl._id);
+  if (cached && cached.obj === cl && cached.verP === _dbVer.paiements &&
+      cached.verL === _dbVer.livraisons && cached.today === TODAY) {
+    return cached.result;
+  }
   const m = jm(cl);
   const start = new Date(cl.debut), end = new Date(TODAY);
   const joursEcoules = Math.max(0, Math.floor((end-start)/86400000)+1);
@@ -6460,7 +6524,9 @@ function stats(cl){
   const joursRetard = Math.max(0,joursEcoules-joursCouv);
   const totalRestant = Math.max(0,cl.montantTotal-totalPaye);
   const paidToday = pays.some(p=>p.date===TODAY);
-  return{m,joursEcoules,joursCouv,joursRestants:Math.max(0,cl.duree-joursCouv),joursRetard,totalPaye,totalLivraisons,soldeNet,totalRestant,pct,paidToday,pays};
+  const result = {m,joursEcoules,joursCouv,joursRestants:Math.max(0,cl.duree-joursCouv),joursRetard,totalPaye,totalLivraisons,soldeNet,totalRestant,pct,paidToday,pays};
+  _statsCache.set(cl._id, {obj:cl, verP:_dbVer.paiements, verL:_dbVer.livraisons, today:TODAY, result});
+  return result;
 }
 
 function sb(t,c){ return `<span class="sb ${c}">${t}</span>`; }
@@ -6471,14 +6537,16 @@ function livStatut(s){ if(s==='livre')return sb('Livré','sg'); if(s==='annule')
 function setSyncStatus(ok){ document.getElementById('sync-status').innerHTML=`<div class="sync-dot" style="background:${ok?'var(--accent2)':'var(--accent3)'}"></div><span style="color:${ok?'var(--accent2)':'var(--accent3)'}">${ok?'Synchronisé':'Synchronisation...'}</span>`; }
 
 // ========= SÉCURITÉ : échappement HTML anti-XSS =========
+// ✅ PERF : une seule passe sur la chaîne (regex combinée + table de
+// correspondance) au lieu de 5 .replace() séquentiels qui reparcourent
+// la chaîne à chaque fois. esc() est appelée un très grand nombre de fois
+// par rendu (chaque champ texte de chaque ligne client/produit/paiement),
+// donc réduire son coût unitaire compte sur les grandes listes.
+const _ESC_MAP = { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' };
+const _ESC_RE = /[&<>"']/g;
 function esc(s){
   if(s == null) return '';
-  return String(s)
-    .replace(/&/g,'&amp;')
-    .replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;')
-    .replace(/'/g,'&#39;');
+  return String(s).replace(_ESC_RE, c => _ESC_MAP[c]);
 }
 window.esc = esc;
 
@@ -8555,17 +8623,24 @@ function renderProduits() {
   const searchRef = (document.getElementById('prod-filter-ref')?.value || '').toLowerCase().trim();
   const sort   = document.getElementById('prod-sort')?.value || 'nom';
 
-  // Catégories
+  // Catégories — ✅ PERF : ne reconstruire que si changé (pas à chaque frappe
+  // via dRender('renderProduits')), comptage en une seule passe (Map).
   const cats = [...new Set(DB.produits.map(p => p.cat || '').filter(Boolean))].sort();
+  const countByCatP = new Map();
+  for (const p of DB.produits) { const c = p.cat||''; if(c) countByCatP.set(c, (countByCatP.get(c)||0)+1); }
   const filterBar = document.getElementById('prod-filter-bar');
   if (filterBar) {
-    filterBar.innerHTML =
-      `<span style="font-size:11px;color:var(--muted);font-weight:600;margin-right:2px;">Catégorie :</span>` +
-      `<button class="prod-filter-chip${prodFiltreActif===''?' active':''}" onclick="filtrerProduits('',this)">Tous (${DB.produits.length})</button>` +
-      cats.map(c => {
-        const n = DB.produits.filter(p => (p.cat||'') === c).length;
-        return `<button class="prod-filter-chip${prodFiltreActif===c?' active':''}" onclick="filtrerProduits('${c.replace(/'/g,"\\'")}',this)">${c} (${n})</button>`;
-      }).join('');
+    const barSig = `${prodFiltreActif}|${DB.produits.length}|${cats.join(',')}`;
+    if (filterBar.dataset.barSig !== barSig) {
+      filterBar.innerHTML =
+        `<span style="font-size:11px;color:var(--muted);font-weight:600;margin-right:2px;">Catégorie :</span>` +
+        `<button class="prod-filter-chip${prodFiltreActif===''?' active':''}" onclick="filtrerProduits('',this)">Tous (${DB.produits.length})</button>` +
+        cats.map(c => {
+          const n = countByCatP.get(c)||0;
+          return `<button class="prod-filter-chip${prodFiltreActif===c?' active':''}" onclick="filtrerProduits('${c.replace(/'/g,"\\'")}',this)">${c} (${n})</button>`;
+        }).join('');
+      filterBar.dataset.barSig = barSig;
+    }
   }
 
   let prods = DB.produits.slice();
@@ -9270,16 +9345,26 @@ function renderCatalogue(){
   const _isComCat = session && session.role === 'commercial';
   const _sfEl = document.getElementById('cat-stock-filters');
   if(_sfEl) _sfEl.style.display = _isComCat ? 'none' : 'flex';
-  // Construire les chips de catégories
+  // Construire les chips de catégories — ✅ PERF : ne reconstruire (innerHTML)
+  // que si les catégories/compteurs ont changé, pas à chaque frappe de
+  // recherche (oninput="dRender('renderCatalogue')" déclenche cette fonction
+  // en continu). Le comptage par catégorie se fait aussi en une seule passe
+  // (Map) au lieu d'un .filter() par catégorie (O(cats × articles)).
   const cats = [...new Set(DB.articles.map(a=>a.cat||'').filter(Boolean))].sort();
+  const countByCat = new Map();
+  for (const a of DB.articles) { const c = a.cat||''; if(c) countByCat.set(c, (countByCat.get(c)||0)+1); }
   const bar = document.getElementById('cat-filter-bar');
   if(bar){
-    bar.innerHTML = `<span style="font-size:11px;color:var(--muted);font-weight:600;margin-right:4px;">Cat&eacute;gorie :</span>
-      <button class="cat-filter-chip${catFiltreActif===''?' active':''}" onclick="filtrerCatalogue('',this)">Tous (${DB.articles.length})</button>`+
-      cats.map(c=>{
-        const n = DB.articles.filter(a=>a.cat===c).length;
-        return `<button class="cat-filter-chip${catFiltreActif===c?' active':''}" onclick="filtrerCatalogue('${c}',this)">${c} (${n})</button>`;
-      }).join('');
+    const barSig = `${catFiltreActif}|${DB.articles.length}|${cats.join(',')}`;
+    if (bar.dataset.barSig !== barSig) {
+      bar.innerHTML = `<span style="font-size:11px;color:var(--muted);font-weight:600;margin-right:4px;">Cat&eacute;gorie :</span>
+        <button class="cat-filter-chip${catFiltreActif===''?' active':''}" onclick="filtrerCatalogue('',this)">Tous (${DB.articles.length})</button>`+
+        cats.map(c=>{
+          const n = countByCat.get(c)||0;
+          return `<button class="cat-filter-chip${catFiltreActif===c?' active':''}" onclick="filtrerCatalogue('${c}',this)">${c} (${n})</button>`;
+        }).join('');
+      bar.dataset.barSig = barSig;
+    }
   }
 
   // Mettre à jour le style actif des boutons stock
@@ -10288,13 +10373,21 @@ async function renderTousCls(){
   if (myToken !== _clientsLazyLoadToken) return; // une recherche plus récente a été lancée
 
   const sel=document.getElementById('filter-com');
-  const prev=sel.value;
   // Remplir le select commercial — uniquement des commerciaux (pas chef d'agence/secrétaire/contrôleur)
   const comsVisibles = comsDansAgence().filter(c=>c.role==='commercial');
-  // Conserver la valeur sélectionnée
+  // ✅ PERF : reconstruire ce <select> (innerHTML) est inutile si la liste des
+  // commerciaux visibles n'a pas changé depuis le dernier rendu — or ce code
+  // s'exécute à CHAQUE frappe dans le champ de recherche clients, alors que
+  // seule la liste des commerciaux (rarement modifiée) devrait déclencher
+  // une reconstruction. On compare une signature simple (ids concaténés) et
+  // on ne touche au DOM que si elle a changé.
+  const comsSig = comsVisibles.map(c=>c._id).join(',');
   const prevVal = sel.value;
-  sel.innerHTML=`<option value="">— Sélectionner un commercial —</option>`+comsVisibles.map(c=>`<option value="${c._id}"${c._id===prevVal?' selected':''}>${esc(c.nom)}</option>`).join('');
-  sel.value = prevVal; // restaurer
+  if (sel.dataset.comsSig !== comsSig) {
+    sel.innerHTML=`<option value="">— Sélectionner un commercial —</option>`+comsVisibles.map(c=>`<option value="${c._id}"${c._id===prevVal?' selected':''}>${esc(c.nom)}</option>`).join('');
+    sel.value = prevVal; // restaurer
+    sel.dataset.comsSig = comsSig;
+  }
 
   const q=(document.getElementById('search-clients')?.value||'').toLowerCase().trim();
   let cls=clientsDansAgence();
@@ -10309,6 +10402,13 @@ async function renderTousCls(){
   );
   // ── Tri ──
   const sortVal = (document.getElementById('sort-clients')?.value) || 'nom-asc';
+  // ✅ PERF : pour les tris basés sur stats(), pré-calculer une seule fois
+  // par client (via une Map) au lieu d'appeler stats(a)/stats(b) à chaque
+  // comparaison du .sort() (O(n log n) appels sinon, contre O(n) ici).
+  let _sortStatsMap = null;
+  if (sortVal === 'retard-desc' || sortVal === 'cotis-desc') {
+    _sortStatsMap = new Map(cls.map(c => [c._id, stats(c)]));
+  }
   cls = [...cls].sort((a,b)=>{
     switch(sortVal){
       case 'nom-asc':   return (a.nom||'').localeCompare(b.nom||'','fr',{sensitivity:'base'});
@@ -10317,8 +10417,8 @@ async function renderTousCls(){
       case 'id-desc':   return (b.codeClient||b._id||'').localeCompare(a.codeClient||a._id||'');
       case 'date-asc':  return (a.createdAt||a._id||'').localeCompare(b.createdAt||b._id||'');
       case 'date-desc': return (b.createdAt||b._id||'').localeCompare(a.createdAt||a._id||'');
-      case 'retard-desc':{ const sa=stats(a); const sb2=stats(b); return sb2.joursRetard-sa.joursRetard; }
-      case 'cotis-desc':{ const sa=stats(a); const sb2=stats(b); return sb2.m-sa.m; }
+      case 'retard-desc':{ const sa=_sortStatsMap.get(a._id); const sb2=_sortStatsMap.get(b._id); return sb2.joursRetard-sa.joursRetard; }
+      case 'cotis-desc':{ const sa=_sortStatsMap.get(a._id); const sb2=_sortStatsMap.get(b._id); return sb2.m-sa.m; }
       default: return 0;
     }
   });
@@ -10359,7 +10459,7 @@ async function renderTousCls(){
       <td style="font-size:11px">${(()=>{
         if(c.contratArticles&&c.contratArticles.length){
           return c.contratArticles.map(a=>{
-            const art=DB.produits.find(x=>x._id===a.artId)||DB.articles.find(x=>x._id===a.artId);
+            const art=getProdOuArticle(a.artId);
             const ref=art&&art.ref?art.ref:(a.nom||'?');
             const qty=parseInt(a.qty)||1;
             const label=qty>1?`${ref} x${qty}`:ref;
@@ -10401,13 +10501,19 @@ function renderControle(){
   if(!['admin','controleur'].includes(session?.role)) return;
   const selStatutSync = document.getElementById('ctrl-filter-statut');
   if(selStatutSync) selStatutSync.value = controleTab;
-  // Peupler le select commercial (une seule fois suffit, mais on garde la valeur sélectionnée)
+  // Peupler le select commercial — ✅ PERF : ne reconstruire (innerHTML) que si
+  // la liste des commerciaux a changé, pas à chaque frappe de recherche
+  // (oninput="dRender('renderControle')" déclenche cette fonction en continu).
   const selCom = document.getElementById('ctrl-filter-com');
   if(selCom){
     const prevVal = selCom.value;
     const comsVisibles = comsDansAgence().filter(c=>c.role==='commercial');
-    selCom.innerHTML = `<option value="">— Tous les commerciaux —</option>`+comsVisibles.map(c=>`<option value="${c._id}"${c._id===prevVal?' selected':''}>${esc(c.nom)}</option>`).join('');
-    selCom.value = prevVal;
+    const comsSig = comsVisibles.map(c=>c._id).join(',');
+    if (selCom.dataset.comsSig !== comsSig) {
+      selCom.innerHTML = `<option value="">— Tous les commerciaux —</option>`+comsVisibles.map(c=>`<option value="${c._id}"${c._id===prevVal?' selected':''}>${esc(c.nom)}</option>`).join('');
+      selCom.value = prevVal;
+      selCom.dataset.comsSig = comsSig;
+    }
   }
 
   const q = (document.getElementById('ctrl-search')?.value||'').toLowerCase().trim();
@@ -10442,7 +10548,7 @@ function renderControle(){
     const contratLabel = (()=>{
       if(c.contratArticles && c.contratArticles.length){
         return c.contratArticles.map(a=>{
-          const art = DB.produits.find(x=>x._id===a.artId)||DB.articles.find(x=>x._id===a.artId);
+          const art = getProdOuArticle(a.artId);
           const ref = art&&art.ref ? art.ref : (a.nom||'?');
           const qty = parseInt(a.qty)||1;
           return qty>1 ? `${ref} x${qty}` : ref;
@@ -10630,16 +10736,21 @@ let _histDateQueryToken = 0;
 async function renderHist(){
   const el = document.getElementById('h-date');
   const fd = el ? el.value : TODAY;
-  // Peupler le select commercial si vide
+  // Peupler le select commercial si vide — ✅ PERF : ne reconstruire (innerHTML)
+  // que si la liste des commerciaux a changé, pas à chaque frappe de recherche
+  // (oninput="dRender('renderHist')" déclenche cette fonction en continu).
   const comSel = document.getElementById('h-filter-com');
   if(comSel){
     const comsVisibles = comsDansAgence().filter(c=>c.role==='commercial');
-    // Repeupler à chaque fois pour refléter les changements
-    comSel.innerHTML = '<option value="">Tous les commerciaux</option>' +
-      comsVisibles.map(c=>`<option value="${esc(c._id)}">${esc(c.nom)}${c.zone?' — '+esc(c.zone):''}</option>`).join('');
-    // Restaurer la sélection si encore valide
-    if(comSel._lastVal) comSel.value = comSel._lastVal;
-    comSel.onchange = function(){ comSel._lastVal = this.value; renderHist(); };
+    const comsSig = comsVisibles.map(c=>c._id).join(',');
+    if (comSel.dataset.comsSig !== comsSig) {
+      comSel.innerHTML = '<option value="">Tous les commerciaux</option>' +
+        comsVisibles.map(c=>`<option value="${esc(c._id)}">${esc(c.nom)}${c.zone?' — '+esc(c.zone):''}</option>`).join('');
+      comSel.dataset.comsSig = comsSig;
+      // Restaurer la sélection si encore valide
+      if(comSel._lastVal) comSel.value = comSel._lastVal;
+    }
+    if (!comSel.onchange) comSel.onchange = function(){ comSel._lastVal = this.value; renderHist(); };
   }
   const filtreComId = comSel ? comSel.value : '';
 
@@ -13861,14 +13972,18 @@ function renderComClients(){
     (c.tel||'').includes(q)
   );
   const sortVal = (document.getElementById('sort-com-clients')?.value)||'nom-asc';
+  let _sortStatsMapCom = null;
+  if (sortVal === 'retard-desc' || sortVal === 'cotis-desc') {
+    _sortStatsMapCom = new Map(cls.map(c => [c._id, stats(c)]));
+  }
   cls = [...cls].sort((a,b)=>{
     switch(sortVal){
       case 'nom-asc':    return (a.nom||'').localeCompare(b.nom||'','fr',{sensitivity:'base'});
       case 'nom-desc':   return (b.nom||'').localeCompare(a.nom||'','fr',{sensitivity:'base'});
       case 'code-asc':   return (a.codeClient||'').localeCompare(b.codeClient||'');
       case 'code-desc':  return (b.codeClient||'').localeCompare(a.codeClient||'');
-      case 'retard-desc':{ const sa=stats(a),sb=stats(b); return sb.joursRetard-sa.joursRetard; }
-      case 'cotis-desc': { const sa=stats(a),sb=stats(b); return sb.m-sa.m; }
+      case 'retard-desc':{ const sa=_sortStatsMapCom.get(a._id),sb=_sortStatsMapCom.get(b._id); return sb.joursRetard-sa.joursRetard; }
+      case 'cotis-desc': { const sa=_sortStatsMapCom.get(a._id),sb=_sortStatsMapCom.get(b._id); return sb.m-sa.m; }
       default: return 0;
     }
   });
@@ -13881,7 +13996,7 @@ function renderComClients(){
       <td style="font-size:11px;">${(()=>{
         if(c.contratArticles&&c.contratArticles.length){
           return c.contratArticles.map(a=>{
-            const art=DB.produits.find(x=>x._id===a.artId)||DB.articles.find(x=>x._id===a.artId);
+            const art=getProdOuArticle(a.artId);
             const ref=art&&art.ref?art.ref:(a.nom||'?');
             const qty=parseInt(a.qty)||1;
             const label=qty>1?`${ref} x${qty}`:ref;
@@ -14766,18 +14881,23 @@ function renderSaisieAdhesions(){
     return;
   }
 
-  // Peupler le select commercial
+  // Peupler le select commercial — ✅ PERF : ne reconstruire que si changé
+  // (pas à chaque frappe via dRender('renderSaisieAdhesions')).
   const selCom = document.getElementById('adh-filter-com');
   if(selCom){
     const comsVisibles = ['admin','chef_agence','secretaire'].includes(session.role)
       ? comsDansAgence().filter(c=>c.role==='commercial')
       : [DB.commerciaux.find(c=>c._id===session.userId)].filter(Boolean);
+    const comsSig = comsVisibles.map(c=>c._id).join(',');
     const prev = selCom.value;
-    selCom.innerHTML = (['admin','chef_agence','secretaire'].includes(session.role)
-      ? '<option value="">Tous les commerciaux</option>'
-      : '') +
-      comsVisibles.map(c=>`<option value="${c._id}"${c._id===prev?' selected':''}>${esc(c.nom)}</option>`).join('');
-    selCom.value = prev;
+    if (selCom.dataset.comsSig !== comsSig) {
+      selCom.innerHTML = (['admin','chef_agence','secretaire'].includes(session.role)
+        ? '<option value="">Tous les commerciaux</option>'
+        : '') +
+        comsVisibles.map(c=>`<option value="${c._id}"${c._id===prev?' selected':''}>${esc(c.nom)}</option>`).join('');
+      selCom.value = prev;
+      selCom.dataset.comsSig = comsSig;
+    }
     // Pour le commercial, forcer son propre filtre
     if(session.role === 'commercial') selCom.value = session.userId;
   }
@@ -16622,11 +16742,17 @@ function _recuCheckAccess(){
 function _recuPopulateSelects(){
   const sel = document.getElementById('recu-filtre-commercial');
   if(!sel) return;
+  // ✅ PERF : ne reconstruire (innerHTML) que si la liste des commerciaux a
+  // changé — cette fonction est appelée à CHAQUE frappe dans la recherche
+  // via renderHistoriqueRecus() → dRender('renderHistoriqueRecus').
   const coms = comsDansAgence().filter(c=>c.role==='commercial').sort((a,b)=>(a.nom||'').localeCompare(b.nom||''));
+  const comsSig = coms.map(c=>c._id).join(',');
+  if (sel.dataset.comsSig === comsSig) return;
   const prev = sel.value;
   sel.innerHTML = `<option value="">— Tous les commerciaux —</option>` +
     coms.map(c=>`<option value="${c._id}"${c._id===prev?' selected':''}>${esc(c.nom)}</option>`).join('');
   sel.value = prev;
+  sel.dataset.comsSig = comsSig;
 }
 
 window.recuResetFiltres = function(){
@@ -16728,13 +16854,22 @@ window.safeRender = safeRender;
 window.toggleSidebar = toggleSidebar;
 window.mettreAJourSelectionBar = mettreAJourSelectionBar;
 window.renderArticles = renderArticles;
+// ✅ FIX BUG : ces fonctions sont appelées via dRender('nomFonction') → safeRender
+// → window[nomFonction], donc elles DOIVENT être exposées sur window, sinon
+// "Uncaught ReferenceError: ... is not defined" dès qu'un filtre/recherche
+// correspondant est utilisé.
+window.renderCatalogue = renderCatalogue;
+window.renderFiche = renderFiche;
+window.renderHist = renderHist;
+window.renderRapportProduitsEnCours = renderRapportProduitsEnCours;
+window.renderRegistre = renderRegistre;
+window.renderStock = renderStock;
 window.renderComClients = renderComClients;
 window.renderControle = renderControle;
 window.renderDepensesCommerciaux = renderDepensesCommerciaux;
 window.renderLivraisons = renderLivraisons;
 window.renderProduits = renderProduits;
 window.renderSaisieAdhesions = renderSaisieAdhesions;
-window.renderFiche = renderFiche;
 
 // ✅ Filet de sécurité global : toute erreur JS qui échapperait encore à un
 // try/catch local est désormais signalée à l'utilisateur (au lieu de rester
