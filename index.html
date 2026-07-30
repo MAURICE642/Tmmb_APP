@@ -11922,7 +11922,21 @@ async function renderFiche(){
         </tr></thead>
         <tbody>${clientsPayeurs.map(c=>{
           const s=stats(c);
-          const pay=pays.find(p=>p.clientId===c._id);
+          // ✅ FIX RATIO FICHE DU JOUR : un client peut avoir plusieurs paiements
+          // le même jour (ex: 2 versements successifs). Auparavant on ne prenait
+          // que le 1er paiement trouvé (pays.find) pour le montant/ratio affichés
+          // ici, ce qui sous-évaluait le ratio réel du jour. On regroupe donc
+          // maintenant TOUS les paiements du jour de ce client en une seule ligne
+          // (montant = somme, ratio = calculé sur cette somme), tout en gardant
+          // les paiements séparés et intacts dans Firestore/Historique/Fiche
+          // complète du client (aucune fusion de documents, juste l'affichage ici).
+          const paysClient = pays.filter(p=>p.clientId===c._id)
+            .slice().sort((a,b)=>(a.heure||'').localeCompare(b.heure||''));
+          const montantCumul = paysClient.reduce((a,p)=>a+(Number(p.montant)||0),0);
+          const dernierPay = paysClient[paysClient.length-1];
+          // Badge "correction" affiché si AU MOINS UN des paiements du jour est
+          // une correction (on remonte au 1er trouvé pour le détail au survol).
+          const payCorrige = paysClient.find(p=>p.estCorrection) || dernierPay;
           // Niveau : joursCouv actuel du client, affiché comme dans la fiche client
           const dureeC = c.duree || 0;
           const niveauColor = s.joursCouv >= dureeC && dureeC>0 ? 'var(--accent2)' : 'var(--accent)';
@@ -11930,11 +11944,11 @@ async function renderFiche(){
             +(dureeC>0 ? '<span style="font-size:9px;color:var(--muted);font-weight:400;"> /'+joursEnJM(dureeC)+'</span>' : '');
           return '<tr>'
             +'<td><span style="font-size:10px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.3);border-radius:4px;padding:0 5px;color:var(--accent);font-weight:700;">'+(c.codeClient||'—')+'</span></td>'
-            +'<td class="fw6">'+c.nom+'</td>'
+            +'<td class="fw6">'+c.nom+(paysClient.length>1?' <span style="font-size:9px;color:var(--muted);font-weight:400;">('+paysClient.length+' paiements)</span>':'')+'</td>'
             +'<td style="font-weight:700;color:var(--accent)">'+fmt(s.m)+'</td>'
-            +'<td style="color:var(--muted);font-size:11px">'+(pay.heure||'—')+badgeCorrection(pay)+'</td>'
-            +'<td style="font-weight:700;color:var(--accent2)">'+fmt(pay.montant)+'</td>'
-            +'<td>'+ratio(pay.montant,s.m)+'</td>'
+            +'<td style="color:var(--muted);font-size:11px">'+(dernierPay.heure||'—')+badgeCorrection(payCorrige)+'</td>'
+            +'<td style="font-weight:700;color:var(--accent2)">'+fmt(montantCumul)+'</td>'
+            +'<td>'+ratio(montantCumul,s.m)+'</td>'
             +'<td style="white-space:nowrap;">'+niveauLabel+'</td>'
             +'</tr>';
         }).join('')}
@@ -12477,11 +12491,18 @@ window.saveCl = async function(){
     if(adhesionStatut === 'paye' && newClRef && newClRef._id){
       const now = new Date();
       const heure = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+      // ✅ FIX DATE ADHÉSION À LA CRÉATION : si le client est créé avec une date
+      // de début (debut) ANTÉRIEURE à aujourd'hui, l'adhésion payée à
+      // l'inscription doit être tracée à CETTE date-là (et non à la date de
+      // saisie) — ex: import/rattrapage d'un client déjà en activité depuis
+      // une date passée. Si debut est aujourd'hui ou dans le futur, on garde
+      // TODAY (l'heure réelle de saisie reste toujours conservée, elle).
+      const dateAdhesion = (debut && debut < TODAY) ? debut : TODAY;
       try{
         await fbAdd('adhesionPays',{
           clientId: newClRef._id, commercialId: comId,
-          montant: 200, date: TODAY, heure,
-          note: "Adhésion encaissée à l'inscription",
+          montant: 200, date: dateAdhesion, heure,
+          note: "Adhésion encaissée à l'inscription"+(dateAdhesion!==TODAY?' (antidatée à la date de début du client)':''),
           saisiParId: session.userId, saisiParNom: session.nom,
           verrouille: true
         });
