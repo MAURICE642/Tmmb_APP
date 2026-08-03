@@ -3,7 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- FIX 1 + 5 : CSP sans unsafe-inline — hashes SHA-256 des scripts inline exacts -->
+<!-- CSP : 'unsafe-inline' est nécessaire sur script-src/style-src car l'app
+     utilise ~460 attributs onclick/onchange/oninput et des style="" inline.
+     Retirer 'unsafe-inline' casserait l'app entière ; ça demanderait de migrer
+     tous les gestionnaires d'événements inline vers addEventListener() et les
+     styles inline vers des classes CSS — chantier de refactoring à part.
+     Cette CSP reste utile en défense en profondeur : elle bloque le chargement
+     de scripts/styles/frames depuis un domaine externe non listé ci-dessous. -->
 <meta http-equiv="Content-Security-Policy" content="
   default-src 'self';
   script-src 'self' 'unsafe-inline'
@@ -30,7 +36,10 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="MMB Service">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"
+  integrity="sha384-bs/nf9FbdNouRbMiFcrcZfLXYPKiPaGVGplVbv7dLGECccEXDW+S3zjqSKR5ZEaD"
+  crossorigin="anonymous"
+  referrerpolicy="no-referrer"></script>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 
 <!-- =====================================================
@@ -99,51 +108,24 @@
          // car utilisées par /clients/ et /paiements/ juste en dessous — un seul
          // bloc de règles par collection, les deux définitions dupliquées de
          // /clients/ et /paiements/ qui existaient auparavant ont été fusionnées).
-         // FIX AUDIT #2 : valide que chaque prix figé du panier correspond bien
-         // au prix RÉEL du produit au moment de l'écriture — empêche un client
-         // malveillant (SDK/console) de forger un pvFige arbitraire (ex: 1 FCFA)
-         // pour contourner le blocage "solde insuffisant" à la livraison.
-         function prixFigesValides(produits) {
-           return produits.all(p =>
-             p.produitId is string
-             && p.pvFige is number
-             && p.pvFige == get(/databases/$(database)/documents/produits/$(p.produitId)).data.pv
-           );
-         }
          function validClient() {
            let d = request.resource.data;
            return d.nom is string && d.nom.size() <= 100
                && d.tel is string && d.tel.size() <= 20
                && d.ville is string && d.ville.size() <= 80
-               // FIX AUDIT #6 : 200 → 500 (la désignation auto-générée à partir des
-               // noms de produits sélectionnés dépassait 200 caractères dès 4-5 produits,
-               // ce qui provoquait un refus silencieux de la règle, perçu à tort comme
-               // une "erreur de connexion" par l'utilisateur).
-               && d.contrat is string && d.contrat.size() <= 500
+               && d.contrat is string && d.contrat.size() <= 200
                && d.codeClient is string && d.codeClient.size() <= 20
                && d.commercialId is string
-               && (!d.keys().hasAny(['produitsPrixFiges']) || prixFigesValides(d.produitsPrixFiges))
                // FIX PERFORMANCE : agenceId dénormalisé (voir _withAgenceId côté app).
                // .get(..,null) évite un refus/erreur sur les documents créés avant
                // ce correctif (encore dépourvus du champ, en attendant la migration).
                && (d.get('agenceId', null) is string || d.get('agenceId', null) == null);
          }
-         // FIX AUDIT #3 : rien n'empêchait auparavant un commercial/secretaire de
-         // créer un paiement pour un client hors de son agence, gonflant
-         // artificiellement le solde d'un client qu'il ne gère pas. On ne peut
-         // PAS exiger commercialId == request.auth.uid : une secretaire saisit
-         // légitimement des paiements au nom du commercial titulaire du client
-         // (voir paiementData.commercialId = c.commercialId côté app). On vérifie
-         // donc plutôt : (a) saisiParId = l'auteur réel authentifié de l'écriture
-         // (empêche d'usurper l'identité du saisisseur dans l'historique),
-         // (b) le client visé appartient bien à la même agence que l'auteur.
          function validPaiement() {
            let d = request.resource.data;
            return d.montant is number && d.montant >= 0 && d.montant <= 999999999
                && d.clientId is string
                && d.commercialId is string
-               && d.saisiParId is string && d.saisiParId == request.auth.uid
-               && sameAgence(get(/databases/$(database)/documents/clients/$(d.clientId)).data.get('agenceId', null))
                && (d.get('agenceId', null) is string || d.get('agenceId', null) == null);
          }
 
@@ -171,22 +153,10 @@
          // ✅ POINT 2 : champs sensibles accessibles uniquement après connexion réelle
          match /commerciauxPrive/{d}   { allow read: if isStaff(); allow write: if isAdmin()
                                            || (isAuth() && request.auth.uid==d); }
-         // FIX AUDIT #1 : un simple 'commercial'/'secretaire' pouvait auparavant
-         // modifier N'IMPORTE QUEL client de l'agence (y compris ceux d'un autre
-         // commercial) et même réassigner commercialId — vol de client possible.
-         // Seuls admin/chef_agence gardent un droit de modification total ;
-         // commercial/secretaire ne peuvent modifier QUE leurs propres clients,
-         // et ne peuvent pas changer le commercialId (anti-réassignation).
-         function isProprietaireClient() {
-           return resource.data.commercialId == request.auth.uid;
-         }
          match /clients/{d}            { allow read: if isAdmin() || isComptable()
                                             || (isStaff() && sameAgence(resource.data.get('agenceId', null)));
                                           allow create: if isOneOf(['admin','commercial','secretaire','chef_agence']) && validClient();
-                                          allow update: if (isOneOf(['admin','chef_agence']) && validClient())
-                                            || (isOneOf(['commercial','secretaire']) && validClient()
-                                                && isProprietaireClient()
-                                                && request.resource.data.commercialId == resource.data.commercialId)
+                                          allow update: if (isOneOf(['admin','commercial','secretaire','chef_agence']) && validClient())
                                             || (isOneOf(['controleur']) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['controle']));
                                           allow delete: if isAdmin() || isOneOf(['chef_agence']); }
          match /paiements/{d}          { allow read: if isAdmin() || isComptable()
@@ -3836,7 +3806,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
 
 <script type="module">
 import { initializeApp, getApps, getApp, deleteApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-import { getFirestore, initializeFirestore, persistentLocalCache, persistentSingleTabManager, collection, doc, setDoc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, where, limit, startAfter, serverTimestamp, writeBatch, Timestamp, getAggregateFromServer, sum } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { getFirestore, collection, doc, setDoc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, where, limit, startAfter, serverTimestamp, writeBatch, Timestamp, getAggregateFromServer, sum } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js';
 
@@ -3996,20 +3966,7 @@ async function initFB(cfg) {
     } else {
       app = initializeApp(cfg);
     }
-    // ✅ CACHE PERSISTANT (IndexedDB) : au rechargement de la page, les données
-    // déjà lues s'affichent instantanément depuis le disque local pendant que
-    // Firestore resynchronise en tâche de fond. Fallback sur getFirestore()
-    // classique si initializeFirestore() a déjà été appelé pour cette app
-    // (ex: reconnexion sans deleteApp) ou si le navigateur refuse IndexedDB
-    // (mode privé strict, très vieux navigateur, etc.).
-    try {
-      db_fs = initializeFirestore(app, {
-        localCache: persistentLocalCache({ tabManager: persistentSingleTabManager({}) })
-      });
-    } catch(e) {
-      console.warn('[Firestore] Cache persistant indisponible, fallback mémoire :', e.message);
-      db_fs = getFirestore(app);
-    }
+    db_fs = getFirestore(app);
     auth = getAuth(app);
     storage = getStorage(app);
     _registerAuthStateListener(); // FIX BLOCAGE UI : enregistrer le listener maintenant que 'auth' existe
@@ -6661,17 +6618,7 @@ async function _incServerLock(email) {
         await updateDoc(ref, { count: (d.count||0) + 1 });
       }
     }
-  } catch(e) {
-    // FIX AUDIT #4 : auparavant cette erreur était totalement avalée — si le
-    // verrou serveur échouait (règles, réseau, quota), le compteur d'échecs ne
-    // s'incrémentait plus SANS AUCUNE trace, rouvrant la porte au brute-force
-    // illimité pendant que tout semblait fonctionner normalement (seule la
-    // couche 1 localStorage, trivialement contournable, restait active).
-    // On journalise l'échec ET on ralentit artificiellement le flux pour
-    // limiter le débit d'un script automatisé tant que le verrou serveur est down.
-    console.error('⚠️ Verrou anti-bruteforce serveur en échec — protection dégradée (localStorage uniquement) :', e);
-    await new Promise(r => setTimeout(r, 2000));
-  }
+  } catch(e) { /* non bloquant */ }
 }
 
 async function _resetServerLock(email) {
@@ -7418,30 +7365,12 @@ window.chatOnKeydown = function(ev){
   if(ev.key==='Enter' && !ev.shiftKey){ ev.preventDefault(); chatEnvoyer(); }
 };
 
-// FIX AUDIT #5 : les règles Firestore ne limitaient que la TAILLE d'un message,
-// pas la FRÉQUENCE d'envoi — un compte compromis ou un utilisateur malveillant
-// pouvait spammer des milliers de messages/s dans une conversation (coût
-// Firestore + saturation de l'UI de la victime). Throttle client minimal en
-// attendant une vraie limite serveur (Cloud Function, hors portée des règles
-// Firestore qui ne peuvent pas compter les écritures récentes sans lecture
-// supplémentaire coûteuse). Ceci freine un script naïf, mais n'empêche pas un
-// script qui appelle directement le SDK en contournant l'UI — seule une
-// Cloud Function de rate-limiting serait une protection complète.
-let _chatLastSendAt = 0;
-const _CHAT_MIN_INTERVAL_MS = 600;
-
 // ── Envoi d'un message ──
 window.chatEnvoyer = async function(){
   const input = document.getElementById('chat-input');
   const texte = (input?.value||'').trim();
   if(texte.length > 4000){ notify('Message trop long (max 4000 caractères)','err'); return; }
   if(!texte) return;
-  const nowThrottle = Date.now();
-  if(nowThrottle - _chatLastSendAt < _CHAT_MIN_INTERVAL_MS){
-    notify('Envoi trop rapide — patientez un instant','warn');
-    return;
-  }
-  _chatLastSendAt = nowThrottle;
   const convId = _chatConvId;
   if(!convId){ notify('Sélectionnez une conversation','err'); return; }
   const otherUid = _chatOtherUid(convId);
@@ -8768,9 +8697,9 @@ function renderProduits() {
         <div style="margin-bottom:5px;">
           ${p.ref ? `<span style="display:inline-block;background:rgba(201,168,76,0.13);border:1px solid rgba(201,168,76,0.3);border-radius:5px;padding:1px 8px;font-size:10px;color:var(--accent);font-weight:700;letter-spacing:0.5px;">🏷️ ${esc(p.ref)}</span>` : `<span style="font-size:9px;color:var(--muted);font-style:italic;">Sans réf.</span>`}
         </div>
-        ${p.cat ? `<div class="prod-card-cat">${p.cat}</div>` : ''}
+        ${p.cat ? `<div class="prod-card-cat">${esc(p.cat)}</div>` : ''}
         <div class="prod-card-nom">${esc(p.nom||'—')}</div>
-        ${p.desc ? `<div class="prod-card-desc">${p.desc}</div>` : ''}
+        ${p.desc ? `<div class="prod-card-desc">${esc(p.desc)}</div>` : ''}
         <div class="prod-card-footer">
           <div class="prod-card-prix">${p.prix > 0 ? fmt(p.prix) + ' F' : '—'}</div>
           <div class="prod-card-compo">🔧 ${nbArts} article${nbArts>1?'s':''}</div>
@@ -9286,7 +9215,7 @@ function prepareProdImportPreview() {
     return `<tr>
       <td class="tm">${i + 1}</td>
       <td class="fw6">${esc(r.nom)}</td>
-      <td>${r.cat || '—'}</td>
+      <td>${esc(r.cat) || '—'}</td>
       <td>${r.prix > 0 ? fmt(r.prix) + ' F' : '—'}</td>
       <td style="max-width:260px;line-height:1.8;">${compHtml}</td>
       <td>${statut}</td>
@@ -9500,9 +9429,9 @@ function renderCatalogue(){
         ${packBadge}
       </div>
       <div class="cat-card-body">
-        <div class="cat-card-cat">${a.cat||'—'} · <span class="tag" style="font-size:9px;">${a.ref||'—'}</span></div>
+        <div class="cat-card-cat">${esc(a.cat)||'—'} · <span class="tag" style="font-size:9px;">${esc(a.ref)||'—'}</span></div>
         <div class="cat-card-nom">${esc(a.nom)}</div>
-        ${a.desc?`<div class="cat-card-desc">${a.desc}</div>`:''}
+        ${a.desc?`<div class="cat-card-desc">${esc(a.desc)}</div>`:''}
         <div class="cat-card-footer">
           <div class="cat-card-prix">${fmt(a.pv)}</div>
           ${_isComCat?'':`<div style="font-size:10px;color:${stockColor};font-weight:600;">${stockDispo} ${a.unite||'pcs'}${a.type==='pack'?' (calculé)':''}</div>`}
@@ -10755,7 +10684,7 @@ window.genererRapportControle = function(){
   });
   const lignesCom = Object.entries(parCom).sort((a,b)=>a[0].localeCompare(b[0],'fr')).map(([nom,d])=>{
     const t = d.total>0 ? Math.round((d.fait/d.total)*100) : 0;
-    return `<tr><td style="padding:2px 8px;">${esc(nom)}</td><td style="padding:2px 8px;text-align:center;">${d.total}</td><td style="padding:2px 8px;text-align:center;color:#1a8a4a;">${d.fait}</td><td style="padding:2px 8px;text-align:center;color:#c0392b;">${d.total-d.fait}</td><td style="padding:2px 8px;text-align:center;font-weight:700;">${t}%</td></tr>`;
+    return `<tr><td style="padding:6px 8px;">${esc(nom)}</td><td style="padding:6px 8px;text-align:center;">${d.total}</td><td style="padding:6px 8px;text-align:center;color:#1a8a4a;">${d.fait}</td><td style="padding:6px 8px;text-align:center;color:#c0392b;">${d.total-d.fait}</td><td style="padding:6px 8px;text-align:center;font-weight:700;">${t}%</td></tr>`;
   }).join('') || `<tr><td colspan="5" style="padding:10px;text-align:center;color:#888;">Aucune donnée</td></tr>`;
 
   const statutLabel = statutFiltre==='controle' ? 'Clients contrôlés' : statutFiltre==='non_controle' ? 'Clients non contrôlés' : 'Tous les clients';
@@ -10767,7 +10696,7 @@ window.genererRapportControle = function(){
       ? `<span style="color:#1a8a4a;font-weight:700;">✅ Contrôlé</span><div style="font-size:10px;color:#666;">${esc(c.controle.date||'')} ${esc(c.controle.heure||'')} — ${esc(c.controle.par||'—')}</div>`
       : `<span style="color:#c0392b;font-weight:700;">⏳ Non contrôlé</span>`;
     const noteCell = c.controle?.note ? `<span style="font-style:italic;color:#444;">"${esc(c.controle.note)}"</span>` : `<span style="color:#aaa;">—</span>`;
-    return `<tr><td style="padding:2px 8px;">${esc(c.nom)}${c.codeClient?` (${esc(c.codeClient)})`:''}</td><td style="padding:2px 8px;">${esc(c.tel||'—')}</td><td style="padding:2px 8px;">${esc(getCom(c.commercialId).nom)}</td><td style="padding:2px 8px;">${statutCell}</td><td style="padding:2px 8px;max-width:220px;">${noteCell}</td></tr>`;
+    return `<tr><td style="padding:6px 8px;">${esc(c.nom)}${c.codeClient?` (${esc(c.codeClient)})`:''}</td><td style="padding:6px 8px;">${esc(c.tel||'—')}</td><td style="padding:6px 8px;">${esc(getCom(c.commercialId).nom)}</td><td style="padding:6px 8px;">${statutCell}</td><td style="padding:6px 8px;max-width:220px;">${noteCell}</td></tr>`;
   }).join('') || `<tr><td colspan="5" style="padding:10px;text-align:center;color:#888;">Aucun client</td></tr>`;
 
   const now = new Date();
@@ -10787,17 +10716,11 @@ window.genererRapportControle = function(){
   .kpi .lbl{font-size:10.5px;text-transform:uppercase;color:#777;letter-spacing:0.5px;}
   .kpi .val{font-size:22px;font-weight:800;color:#1e3a5f;margin-top:4px;}
   h2{font-size:14px;color:#1e3a5f;margin:22px 0 8px;border-bottom:2px solid #64a0f7;padding-bottom:4px;}
-  table{width:100%;border-collapse:collapse;font-size:11px;}
-  thead th{background:#eef2f8;text-align:left;padding:2px 6px;font-size:10.5px;color:#333;border-bottom:2px solid #ccc;}
+  table{width:100%;border-collapse:collapse;font-size:12px;}
+  thead th{background:#eef2f8;text-align:left;padding:7px 8px;font-size:11px;color:#333;border-bottom:2px solid #ccc;}
   tbody tr{border-top:1px solid #e5e5e5;}
-  tbody td{line-height:1.05;padding:1px 6px;}
   .btn-print{margin-top:20px;padding:10px 20px;background:#64a0f7;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;}
-  @media print{
-    .no-print{display:none!important;}
-    table{font-size:9.5px;}
-    thead th{padding:1px 5px;font-size:9px;}
-    tbody td{line-height:1;padding:0.5px 5px;}
-  }
+  @media print{ .no-print{display:none!important;} }
 </style></head>
 <body>
   <h1>📊 Rapport de contrôle</h1>
@@ -11263,7 +11186,7 @@ async function renderRegistre(){
                 ? `<div style="display:inline-flex;flex-direction:column;align-items:center;gap:2px;background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.35);border-radius:8px;padding:5px 10px;">
                     <span style="font-size:13px;">${medal}</span>
                     <span style="font-family:'Space Grotesk',sans-serif;font-size:11px;font-weight:800;color:var(--accent);">+${fmt(prime.montant)}</span>
-                    <span style="font-size:9px;color:var(--muted);font-weight:600;">${prime.label||''}</span>
+                    <span style="font-size:9px;color:var(--muted);font-weight:600;">${esc(prime.label)||''}</span>
                   </div>`
                 : `<span style="font-size:11px;color:var(--muted);">—</span>`}
             </td>
@@ -11922,21 +11845,7 @@ async function renderFiche(){
         </tr></thead>
         <tbody>${clientsPayeurs.map(c=>{
           const s=stats(c);
-          // ✅ FIX RATIO FICHE DU JOUR : un client peut avoir plusieurs paiements
-          // le même jour (ex: 2 versements successifs). Auparavant on ne prenait
-          // que le 1er paiement trouvé (pays.find) pour le montant/ratio affichés
-          // ici, ce qui sous-évaluait le ratio réel du jour. On regroupe donc
-          // maintenant TOUS les paiements du jour de ce client en une seule ligne
-          // (montant = somme, ratio = calculé sur cette somme), tout en gardant
-          // les paiements séparés et intacts dans Firestore/Historique/Fiche
-          // complète du client (aucune fusion de documents, juste l'affichage ici).
-          const paysClient = pays.filter(p=>p.clientId===c._id)
-            .slice().sort((a,b)=>(a.heure||'').localeCompare(b.heure||''));
-          const montantCumul = paysClient.reduce((a,p)=>a+(Number(p.montant)||0),0);
-          const dernierPay = paysClient[paysClient.length-1];
-          // Badge "correction" affiché si AU MOINS UN des paiements du jour est
-          // une correction (on remonte au 1er trouvé pour le détail au survol).
-          const payCorrige = paysClient.find(p=>p.estCorrection) || dernierPay;
+          const pay=pays.find(p=>p.clientId===c._id);
           // Niveau : joursCouv actuel du client, affiché comme dans la fiche client
           const dureeC = c.duree || 0;
           const niveauColor = s.joursCouv >= dureeC && dureeC>0 ? 'var(--accent2)' : 'var(--accent)';
@@ -11944,11 +11853,11 @@ async function renderFiche(){
             +(dureeC>0 ? '<span style="font-size:9px;color:var(--muted);font-weight:400;"> /'+joursEnJM(dureeC)+'</span>' : '');
           return '<tr>'
             +'<td><span style="font-size:10px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.3);border-radius:4px;padding:0 5px;color:var(--accent);font-weight:700;">'+(c.codeClient||'—')+'</span></td>'
-            +'<td class="fw6">'+c.nom+(paysClient.length>1?' <span style="font-size:9px;color:var(--muted);font-weight:400;">('+paysClient.length+' paiements)</span>':'')+'</td>'
+            +'<td class="fw6">'+c.nom+'</td>'
             +'<td style="font-weight:700;color:var(--accent)">'+fmt(s.m)+'</td>'
-            +'<td style="color:var(--muted);font-size:11px">'+(dernierPay.heure||'—')+badgeCorrection(payCorrige)+'</td>'
-            +'<td style="font-weight:700;color:var(--accent2)">'+fmt(montantCumul)+'</td>'
-            +'<td>'+ratio(montantCumul,s.m)+'</td>'
+            +'<td style="color:var(--muted);font-size:11px">'+(pay.heure||'—')+badgeCorrection(pay)+'</td>'
+            +'<td style="font-weight:700;color:var(--accent2)">'+fmt(pay.montant)+'</td>'
+            +'<td>'+ratio(pay.montant,s.m)+'</td>'
             +'<td style="white-space:nowrap;">'+niveauLabel+'</td>'
             +'</tr>';
         }).join('')}
@@ -12069,7 +11978,7 @@ function renderPaliersList() {
   tbody.innerHTML = paliers.map((p, i) => {
     const medal = Number(p.seuil) >= 150000 ? '🥇' : Number(p.seuil) >= 80000 ? '🥈' : '🥉';
     return `<tr>
-      <td><span style="font-size:16px;margin-right:6px;">${medal}</span><strong>${p.label || '—'}</strong></td>
+      <td><span style="font-size:16px;margin-right:6px;">${medal}</span><strong>${esc(p.label) || '—'}</strong></td>
       <td style="text-align:right;font-weight:700;color:var(--accent2);">≥ ${fmt(Number(p.seuil))}</td>
       <td style="text-align:right;font-weight:800;color:var(--accent);">+ ${fmt(Number(p.montant))}</td>
       <td style="text-align:center;">
@@ -12428,7 +12337,7 @@ function renderArticlesList(prefix){
     listEl.innerHTML = list.map((p,i)=>`
       <div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:6px 10px;font-size:12px;">
         <div>
-          <span style="color:var(--accent);font-weight:700;font-size:10px;margin-right:6px;">${p.ref||'—'}</span>
+          <span style="color:var(--accent);font-weight:700;font-size:10px;margin-right:6px;">${esc(p.ref)||'—'}</span>
           <span style="font-weight:600;">${esc(p.nom)}</span>
         </div>
         <div style="display:flex;align-items:center;gap:10px;">
@@ -12491,18 +12400,11 @@ window.saveCl = async function(){
     if(adhesionStatut === 'paye' && newClRef && newClRef._id){
       const now = new Date();
       const heure = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
-      // ✅ FIX DATE ADHÉSION À LA CRÉATION : si le client est créé avec une date
-      // de début (debut) ANTÉRIEURE à aujourd'hui, l'adhésion payée à
-      // l'inscription doit être tracée à CETTE date-là (et non à la date de
-      // saisie) — ex: import/rattrapage d'un client déjà en activité depuis
-      // une date passée. Si debut est aujourd'hui ou dans le futur, on garde
-      // TODAY (l'heure réelle de saisie reste toujours conservée, elle).
-      const dateAdhesion = (debut && debut < TODAY) ? debut : TODAY;
       try{
         await fbAdd('adhesionPays',{
           clientId: newClRef._id, commercialId: comId,
-          montant: 200, date: dateAdhesion, heure,
-          note: "Adhésion encaissée à l'inscription"+(dateAdhesion!==TODAY?' (antidatée à la date de début du client)':''),
+          montant: 200, date: TODAY, heure,
+          note: "Adhésion encaissée à l'inscription",
           saisiParId: session.userId, saisiParNom: session.nom,
           verrouille: true
         });
@@ -12516,14 +12418,7 @@ window.saveCl = async function(){
     closeM('m-client');notify(`Client ${nom} créé ✓ — Code : ${codeClient}`);
   }catch(e){
     console.error('Échec création client:', e);
-    // FIX AUDIT #6 (suite) : un refus de règle Firestore (permission-denied,
-    // ex. champ trop long ou format invalide) était auparavant confondu avec
-    // une panne réseau — message trompeur pour l'utilisateur ET pour le support.
-    if(e && e.code === 'permission-denied'){
-      notify("Échec de la création du client — une donnée saisie ne respecte pas le format attendu (ex. désignation du contrat trop longue). Vérifiez les champs et réessayez. Si le problème persiste, contactez l'administrateur.", 'err');
-    } else {
-      notify("Échec de la création du client — vérifiez votre connexion et réessayez. Si le problème persiste, contactez l'administrateur.", 'err');
-    }
+    notify("Échec de la création du client — vérifiez votre connexion et réessayez. Si le problème persiste, contactez l'administrateur.", 'err');
   }
 };
 
@@ -13548,8 +13443,7 @@ window.confirmImport = async function(){
           await fbAdd('adhesionPays', {
             clientId, commercialId: clientExistant.commercialId || comId,
             montant: adhesionMontant, date: dateImportCli, heure: '00:00',
-            note: 'Adhésion reportée via import', origine: 'import_historique',
-            saisiParId: session.userId, saisiParNom: session.nom
+            note: 'Adhésion reportée via import', origine: 'import_historique'
           });
         }
         // Montant déjà payé : ajouté comme paiement historique
@@ -13561,8 +13455,7 @@ window.confirmImport = async function(){
             cotisJour: cotisRef, montant: montantDejaPaye,
             date: datePai, heure: '00:00',
             note: r.notePaiement || "Paiement reporté à l'import (client existant)",
-            origine: 'import_historique',
-            saisiParId: session.userId, saisiParNom: session.nom
+            origine: 'import_historique'
           });
           paiementsReportes++;
         }
@@ -13573,8 +13466,7 @@ window.confirmImport = async function(){
             type: 'divers', montant: montantDivers,
             date: dateImportCli, heure: '00:00',
             note: r.noteDivers || 'Montant divers (pénalité/remise/frais) — import',
-            origine: 'import_divers',
-            saisiParId: session.userId, saisiParNom: session.nom
+            origine: 'import_divers'
           });
         }
 
@@ -13619,8 +13511,7 @@ window.confirmImport = async function(){
           cotisJour: cotisRef, montant: montantDejaPaye,
           date: datePai, heure: '00:00',
           note: r.notePaiement || "Paiement reporté à l'import",
-          origine: 'import_historique',
-          saisiParId: session.userId, saisiParNom: session.nom
+          origine: 'import_historique'
         });
         paiementsReportes++;
       }
@@ -13630,8 +13521,7 @@ window.confirmImport = async function(){
           type: 'divers', montant: montantDivers,
           date: dateImportCli, heure: '00:00',
           note: r.noteDivers || 'Montant divers (pénalité/remise/frais) — import',
-          origine: 'import_divers',
-          saisiParId: session.userId, saisiParNom: session.nom
+          origine: 'import_divers'
         });
       }
 
@@ -14306,57 +14196,39 @@ window.saveComNouveauClient = async function(){
   const comNclAdhStatut = comNclAdhRadio ? comNclAdhRadio.value : 'non_paye';
   // Figer les prix des produits au moment de la création du contrat
   const produitsPrixFigesNcl = _articlesAdded['com-ncl'].map(p=>({produitId:p._id, pvFige:p.prix, nom:p.nom}));
-  // FIX AUDIT #6 (suite) : cette création n'était entourée d'AUCUN try/catch —
-  // un refus de règle Firestore (permission-denied) ou une coupure réseau
-  // provoquait une exception JS non gérée, sans aucun message pour le
-  // commercial (pire que le modal admin qui avait déjà un catch générique).
-  try{
-    const newClientRef = await fbAdd('clients',{nom,tel,ville,quartier:qrt,contrat:ct,montantTotal:mt,duree:parseInt(document.getElementById('com-ncl-duree').value)||365,debut,note:document.getElementById('com-ncl-note').value,commercialId:comId,adhesion:200,adhesionStatut:comNclAdhStatut,codeClient,produitsPrixFiges:produitsPrixFigesNcl});
-    // Si adhésion payée à la création → enregistrer dans adhesionPays pour le registre
-    if(comNclAdhStatut === 'paye'){
-      const now = new Date();
-      const heure = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
-      const clientId = newClientRef && newClientRef._id ? newClientRef._id : null;
-      if(clientId){
-        try{
-          await fbAdd('adhesionPays',{
-            clientId, commercialId: comId,
-            montant: 200, date: TODAY, heure,
-            note: "Adhésion encaissée à l'inscription",
-            saisiParId: session.userId, saisiParNom: session.nom,
-            verrouille: true
-          });
-        }catch(e){
-          console.error('Échec enregistrement adhésion à la création (com-ncl):', e);
-          notify(`Client ${nom} créé ✓ — Code : ${codeClient}, mais l'adhésion n'a pas pu être enregistrée (vérifiez la connexion et ressaisissez-la depuis le registre)`, 'err');
-        }
-      }
-    }
-    // Afficher le résultat
-    const res=document.getElementById('com-ncl-result');
-    res.style.display='block';
-    res.innerHTML=`&#9989; Client créé avec succès !<br><strong style="font-size:16px;color:var(--accent);">Code : ${codeClient}</strong><br><span style="font-size:11px;color:var(--muted);">Ce code permet de retrouver le client rapidement en saisie de mises.</span>`;
-    notify(`Client ${nom} créé — Code : ${codeClient}`);
-    // Réinitialiser
-    ['com-ncl-nom','com-ncl-tel','com-ncl-ville','com-ncl-qrt','com-ncl-contrat','com-ncl-note'].forEach(i=>document.getElementById(i).value='');
-    document.getElementById('com-ncl-montant').value='';
-    document.getElementById('com-ncl-duree').value='372';document.getElementById('com-ncl-duree').style.display='none';document.getElementById('com-ncl-duree-sel').value='372';
-    document.getElementById('com-ncl-debut').value=TODAY;
-    document.getElementById('com-ncl-adhesion').value='0';
-    document.getElementById('com-ncl-calc-info').style.display='none';
-    document.getElementById('com-ncl-code-status').innerHTML='';
-    document.getElementById('com-ncl-seq').value='';
-    document.getElementById('com-ncl-code').value='';
-    // Suggérer le prochain code auto
-    setTimeout(suggererProchainCode, DELAY_CODE_SUGGEST2_MS);
-  }catch(e){
-    console.error('Échec création client (com-ncl):', e);
-    if(e && e.code === 'permission-denied'){
-      notify("Échec de la création du client — une donnée saisie ne respecte pas le format attendu (ex. désignation du contrat trop longue). Vérifiez les champs et réessayez. Si le problème persiste, contactez l'administrateur.", 'err');
-    } else {
-      notify("Échec de la création du client — vérifiez votre connexion et réessayez. Si le problème persiste, contactez l'administrateur.", 'err');
+  const newClientRef = await fbAdd('clients',{nom,tel,ville,quartier:qrt,contrat:ct,montantTotal:mt,duree:parseInt(document.getElementById('com-ncl-duree').value)||365,debut,note:document.getElementById('com-ncl-note').value,commercialId:comId,adhesion:200,adhesionStatut:comNclAdhStatut,codeClient,produitsPrixFiges:produitsPrixFigesNcl});
+  // Si adhésion payée à la création → enregistrer dans adhesionPays pour le registre
+  if(comNclAdhStatut === 'paye'){
+    const now = new Date();
+    const heure = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+    const clientId = newClientRef && newClientRef._id ? newClientRef._id : null;
+    if(clientId){
+      await fbAdd('adhesionPays',{
+        clientId, commercialId: comId,
+        montant: 200, date: TODAY, heure,
+        note: "Adhésion encaissée à l'inscription",
+        saisiParId: session.userId, saisiParNom: session.nom,
+        verrouille: true
+      });
     }
   }
+  // Afficher le résultat
+  const res=document.getElementById('com-ncl-result');
+  res.style.display='block';
+  res.innerHTML=`&#9989; Client créé avec succès !<br><strong style="font-size:16px;color:var(--accent);">Code : ${codeClient}</strong><br><span style="font-size:11px;color:var(--muted);">Ce code permet de retrouver le client rapidement en saisie de mises.</span>`;
+  notify(`Client ${nom} créé — Code : ${codeClient}`);
+  // Réinitialiser
+  ['com-ncl-nom','com-ncl-tel','com-ncl-ville','com-ncl-qrt','com-ncl-contrat','com-ncl-note'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('com-ncl-montant').value='';
+  document.getElementById('com-ncl-duree').value='372';document.getElementById('com-ncl-duree').style.display='none';document.getElementById('com-ncl-duree-sel').value='372';
+  document.getElementById('com-ncl-debut').value=TODAY;
+  document.getElementById('com-ncl-adhesion').value='0';
+  document.getElementById('com-ncl-calc-info').style.display='none';
+  document.getElementById('com-ncl-code-status').innerHTML='';
+  document.getElementById('com-ncl-seq').value='';
+  document.getElementById('com-ncl-code').value='';
+  // Suggérer le prochain code auto
+  setTimeout(suggererProchainCode, DELAY_CODE_SUGGEST2_MS);
 };
 
 // ╔══════════════════════════════════════════════════════════════╗
