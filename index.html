@@ -1669,7 +1669,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
       </select>
       <span id="ctrl-search-count" style="font-size:11px;color:var(--muted);white-space:nowrap;"></span>
     </div>
-    <div class="tw"><table><thead><tr><th>Client</th><th>Téléphone</th><th class="no-print">Commercial</th><th>Contrat</th><th>Dernière MàJ</th><th>Niveau</th><th id="ctrl-th-info">Statut</th><th class="no-print">Actions</th></tr></thead><tbody id="tb-controle"></tbody></table></div>
+    <div class="tw"><table><thead><tr><th>Client</th><th>Téléphone</th><th class="no-print">Commercial</th><th>Contrat</th><th>Cotisation</th><th>Dernière MàJ</th><th>Niveau</th><th id="ctrl-th-info">Statut</th><th class="no-print">Actions</th></tr></thead><tbody id="tb-controle"></tbody></table></div>
   </div>
 
   <!-- ADMIN: ARTICLES -->
@@ -10358,7 +10358,11 @@ window.onClFilterChange = function(){
 
 let _clientsLazyLoadToken = 0;
 // ─── Pagination UI de la liste "Clients" (voir renderTousCls) ───
-const _CL_PAGE_SIZE = 100;
+// ✅ PERF (point 2, option A) : réduit de 100 à 50 lignes par page — moins de
+// nœuds DOM injectés à chaque rendu/changement de filtre, sans changement
+// structurel (pas de virtualisation par fenêtre, juste un pas de pagination
+// plus fin). Ajuster ce chiffre est sans risque de casse visuelle.
+const _CL_PAGE_SIZE = 50;
 let _clPage = 1;
 window.clientsChangerPage = function(delta){
   _clPage += delta;
@@ -10585,12 +10589,13 @@ function renderControle(){
       <td>${esc(c.tel||'—')}</td>
       <td><span class="tag">${esc(getCom(c.commercialId).nom)}</span></td>
       <td style="font-size:11px;">${esc(contratLabel)}</td>
+      <td class="fw6" style="font-size:11px;">${fmt(s.m)}<span class="tm" style="font-size:9px;">/j</span></td>
       <td>${majCell}</td>
       <td>${niveauCell}</td>
       <td>${infoCell}</td>
       <td>${actionCell}</td>
     </tr>`;
-  }).join('') || `<tr><td colspan="8" class="emp">${controleTab==='attente'?'Aucun client en attente de contrôle':'Aucun client contrôlé pour le moment'}</td></tr>`;
+  }).join('') || `<tr><td colspan="9" class="emp">${controleTab==='attente'?'Aucun client en attente de contrôle':'Aucun client contrôlé pour le moment'}</td></tr>`;
 }
 
 window.ouvrirMarquerControle = function(cid){
@@ -10696,8 +10701,9 @@ window.genererRapportControle = function(){
       ? `<span style="color:#1a8a4a;font-weight:700;">✅ Contrôlé</span><div style="font-size:10px;color:#666;">${esc(c.controle.date||'')} ${esc(c.controle.heure||'')} — ${esc(c.controle.par||'—')}</div>`
       : `<span style="color:#c0392b;font-weight:700;">⏳ Non contrôlé</span>`;
     const noteCell = c.controle?.note ? `<span style="font-style:italic;color:#444;">"${esc(c.controle.note)}"</span>` : `<span style="color:#aaa;">—</span>`;
-    return `<tr><td style="padding:6px 8px;">${esc(c.nom)}${c.codeClient?` (${esc(c.codeClient)})`:''}</td><td style="padding:6px 8px;">${esc(c.tel||'—')}</td><td style="padding:6px 8px;">${esc(getCom(c.commercialId).nom)}</td><td style="padding:6px 8px;">${statutCell}</td><td style="padding:6px 8px;max-width:220px;">${noteCell}</td></tr>`;
-  }).join('') || `<tr><td colspan="5" style="padding:10px;text-align:center;color:#888;">Aucun client</td></tr>`;
+    const cotisCell = fmt(stats(c).m);
+    return `<tr><td style="padding:6px 8px;">${esc(c.nom)}${c.codeClient?` (${esc(c.codeClient)})`:''}</td><td style="padding:6px 8px;">${esc(c.tel||'—')}</td><td style="padding:6px 8px;">${esc(getCom(c.commercialId).nom)}</td><td style="padding:6px 8px;text-align:right;">${cotisCell}</td><td style="padding:6px 8px;">${statutCell}</td><td style="padding:6px 8px;max-width:220px;">${noteCell}</td></tr>`;
+  }).join('') || `<tr><td colspan="6" style="padding:10px;text-align:center;color:#888;">Aucun client</td></tr>`;
 
   const now = new Date();
   const dateGen = now.toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'}) + ' à ' + String(now.getHours()).padStart(2,'0')+'h'+String(now.getMinutes()).padStart(2,'0');
@@ -10734,7 +10740,7 @@ window.genererRapportControle = function(){
   <h2>Répartition par commercial</h2>
   <table><thead><tr><th>Commercial</th><th style="text-align:center;">Total</th><th style="text-align:center;">Contrôlés</th><th style="text-align:center;">Non contrôlés</th><th style="text-align:center;">Taux</th></tr></thead><tbody>${lignesCom}</tbody></table>
   <h2>Détail — ${esc(statutLabel)} (${liste.length})</h2>
-  <table><thead><tr><th>Client</th><th>Téléphone</th><th>Commercial</th><th>Statut</th><th>Note du contrôleur</th></tr></thead><tbody>${lignesDetail}</tbody></table>
+  <table><thead><tr><th>Client</th><th>Téléphone</th><th>Commercial</th><th style="text-align:right;">Cotisation</th><th>Statut</th><th>Note du contrôleur</th></tr></thead><tbody>${lignesDetail}</tbody></table>
   <button class="btn-print no-print" onclick="window.print()">🖨️ Imprimer</button>
 </body></html>`);
   win.document.close();
