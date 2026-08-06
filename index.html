@@ -3812,6 +3812,20 @@ import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObjec
 
 const TODAY = new Date().toISOString().split('T')[0];
 
+// ✅ Centralisation des rôles utilisateur : évite qu'une future faute de
+// frappe dans un littéral ('secretaire' vs 'secrétaire', etc.) casse
+// silencieusement une vérification de permission. Utiliser ROLES.XXX au lieu
+// de chaînes en dur partout où c'est syntaxiquement sûr de le faire.
+const ROLES = Object.freeze({
+  ADMIN: 'admin',
+  COMMERCIAL: 'commercial',
+  SECRETAIRE: 'secretaire',
+  CHEF_AGENCE: 'chef_agence',
+  GESTIONNAIRE_STOCK: 'gestionnaire_stock',
+  CONTROLEUR: 'controleur',
+  COMPTABLE: 'comptable',
+});
+
 // Retourne la date effective de saisie pour un commercial (toujours aujourd'hui).
 function getDateEffectiveCommercial(comId) {
   return TODAY;
@@ -3847,7 +3861,7 @@ let DB = {
 // Incrémenté à chaque mutation de DB.paiements / DB.livraisons (ajout, modif, suppression,
 // snapshot Firestore). Permet à stats() d'éviter un .filter() sur TOUTE la collection
 // pour CHAQUE client affiché (gain majeur sur la page "Tous les clients").
-const _dbVer = { paiements: 0, livraisons: 0, commerciaux: 0 };
+const _dbVer = { paiements: 0, livraisons: 0, commerciaux: 0, produits: 0, articles: 0, clients: 0 };
 function _touchVer(col){ if(_dbVer[col] !== undefined) _dbVer[col]++; }
 
 
@@ -4143,7 +4157,7 @@ async function _loadCol(col) {
   // Collections volumineuses : filtrage par rôle
   const colRef = collection(db_fs, col);
 
-  if (role === 'commercial') {
+  if (role ===ROLES.COMMERCIAL) {
     // ✅ FIX COÛT : cache TTL réutilisé pour les requêtes simples du
     // commercial (auparavant aucune mise en cache ici → relecture Firestore
     // garantie à chaque navigation, notamment pour 'transferts' qui était
@@ -4598,7 +4612,7 @@ function _queryForCol(col) {
   // Collections légères → listener complet
   if (_SMALL_COLS.has(col)) return colRef;
 
-  if (role === 'commercial') {
+  if (role ===ROLES.COMMERCIAL) {
     if (col === 'clients')     return query(colRef, where('commercialId','==',uid));
     if (col === 'paiements')   return query(colRef, where('commercialId','==',uid));
     if (col === 'mises')       return query(colRef, where('commercialId','==',uid));
@@ -4673,7 +4687,7 @@ function _listenerCoversFullLoad(col) {
   if (_NO_REALTIME_COLS.has(col)) return false;
   if (_NO_REALTIME_FOR_STAFF.has(col) && session.role !== 'commercial') return false;
   if (_SMALL_COLS.has(col)) return true;
-  if (session.role === 'commercial' && col !== 'livraisons') return true;
+  if (session.role ===ROLES.COMMERCIAL && col !== 'livraisons') return true;
   return false;
 }
 
@@ -4704,7 +4718,7 @@ async function setupPageListeners(pageId) {
     if (!isNoRealtimeForThisRole) return;
     // La clé de cache diffère selon le rôle : voir _loadCol (commercial
     // utilise une clé 'col:uid' pour isoler ses propres données en cache).
-    const cacheKey = (session && session.role === 'commercial') ? (col + ':' + session.userId) : col;
+    const cacheKey = (session && session.role ===ROLES.COMMERCIAL) ? (col + ':' + session.userId) : col;
     if (!_isCacheFresh(cacheKey)) {
       _loadedCols.delete(col);
       delete _pageCursors[col];
@@ -5053,7 +5067,7 @@ function _syncLocalAfterWrite(col) {
   Object.keys(_dateFetchCache).forEach(k => {
     if (k.startsWith(col + ':')) delete _dateFetchCache[k];
   });
-  if (session?.role === 'commercial' && _localKey) saveLocalEncrypted();
+  if (session?.role ===ROLES.COMMERCIAL && _localKey) saveLocalEncrypted();
 }
 
 // ── POINT 6 CORRIGÉ : protection des opérations d'écriture ──
@@ -5167,8 +5181,7 @@ window.migrerAgenceId = async function(){
       }catch(e){ errors++; console.error('Échec migration', col, item._id, e); }
     }
   }
-  console.log(`Migration terminée : ${done} mis à jour, ${skipped} déjà à jour, ${errors} erreurs.`);
-  notify(`Migration agenceId : ${done} document(s) mis à jour`, 'success');
+  notify(`Migration agenceId : ${done} document(s) mis à jour, ${skipped} déjà à jour, ${errors} erreurs`, 'success');
 };
 
 async function fbUpdate(col, id, data) {
@@ -5645,18 +5658,35 @@ window.ouvrirFicheClient = async function(cid){
 
   // Adhésion
   const adhPays=DB.adhesionPays.filter(a=>a.clientId===cid);
-  const adhIsAdmin = session && session.role==='admin';
+  const adhIsAdmin = session && session.role===ROLES.ADMIN;
   document.getElementById('fiche-cl-adh-content').innerHTML=`<div class="ib ${c.adhesionStatut==='paye'?'ib-green':'ib-red'}" style="margin-bottom:8px;"><strong>Adhésion : ${fmt(c.adhesion)}</strong> — ${c.adhesionStatut==='paye'?'✅ Payé':'❌ Non payé'}</div>${adhPays.length>0?`<table style="width:100%;border-collapse:collapse;">${adhPays.map(a=>`<tr style="border-top:1px solid var(--border)"><td style="padding:6px;font-size:12px">${esc(a.date)}</td><td style="padding:6px;color:var(--accent2);font-weight:600">${fmt(a.montant)}</td><td style="padding:6px;font-size:11px;color:var(--muted)">${esc(a.note||'—')}</td>${adhIsAdmin?`<td style="padding:6px;text-align:right;"><button class="btn btn-xs btn-warn" onclick="supprimerAdhesionPay('${a._id}','${cid}')" title="Supprimer ce frais d'adhésion">🗑</button></td>`:''}</tr>`).join('')}</table>`:'<div class="emp" style="padding:12px">Aucun paiement d\'adhésion</div>'}`;
 
-  // Reset onglets
+  // ✅ FIX : ne plus toujours revenir sur l'onglet "Infos" lors d'un
+  // rafraîchissement silencieux (déclenché par un paiement/livraison saisi
+  // ailleurs pendant la consultation de la fiche). On mémorise l'onglet
+  // actuellement affiché AVANT de reconstruire le contenu, puis on le
+  // restaure après — au lieu d'écraser systématiquement le choix de
+  // l'utilisateur avec "Infos".
+  const _ongletActifAvant = (() => {
+    const tabs = ['info','paiements','livraisons','adhesion','calendrier'];
+    for (const t of tabs) {
+      const el = document.getElementById('fiche-cl-'+t);
+      if (el && el.style.display !== 'none') return t;
+    }
+    return 'info';
+  })();
   document.querySelectorAll('.fiche-cl-tab').forEach(t=>t.classList.remove('active'));
-  document.querySelector('.fiche-cl-tab').classList.add('active');
-  ['paiements','livraisons','adhesion','calendrier'].forEach(t=>document.getElementById('fiche-cl-'+t).style.display='none');
-  document.getElementById('fiche-cl-info').style.display='';
+  const _tabsBtns = document.querySelectorAll('.fiche-cl-tab');
+  const _tabIdx = ['info','paiements','livraisons','adhesion','calendrier'].indexOf(_ongletActifAvant);
+  (_tabsBtns[_tabIdx] || _tabsBtns[0]).classList.add('active');
+  ['paiements','livraisons','adhesion','calendrier','info'].forEach(t=>document.getElementById('fiche-cl-'+t).style.display = t===_ongletActifAvant ? '' : 'none');
+  if (_ongletActifAvant === 'calendrier') {
+    document.getElementById('fiche-cl-cal-content').innerHTML = genererCalendrierClient(cid);
+  }
   _ficheClientCtxId = cid;
 
   document.getElementById('fiche-cl-pay-btn').onclick=()=>{closeM('m-fiche-client');openPay(cid);};
-  document.getElementById('fiche-cl-pay-btn').style.display = (session.role==='admin'||session.role==='commercial'||session.role==='chef_agence') ? '' : 'none';
+  document.getElementById('fiche-cl-pay-btn').style.display = (session.role===ROLES.ADMIN||session.role===ROLES.COMMERCIAL||session.role===ROLES.CHEF_AGENCE) ? '' : 'none';
   document.getElementById('fiche-cl-edit-btn').onclick=()=>{closeM('m-fiche-client');ouvrirEditionClient(cid);};
   // Bouton modifier contrat rapide
   const ficheContratBtn = document.getElementById('fiche-cl-contrat-btn');
@@ -5935,7 +5965,7 @@ window.ouvrirEditionClient = function(cid){
   document.getElementById('edit-cl-adhesion').value=c.adhesion||0;
   document.getElementById('edit-cl-adhesion-statut').value=c.adhesionStatut||'non_paye';
   document.getElementById('edit-cl-note').value=c.note||'';
-  document.getElementById('edit-cl-com').innerHTML=comsDansAgence().filter(x=>x.role==='commercial').map(x=>`<option value="${x._id}"${x._id===c.commercialId?' selected':''}>${esc(x.nom)}</option>`).join('');
+  document.getElementById('edit-cl-com').innerHTML=comsDansAgence().filter(x=>x.role===ROLES.COMMERCIAL).map(x=>`<option value="${x._id}"${x._id===c.commercialId?' selected':''}>${esc(x.nom)}</option>`).join('');
   document.getElementById('edit-cl-calc-info').style.display='none';
   calcJourEdit();
   openM('m-edit-client');
@@ -6388,7 +6418,19 @@ function safeRender(fnOrName){
     notify('Erreur d\'affichage — réessayez ou changez de page puis revenez : '+(e.message||String(e)), 'err');
   }
 }
-function getCl(id){ return DB.clients.find(c=>c._id===id)||{nom:'—',contrat:'—'}; }
+// ✅ PERF : getCl() est appelée 44 fois dans l'app et fait un .find() linéaire
+// sur DB.clients — la plus grosse collection potentielle (jusqu'à 30 000
+// clients selon les commentaires du code). Indexée en Map, invalidée via
+// _dbVer.clients (ajoutée ci-dessous, déjà mise à jour par _touchVer()).
+let _clIdxCache = null, _clIdxVer = -1;
+function _clIndex(){
+  if(_clIdxCache && _clIdxVer === _dbVer.clients) return _clIdxCache;
+  const m = new Map();
+  for(const c of (DB.clients||[])) m.set(c._id, c);
+  _clIdxCache = m; _clIdxVer = _dbVer.clients;
+  return m;
+}
+function getCl(id){ return _clIndex().get(id)||{nom:'—',contrat:'—'}; }
 // ✅ PERF : getCom() est appelée ~30 fois dans l'app, dont une fois PAR LIGNE
 // de chaque tableau client affiché. Avec un .find() linéaire sur
 // DB.commerciaux à chaque appel, le coût grandit avec le nombre de
@@ -6411,8 +6453,7 @@ function getCom(id){ return _comIndex().get(id)||{nom:'—'}; }
 // dans les boucles de rendu des contrats clients (une recherche linéaire
 // double PAR ARTICLE de contrat PAR CLIENT affiché). Invalidé via
 // _dbVer.produits/_dbVer.articles (déjà mis à jour par _touchVer()).
-const _dbVer2 = _dbVer; // (même objet, ajout des clés ci-dessous)
-_dbVer2.produits = 0; _dbVer2.articles = 0;
+// (clés déjà déclarées dans _dbVer ci-dessus)
 let _prodArtIdxCache = null, _prodArtIdxVerP = -1, _prodArtIdxVerA = -1;
 function _prodArtIndex(){
   if(_prodArtIdxCache && _prodArtIdxVerP===_dbVer.produits && _prodArtIdxVerA===_dbVer.articles) return _prodArtIdxCache;
@@ -6430,7 +6471,7 @@ function getProd(id){ return (DB.produits||[]).find(p=>p._id===id)||{nom:'—',p
 function getAgence(id){ return DB.agences.find(a=>a._id===id)||{nom:'—'}; }
 // Retourne l'agenceId de la session courante (null pour admin)
 function sessionAgenceId(){
-  if(!session || session.role==='admin') return null;
+  if(!session || session.role===ROLES.ADMIN) return null;
   const u = DB.commerciaux.find(c=>c._id===session.userId);
   return u ? u.agenceId : null;
 }
@@ -6737,12 +6778,12 @@ window.doLogin = async function(){
   }
   document.getElementById('login-screen').classList.add('hidden');
   // FIX 2 : clé AES dérivée de l'UID Firebase + secret appareil (plus du mot de passe)
-  if (session.role === 'commercial') {
+  if (session.role ===ROLES.COMMERCIAL) {
     await _initLocalKey(session.userId); // UID Firebase, jamais le mot de passe
     await loadLocalDataEncrypted();
   }
   // Pré-charger les collections terrain pour le mode offline (commercial uniquement)
-  if (session.role === 'commercial' && isOnline) {
+  if (session.role ===ROLES.COMMERCIAL && isOnline) {
     const terrainCols = ['clients','paiements','mises','adhesionPays','commerciaux','agences','primesPaliers'];
     await ensureCollectionsLoaded(terrainCols);
     await _doSaveLocalEncrypted(); // snapshot chiffré pour usage offline (immédiat, pas debouncé)
@@ -7324,7 +7365,7 @@ function renderChatMessages(){
   }
   el.innerHTML = _chatMessages.map(m=>{
     const mine = m.authorId === session.userId;
-    const peutSupprimer = mine || session.role === 'admin';
+    const peutSupprimer = mine || session.role ===ROLES.ADMIN;
     const delBtn = peutSupprimer
       ? `<button class="chat-msg-del" title="Supprimer" onclick="chatSupprimerMessage('${m._id}', ${m.storagePath?`'${esc(m.storagePath)}'`:'null'})">✕</button>`
       : '';
@@ -7584,21 +7625,21 @@ function getRoleLabel(role){
   return labels[role]||role;
 }
 function getRoleNav(role){
-  if(role==='admin') return ADMIN_NAV;
-  if(role==='commercial') return COM_NAV;
-  if(role==='secretaire') return SECRETAIRE_NAV;
-  if(role==='controleur') return CONTROLEUR_NAV;
-  if(role==='gestionnaire_stock') return GSTOCK_NAV;
-  if(role==='chef_agence') return CHEF_AGENCE_NAV;
+  if(role===ROLES.ADMIN) return ADMIN_NAV;
+  if(role===ROLES.COMMERCIAL) return COM_NAV;
+  if(role===ROLES.SECRETAIRE) return SECRETAIRE_NAV;
+  if(role===ROLES.CONTROLEUR) return CONTROLEUR_NAV;
+  if(role===ROLES.GESTIONNAIRE_STOCK) return GSTOCK_NAV;
+  if(role===ROLES.CHEF_AGENCE) return CHEF_AGENCE_NAV;
   return COM_NAV;
 }
 function getRoleHome(role){
-  if(role==='admin') return 'admin-dashboard';
-  if(role==='commercial') return 'saisie-mises';
-  if(role==='secretaire') return 'registre';
-  if(role==='controleur') return 'controle';
-  if(role==='gestionnaire_stock') return 'stock';
-  if(role==='chef_agence') return 'registre';
+  if(role===ROLES.ADMIN) return 'admin-dashboard';
+  if(role===ROLES.COMMERCIAL) return 'saisie-mises';
+  if(role===ROLES.SECRETAIRE) return 'registre';
+  if(role===ROLES.CONTROLEUR) return 'controle';
+  if(role===ROLES.GESTIONNAIRE_STOCK) return 'stock';
+  if(role===ROLES.CHEF_AGENCE) return 'registre';
   return 'com-clients';
 }
 
@@ -7850,9 +7891,9 @@ window.go = async function(id){ // ✅ FIX : async pour await setupPageListeners
   const btn=document.getElementById('btn-top');
   const role = session?.role;
   // Contrôleur : lecture seule totale — aucun bouton d'action
-  const isControleur = role === 'controleur';
+  const isControleur = role ===ROLES.CONTROLEUR;
   // Gestionnaire de stock : peut uniquement faire les mouvements de stock
-  const isGStock = role === 'gestionnaire_stock';
+  const isGStock = role ===ROLES.GESTIONNAIRE_STOCK;
   const readOnly = ['controleur'].includes(role);
   const canLiv = ['admin','secretaire','chef_agence'].includes(role);
   // Règles d'affichage du bouton topbar :
@@ -7866,8 +7907,8 @@ window.go = async function(id){ // ✅ FIX : async pour await setupPageListeners
     else if(id === 'articles') showBtn = ['admin','secretaire','chef_agence'].includes(role);
     else if(id === 'produits') showBtn = ['admin','gestionnaire_stock','chef_agence'].includes(role);
     else if(id === 'tous-clients') showBtn = ['admin','secretaire','chef_agence'].includes(role);
-    else if(id === 'commerciaux') showBtn = role === 'admin';
-    else if(id === 'agences') showBtn = role === 'admin';
+    else if(id === 'commerciaux') showBtn = role ===ROLES.ADMIN;
+    else if(id === 'agences') showBtn = role ===ROLES.ADMIN;
     else showBtn = !readOnly && !isGStock;
   }
   if(showBtn){btn.textContent=BTN[id];btn.style.display='';}else btn.style.display='none';
@@ -7884,7 +7925,7 @@ function renderPg(id){
     // Peupler le select, puis afficher le prompt (pas tous les clients d'un coup)
     const sel=document.getElementById('filter-com');
     if(sel){
-      const comsVisibles = comsDansAgence().filter(c=>c.role==='commercial');
+      const comsVisibles = comsDansAgence().filter(c=>c.role===ROLES.COMMERCIAL);
       const prev=sel.value;
       sel.innerHTML=`<option value="">— Sélectionner un commercial —</option>`+comsVisibles.map(c=>`<option value="${c._id}"${c._id===prev?' selected':''}>${esc(c.nom)}</option>`).join('');
       sel.value=prev;
@@ -8051,7 +8092,9 @@ function dessinerTopProduits(){
   if(chartProduits){ chartProduits.destroy(); chartProduits=null; }
 
   // Filtrer les livraisons selon l'agence sélectionnée
-  let livs = DB.livraisons.filter(l=>l.statut==='livre'||l.statut==='livré'||l.statut==='livre_partiel'||true);
+  // ✅ FIX BUG : le `||true` rendait ce filtre inopérant (incluait TOUTES les
+  // livraisons, y compris en attente/annulées, dans le calcul du top produits).
+  let livs = DB.livraisons.filter(l=>l.statut==='livre'||l.statut==='livré'||l.statut==='livre_partiel');
   if(dashAgenceFilter){
     const clIds = dashClients().map(c=>c._id);
     livs = livs.filter(l=>clIds.includes(l.clientId));
@@ -8206,8 +8249,8 @@ function dessinerDonutComs(){
   const mois=TODAY.slice(0,7);
   const mPays=dashPays().filter(p=>p.date&&p.date.startsWith(mois));
   const coms=(dashAgenceFilter
-    ? DB.commerciaux.filter(c=>c.role==='commercial'&&c.agenceId===dashAgenceFilter)
-    : DB.commerciaux.filter(c=>c.role==='commercial'));
+    ? DB.commerciaux.filter(c=>c.role===ROLES.COMMERCIAL&&c.agenceId===dashAgenceFilter)
+    : DB.commerciaux.filter(c=>c.role===ROLES.COMMERCIAL));
   const couleurs=getCouleursComs();
 
   const vals=coms.map(c=>mPays.filter(p=>p.commercialId===c._id).reduce((a,p)=>a+p.montant,0));
@@ -8377,8 +8420,8 @@ async function renderAdminDash(){
 
   // Commerciaux filtrés
   const comsFiltrés = dashAgenceFilter
-    ? DB.commerciaux.filter(c=>c.role==='commercial'&&c.agenceId===dashAgenceFilter)
-    : DB.commerciaux.filter(c=>c.role==='commercial');
+    ? DB.commerciaux.filter(c=>c.role===ROLES.COMMERCIAL&&c.agenceId===dashAgenceFilter)
+    : DB.commerciaux.filter(c=>c.role===ROLES.COMMERCIAL);
   const nbComs = comsFiltrés.length;
   const nbAgences = DB.agences.length;
 
@@ -8732,9 +8775,9 @@ window.ouvrirModalProduit = async function(id) {
   // les autres rôles peuvent lire).
   const paWrap = document.getElementById('prod-prix-achat-wrap');
   const paInput = document.getElementById('prod-prix-achat');
-  if(paWrap) paWrap.style.display = (session?.role === 'admin') ? 'block' : 'none';
+  if(paWrap) paWrap.style.display = (session?.role ===ROLES.ADMIN) ? 'block' : 'none';
   if(paInput) paInput.value = '';
-  if(session?.role === 'admin' && p?._id){
+  if(session?.role ===ROLES.ADMIN && p?._id){
     try{
       const snap = await getDoc(doc(db_fs,'produitsPrive',p._id));
       if(paInput) paInput.value = snap.exists() ? (snap.data().prixAchat || '') : '';
@@ -8997,7 +9040,7 @@ window.saveProduit = async function() {
   // Écrit seulement si le champ est visible, donc seulement pour un admin —
   // pour tout autre rôle ce bloc est ignoré et la valeur existante n'est
   // jamais touchée.
-  if (session?.role === 'admin' && produitId) {
+  if (session?.role ===ROLES.ADMIN && produitId) {
     const prixAchat = parseFloat(document.getElementById('prod-prix-achat')?.value) || 0;
     try { await setDoc(doc(db_fs,'produitsPrive',produitId), {prixAchat}, {merge:true}); }
     catch(e){ console.error('[produit] sauvegarde prix achat', e); notify("Prix d'achat non enregistré (erreur)","err"); }
@@ -9351,7 +9394,7 @@ let catFiltreStock = ''; // '' | 'ok' | 'bas' | 'rupture'
 
 function renderCatalogue(){
   // Masquer les filtres et infos stock pour les commerciaux
-  const _isComCat = session && session.role === 'commercial';
+  const _isComCat = session && session.role ===ROLES.COMMERCIAL;
   const _sfEl = document.getElementById('cat-stock-filters');
   if(_sfEl) _sfEl.style.display = _isComCat ? 'none' : 'flex';
   // Construire les chips de catégories — ✅ PERF : ne reconstruire (innerHTML)
@@ -9414,7 +9457,7 @@ function renderCatalogue(){
          </div>`
       : `<div class="cat-card-no-img">
            <div style="font-size:56px;">${catEmoji(a.cat)}</div>
-           ${(session&&(session.role==='admin'||session.role==='gestionnaire_stock'||session.role==='chef_agence'))?`<label style="font-size:10px;color:var(--muted);cursor:pointer;padding:4px 10px;border:1px dashed var(--border);border-radius:6px;transition:all 0.15s;"
+           ${(session&&(session.role===ROLES.ADMIN||session.role===ROLES.GESTIONNAIRE_STOCK||session.role===ROLES.CHEF_AGENCE))?`<label style="font-size:10px;color:var(--muted);cursor:pointer;padding:4px 10px;border:1px dashed var(--border);border-radius:6px;transition:all 0.15s;"
              onmouseover="this.style.borderColor='var(--accent3)';this.style.color='var(--accent3)'"
              onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'"
              onclick="event.stopPropagation();ouvrirZoomCatalogue('${a._id}',true)">
@@ -9506,8 +9549,8 @@ window.ouvrirZoomCatalogue = function(artId, focusUpload=false){
 
   document.getElementById('zoom-upload-progress').style.display='none';
   document.getElementById('zoom-img-input').value='';
-  const canEditCat = session && (session.role==='admin'||session.role==='gestionnaire_stock'||session.role==='chef_agence');
-  const _isComZoom = session && session.role==='commercial';
+  const canEditCat = session && (session.role===ROLES.ADMIN||session.role===ROLES.GESTIONNAIRE_STOCK||session.role===ROLES.CHEF_AGENCE);
+  const _isComZoom = session && session.role===ROLES.COMMERCIAL;
   document.getElementById('zoom-upload-section').style.display = canEditCat ? '' : 'none';
   const _sw = document.getElementById('zoom-cat-stock-wrap');
   const _pw = document.getElementById('zoom-cat-pa-wrap');
@@ -9529,7 +9572,7 @@ function zoomRenderGallery(a){
   const prevBtn = document.getElementById('zoom-prev-btn');
   const nextBtn = document.getElementById('zoom-next-btn');
   const delBtn  = document.getElementById('zoom-del-img-btn');
-  const canEdit = session && (session.role==='admin'||session.role==='gestionnaire_stock'||session.role==='chef_agence');
+  const canEdit = session && (session.role===ROLES.ADMIN||session.role===ROLES.GESTIONNAIRE_STOCK||session.role===ROLES.CHEF_AGENCE);
   if(catZoomImgIndex >= imgs.length) catZoomImgIndex=0;
   if(imgs.length>0){
     main.src=imgs[catZoomImgIndex]; main.style.display='block';
@@ -9916,7 +9959,7 @@ function renderStock(){
       o.value=ag._id; o.textContent='🏢 '+ag.nom;
       selAg.appendChild(o);
     });
-    if(session.role==='gestionnaire_stock'){
+    if(session.role===ROLES.GESTIONNAIRE_STOCK){
       const agId=sessionAgenceId();
       if(agId) selAg.value=agId;
     }
@@ -10051,7 +10094,7 @@ window.renderStockParAgence = function(){
   const filtAgId = document.getElementById('stock-agence-filter')?.value || '';
   let agences = DB.agences.length ? [...DB.agences] : [];
   if(filtAgId) agences = agences.filter(ag=>ag._id===filtAgId);
-  if(session.role==='gestionnaire_stock'){
+  if(session.role===ROLES.GESTIONNAIRE_STOCK){
     const agId=sessionAgenceId();
     if(agId) agences = agences.filter(ag=>ag._id===agId);
   }
@@ -10183,7 +10226,7 @@ function renderLivraisons(){
   // ── Peupler select agences (admin uniquement, une seule fois) ──
   const selAgence = document.getElementById('filter-liv-agence');
   if(selAgence){
-    const isAdmin = session?.role === 'admin';
+    const isAdmin = session?.role ===ROLES.ADMIN;
     selAgence.parentElement.style.display = isAdmin ? '' : 'none';
     if(isAdmin && selAgence.options.length <= 1){
       DB.agences.forEach(ag => {
@@ -10206,7 +10249,7 @@ function renderLivraisons(){
     ? DB.commerciaux.filter(c => c.agenceId === agId)
     : comsDansAgence();
   // Sous-ensemble "commercial" uniquement — sert seulement à peupler le select de choix.
-  const comsSource = staffAgenceTous.filter(c => c.role === 'commercial');
+  const comsSource = staffAgenceTous.filter(c => c.role ===ROLES.COMMERCIAL);
   const prevCom = selCom?.value || '';
   if(selCom){
     selCom.innerHTML = '<option value="">Tous les commerciaux</option>' +
@@ -10303,7 +10346,7 @@ function renderLivraisons(){
     <td><span class="tag">${esc(com.nom)}</span></td>
     <td style="font-size:11px">${esc(a.nom)}</td><td>${l.qty}</td><td>${fmt(l.montant)}</td><td>${livStatut(l.statut)}</td>
     <td>${(l.statut==='en_attente'&&['admin','secretaire'].includes(session.role))?`<button class="btn btn-success btn-xs" onclick="marquerLivre('${l._id}')" style="margin-right:3px">✓ Livré</button>`:''}
-    ${(session.role==='admin'||(session.role==='secretaire'&&l.date===TODAY))?`<button class="btn btn-xs btn-warn" onclick="delLiv('${l._id}')">✕</button>`:livStatut(l.statut)}</td></tr>`;
+    ${(session.role===ROLES.ADMIN||(session.role===ROLES.SECRETAIRE&&l.date===TODAY))?`<button class="btn btn-xs btn-warn" onclick="delLiv('${l._id}')">✕</button>`:livStatut(l.statut)}</td></tr>`;
   }).join('')||`<tr><td colspan="8" class="emp">${(q||filtDate||filtComId||filtStatut||agId)?'Aucune livraison pour ces filtres':'Aucune livraison'}</td></tr>`;
 }
 
@@ -10387,7 +10430,7 @@ async function renderTousCls(){
 
   const sel=document.getElementById('filter-com');
   // Remplir le select commercial — uniquement des commerciaux (pas chef d'agence/secrétaire/contrôleur)
-  const comsVisibles = comsDansAgence().filter(c=>c.role==='commercial');
+  const comsVisibles = comsDansAgence().filter(c=>c.role===ROLES.COMMERCIAL);
   // ✅ PERF : reconstruire ce <select> (innerHTML) est inutile si la liste des
   // commerciaux visibles n'a pas changé depuis le dernier rendu — or ce code
   // s'exécute à CHAQUE frappe dans le champ de recherche clients, alors que
@@ -10485,7 +10528,7 @@ async function renderTousCls(){
       <td><div class="pgw"><div class="pgb" style="width:${s.pct}%"></div></div><div style="font-size:10px;color:var(--muted)">${s.pct}%</div></td>
       <td style="color:${s.joursRetard>0?'var(--danger)':'var(--accent2)'};font-weight:600;font-size:11px">${s.joursRetard>0?s.joursRetard+'j':'✓'}</td>
       <td style="display:flex;gap:3px;flex-wrap:wrap;">
-        ${session.role==='admin'||session.role==='commercial'||session.role==='chef_agence'?`<button class="btn btn-success btn-xs" onclick="openPay('${c._id}')" title="Payer">💰</button>`:''}
+        ${session.role===ROLES.ADMIN||session.role===ROLES.COMMERCIAL||session.role===ROLES.CHEF_AGENCE?`<button class="btn btn-success btn-xs" onclick="openPay('${c._id}')" title="Payer">💰</button>`:''}
         ${['admin','chef_agence'].includes(session.role)&&c.adhesionStatut!=='paye'?`<button class="btn btn-xs" style="background:rgba(247,201,79,0.15);color:var(--accent);border:1px solid rgba(247,201,79,0.3)" onclick="openAdh('${c._id}')" title="Adhésion">🎫</button>`:''}
         <button class="btn btn-ghost btn-xs" onclick="ouvrirFicheClient('${c._id}')" title="Fiche complète">👁</button>
         ${['admin','chef_agence','secretaire'].includes(session.role)?`<button class="btn btn-xs" style="background:rgba(201,168,76,0.12);color:var(--accent);border:1px solid rgba(201,168,76,0.28)" onclick="ouvrirEditionClient('${c._id}')" title="Modifier">✏️</button>`:''}
@@ -10520,7 +10563,7 @@ function renderControle(){
   const selCom = document.getElementById('ctrl-filter-com');
   if(selCom){
     const prevVal = selCom.value;
-    const comsVisibles = comsDansAgence().filter(c=>c.role==='commercial');
+    const comsVisibles = comsDansAgence().filter(c=>c.role===ROLES.COMMERCIAL);
     const comsSig = comsVisibles.map(c=>c._id).join(',');
     if (selCom.dataset.comsSig !== comsSig) {
       selCom.innerHTML = `<option value="">— Tous les commerciaux —</option>`+comsVisibles.map(c=>`<option value="${c._id}"${c._id===prevVal?' selected':''}>${esc(c.nom)}</option>`).join('');
@@ -10652,7 +10695,7 @@ window.annulerControle = async function(cid){
 window.ouvrirRapportControle = function(){
   if(!['admin','controleur'].includes(session?.role)){ notify('Accès non autorisé','err'); return; }
   const selCom = document.getElementById('rc-com');
-  const comsVisibles = comsDansAgence().filter(c=>c.role==='commercial');
+  const comsVisibles = comsDansAgence().filter(c=>c.role===ROLES.COMMERCIAL);
   selCom.innerHTML = `<option value="">— Tous les commerciaux —</option>`+comsVisibles.map(c=>`<option value="${c._id}">${esc(c.nom)}</option>`).join('');
   document.getElementById('rc-statut').value = 'tous';
   openM('m-rapport-controle');
@@ -10756,7 +10799,7 @@ async function renderHist(){
   // (oninput="dRender('renderHist')" déclenche cette fonction en continu).
   const comSel = document.getElementById('h-filter-com');
   if(comSel){
-    const comsVisibles = comsDansAgence().filter(c=>c.role==='commercial');
+    const comsVisibles = comsDansAgence().filter(c=>c.role===ROLES.COMMERCIAL);
     const comsSig = comsVisibles.map(c=>c._id).join(',');
     if (comSel.dataset.comsSig !== comsSig) {
       comSel.innerHTML = '<option value="">Tous les commerciaux</option>' +
@@ -11061,11 +11104,12 @@ async function renderRegistre(){
   const myToken = ++_dateQueryToken;
   const contentEl = document.getElementById('reg-content');
   if (contentEl) contentEl.innerHTML = '<div class="emp" style="padding:50px">⏳ Chargement des données du jour…</div>';
-  let paysDate, adhDate;
+  let paysDate, adhDate, rachatsDate;
   try {
-    [paysDate, adhDate] = await Promise.all([
+    [paysDate, adhDate, rachatsDate] = await Promise.all([
       _fetchColByDate('paiements', date),
-      _fetchColByDate('adhesionPays', date)
+      _fetchColByDate('adhesionPays', date),
+      _fetchColByDate('rachatCarnetPays', date)
     ]);
   } catch(e) {
     if (contentEl) contentEl.innerHTML = '<div class="emp" style="padding:50px">Erreur de chargement : '+esc(e.message||String(e))+'</div>';
@@ -11087,7 +11131,13 @@ async function renderRegistre(){
   // FIX: évite dépendance à DB.clients potentiellement incomplet
   const adhJour = adhDate.filter(a=> comIds.has(a.commercialId));
   const totalAdh = adhJour.reduce((a,x)=>a+Number(x.montant||0),0);
-  const totalJour = totalCotis + totalAdh;
+  // ✅ FIX : les rachats de carnet (saisis par le commercial LUI-MÊME ou par
+  // l'admin/chef d'agence en son nom — commercialId reste toujours celui du
+  // commercial concerné) sont maintenant comptés dans le registre du jour du
+  // commercial concerné, peu importe qui a réellement fait la saisie.
+  const rachatsJour = rachatsDate.filter(r=> comIds.has(r.commercialId));
+  const totalRachats = rachatsJour.reduce((a,x)=>a+Number(x.montant||0),0);
+  const totalJour = totalCotis + totalAdh + totalRachats;
 
   // ── Calcul par commercial ──
   const comsData = coms.map(c=>{
@@ -11098,6 +11148,9 @@ async function renderRegistre(){
     // évite dépendance à DB.clients potentiellement incomplet en mémoire
     const adhC = adhJour.filter(a=>a.commercialId===c._id);
     const montantAdh = adhC.reduce((a,x)=>a+Number(x.montant||0),0);
+    // ✅ FIX : rachats de carnet du jour attribués à ce commercial
+    const rachatsC = rachatsJour.filter(r=>r.commercialId===c._id);
+    const montantRachats = rachatsC.reduce((a,x)=>a+Number(x.montant||0),0);
     // FIX: nbClients ne compte que les clientId présents dans DB.clients
     // pour aligner le registre sur la même logique que la fiche journalière
     const clientIdsComC = new Set(DB.clients.filter(cl=>cl.commercialId===c._id).map(cl=>cl._id));
@@ -11105,9 +11158,11 @@ async function renderRegistre(){
       com: c,
       montantCotis,
       montantAdh,
-      montantTotal: montantCotis + montantAdh,
+      montantRachats,
+      montantTotal: montantCotis + montantAdh + montantRachats,
       nbPaiements: paysC.length,
       nbAdhesions: adhC.length,
+      nbRachats: rachatsC.length,
       nbClients: new Set(paysC.map(p=>p.clientId).filter(id=>clientIdsComC.has(id))).size
     };
   }).filter(d=>d.montantTotal>0).sort((a,b)=>b.montantTotal-a.montantTotal);
@@ -11130,7 +11185,7 @@ async function renderRegistre(){
       </div>
       <div style="text-align:right;">
         <div style="font-weight:700;font-size:12px;color:var(--accent);">📅 ${dateStr}</div>
-        <div style="font-size:10px;color:var(--muted);margin-top:3px;">${nbComsActifs} commercial(aux) actif(s) · ${pays.length} cotis. · ${adhJour.length} adhés.</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:3px;">${nbComsActifs} commercial(aux) actif(s) · ${pays.length} cotis. · ${adhJour.length} adhés. · ${rachatsJour.length} rachats</div>
       </div>
     </div>
 
@@ -11146,10 +11201,15 @@ async function renderRegistre(){
         <div style="font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:800;color:var(--accent);">${fmt(totalAdh)}</div>
         <div style="font-size:10px;color:var(--muted);margin-top:3px;">${adhJour.length} encaissement(s)</div>
       </div>
+      <div style="background:linear-gradient(135deg,rgba(100,160,247,0.12),rgba(100,160,247,0.04));border:1px solid rgba(100,160,247,0.3);border-radius:10px;padding:12px;">
+        <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px;">📘 Rachats de carnet</div>
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:800;color:#64a0f7;">${fmt(totalRachats)}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:3px;">${rachatsJour.length} rachat(s)</div>
+      </div>
       <div style="background:linear-gradient(135deg,rgba(201,168,76,0.09),rgba(79,142,247,0.04));border:1px solid rgba(79,142,247,0.35);border-radius:10px;padding:12px;">
         <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px;">📊 TOTAL GÉNÉRAL</div>
         <div style="font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:800;color:var(--accent);">${fmt(totalJour)}</div>
-        <div style="font-size:10px;color:var(--muted);margin-top:3px;">Cotis. + Adhés. du jour</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:3px;">Cotis. + Adhés. + Rachats du jour</div>
         ${totalPrimes>0?`<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(201,168,76,0.2);"><div style="font-size:9px;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:2px;">🏆 Primes à verser</div><div style="font-size:12px;font-weight:800;color:var(--accent);">− ${fmt(totalPrimes)}</div></div><div style="margin-top:6px;padding-top:6px;border-top:2px solid rgba(201,168,76,0.28);"><div style="font-size:9px;color:var(--accent2);text-transform:uppercase;letter-spacing:1px;margin-bottom:2px;">💵 Net après primes</div><div style="font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:800;color:var(--accent2);">${fmt(totalNet)}</div></div>`:''}
       </div>
     </div>
@@ -11165,6 +11225,7 @@ async function renderRegistre(){
           <th style="padding:10px 14px;text-align:center;font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:1px;">Clients</th>
           <th style="padding:10px 14px;text-align:right;font-size:10px;color:var(--accent2);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Cotisations</th>
           <th style="padding:10px 14px;text-align:right;font-size:10px;color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Adhésions</th>
+          <th style="padding:10px 14px;text-align:right;font-size:10px;color:#64a0f7;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Rachats</th>
           <th style="padding:10px 14px;text-align:right;font-size:10px;color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Total</th>
           <th style="padding:10px 14px;text-align:center;font-size:10px;color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:1px;">🏆 Prime</th>
           <th style="padding:10px 14px;text-align:right;font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:1px;border-radius:0 7px 0 0;">% du total</th>
@@ -11186,6 +11247,7 @@ async function renderRegistre(){
             </td>
             <td style="padding:9px 14px;text-align:right;font-size:12px;font-weight:700;color:var(--accent2);">${fmt(d.montantCotis)}</td>
             <td style="padding:9px 14px;text-align:right;font-size:12px;font-weight:700;color:${d.montantAdh>0?'var(--accent3)':'var(--muted)'};">${d.montantAdh>0?fmt(d.montantAdh):'—'}</td>
+            <td style="padding:9px 14px;text-align:right;font-size:12px;font-weight:700;color:${d.montantRachats>0?'#64a0f7':'var(--muted)'};">${d.montantRachats>0?fmt(d.montantRachats):'—'}</td>
             <td style="padding:9px 14px;text-align:right;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:800;color:var(--accent);">${fmt(d.montantTotal)}</td>
             <td style="padding:9px 14px;text-align:center;">
               ${prime
@@ -11208,7 +11270,7 @@ async function renderRegistre(){
               ${(()=>{
                 const vt = getVersementDuJour(d.com._id, date);
                 const canMark = ['admin','secretaire'].includes(session?.role);
-                const isAdminRole = session?.role==='admin';
+                const isAdminRole = session?.role===ROLES.ADMIN;
                 if(vt) return `<span style="display:inline-flex;align-items:center;gap:6px;background:rgba(34,212,160,0.12);border:1px solid rgba(34,212,160,0.4);border-radius:20px;padding:3px 10px;font-size:10px;font-weight:700;color:var(--accent2);">✅ Versé<br><span style="font-size:9px;font-weight:400;color:var(--muted);">${vt.marqueParNom}</span>${isAdminRole?`<button onclick="annulerVersement('${vt._id}','${esc(d.com.nom)}','${date}')" title="Annuler ce versement" class="no-print" style="margin-left:2px;background:rgba(224,92,82,0.12);border:1px solid rgba(224,92,82,0.35);border-radius:6px;padding:1px 6px;color:var(--danger);font-size:10px;cursor:pointer;">✕</button>`:''}</span>`;
                 if(canMark && d.montantTotal>0) return `<button onclick="marquerVerseRegistre('${d.com._id}','${date}')" style="background:rgba(34,212,160,0.15);border:1px solid rgba(34,212,160,0.4);border-radius:7px;padding:4px 10px;color:var(--accent2);font-size:10px;font-weight:700;cursor:pointer;font-family:'Outfit',sans-serif;">Marquer versé</button>`;
                 return `<span style="font-size:11px;color:var(--muted);">—</span>`;
@@ -11306,8 +11368,8 @@ function renderAgences(){
   }
   grid.innerHTML = DB.agences.map(ag=>{
     const membres = DB.commerciaux.filter(c=>c.agenceId===ag._id);
-    const coms = membres.filter(c=>c.role==='commercial');
-    const secs = membres.filter(c=>c.role==='secretaire');
+    const coms = membres.filter(c=>c.role===ROLES.COMMERCIAL);
+    const secs = membres.filter(c=>c.role===ROLES.SECRETAIRE);
     const clients = DB.clients.filter(c=>coms.some(com=>com._id===c.commercialId));
     const totalPaye = DB.paiements.filter(p=>coms.some(com=>com._id===p.commercialId)).reduce((a,p)=>a+p.montant,0);
     const roleColors={commercial:'rgba(34,212,160,0.15)',secretaire:'rgba(201,168,76,0.12)',controleur:'rgba(247,201,79,0.15)',gestionnaire_stock:'rgba(247,97,79,0.12)'};
@@ -11402,15 +11464,15 @@ function renderComs(){
   const roleIcons={admin:'👑',commercial:'🧑‍💼',secretaire:'📋',controleur:'🔍',gestionnaire_stock:'📦'};
   // La colonne PIN n'est visible que pour l'admin
   const pinColHeader = document.getElementById('th-pin-col');
-  if(pinColHeader) pinColHeader.style.display = session?.role==='admin' ? '' : 'none';
+  if(pinColHeader) pinColHeader.style.display = session?.role===ROLES.ADMIN ? '' : 'none';
   document.getElementById('tb-coms').innerHTML=DB.commerciaux.map(c=>{
     const tot=DB.paiements.filter(p=>p.commercialId===c._id).reduce((a,p)=>a+p.montant,0);
     const totMises=(DB.mises||[]).filter(m=>m.commercialId===c._id).reduce((a,m)=>a+m.montant,0);
     const solde=tot-totMises;
     const myCls=DB.clients.filter(cl=>cl.commercialId===c._id);
-    const isCommercial=c.role==='commercial';
+    const isCommercial=c.role===ROLES.COMMERCIAL;
     const ag = c.agenceId ? getAgence(c.agenceId) : null;
-    const isAdminSession = session?.role==='admin';
+    const isAdminSession = session?.role===ROLES.ADMIN;
     const isMe = c._id === session?.userId;
     // FIX 2 : PIN supprimé - auth Firebase Auth uniquement
     const pinCell = `<td style="display:none;"></td>`;
@@ -11498,7 +11560,7 @@ window.confirmerChangerPin = async function(){
 
 // ========= ÉDITION UTILISATEUR =========
 window.ouvrirEditionUtilisateur = function(uid){
-  if(session?.role==='controleur'){ notify('Accès refusé — lecture seule','err'); return; }
+  if(session?.role===ROLES.CONTROLEUR){ notify('Accès refusé — lecture seule','err'); return; }
   const u = DB.commerciaux.find(c=>c._id===uid);
   if(!u) return;
   document.getElementById('eu-id').value = uid;
@@ -11516,7 +11578,7 @@ window.ouvrirEditionUtilisateur = function(uid){
 
 window.onEuRoleChange = function(role){
   const row = document.getElementById('eu-prefix-row');
-  if(row) row.style.display = role==='commercial' ? '' : 'none';
+  if(row) row.style.display = role===ROLES.COMMERCIAL ? '' : 'none';
   const agRow = document.getElementById('eu-agence-row');
   if(agRow) agRow.style.display = ['commercial','secretaire','chef_agence'].includes(role) ? '' : 'none';
 };
@@ -11540,10 +11602,10 @@ window.sauvegarderUtilisateur = async function(){
   try{
     // FIX 2 : changement de mot de passe via Firebase Auth Console (plus de PIN local)
     if(agenceId) update.agenceId = agenceId;
-    if(role==='commercial'){
+    if(role===ROLES.COMMERCIAL){
       const prefix = document.getElementById('eu-prefix').value.trim().toUpperCase();
       if(!prefix){ notify('Le préfixe est obligatoire pour un commercial','err'); return; }
-      const doublon = DB.commerciaux.find(c=>c._id!==uid && c.role==='commercial' && (c.codePrefix||'').toUpperCase()===prefix);
+      const doublon = DB.commerciaux.find(c=>c._id!==uid && c.role===ROLES.COMMERCIAL && (c.codePrefix||'').toUpperCase()===prefix);
       if(doublon){ notify(`Le préfixe "${prefix}" est déjà utilisé par ${esc(doublon.nom)}`,'err'); return; }
       const u = DB.commerciaux.find(c=>c._id===uid);
       if(u && u.codePrefix && u.codePrefix.toUpperCase()!==prefix){
@@ -11579,7 +11641,7 @@ window.ouvrirTransfertClients = function(sourceId){
   // Remplir liste destination (autres commerciaux)
   const dest = document.getElementById('tr-dest');
   dest.innerHTML = '<option value="">— Sélectionner un commercial —</option>' +
-    DB.commerciaux.filter(c=>c.role==='commercial'&&c._id!==sourceId)
+    DB.commerciaux.filter(c=>c.role===ROLES.COMMERCIAL&&c._id!==sourceId)
       .map(c=>`<option value="${esc(c._id)}">${esc(c.nom)}${c.codePrefix?' ['+esc(c.codePrefix)+']':''}</option>`).join('');
   // Remplir liste clients
   const clients = DB.clients.filter(c=>c.commercialId===sourceId);
@@ -11690,14 +11752,14 @@ async function _fetchClientsByCommercial(comId) {
 
 async function renderFiche(){
   const role = session.role;
-  const isChefAgence = (role==='chef_agence');
-  const isViewer = (role==='admin'||role==='secretaire'||isChefAgence);
+  const isChefAgence = (role===ROLES.CHEF_AGENCE);
+  const isViewer = (role===ROLES.ADMIN||role===ROLES.SECRETAIRE||isChefAgence);
 
   // Sélecteur de commercial pour admin / secrétaire / chef d'agence
   const sel = document.getElementById('fiche-com-select');
   if(isViewer){
     sel.style.display='';
-    let coms = DB.commerciaux.filter(c=>c.role==='commercial');
+    let coms = DB.commerciaux.filter(c=>c.role===ROLES.COMMERCIAL);
     // Le chef d'agence ne voit que les commerciaux de SA propre agence
     if(isChefAgence){
       const moi = getCom(session.userId);
@@ -11715,7 +11777,7 @@ async function renderFiche(){
     document.getElementById('fiche-page-title').textContent = 'Ma fiche de recouvrement';
   }
 
-  const comId = isViewer ? (sel.value || (DB.commerciaux.find(c=>c.role==='commercial')||{})._id) : session.userId;
+  const comId = isViewer ? (sel.value || (DB.commerciaux.find(c=>c.role===ROLES.COMMERCIAL)||{})._id) : session.userId;
   if(!comId){ document.getElementById('fiche-content').innerHTML='<div class="emp" style="padding:40px;">Aucun commercial enregistré.</div>'; return; }
 
   // ── Contrôle du bouton "Marquer versé" ──
@@ -11726,11 +11788,11 @@ async function renderFiche(){
     if(isViewer && comId){
       if(versementExistant){
         btnVerse.style.display='';
-        btnVerse.textContent='✅ Versé le '+versementExistant.dateMarquage+' par '+versementExistant.marqueParNom+(session.role==='admin'?' — cliquer pour annuler':'');
+        btnVerse.textContent='✅ Versé le '+versementExistant.dateMarquage+' par '+versementExistant.marqueParNom+(session.role===ROLES.ADMIN?' — cliquer pour annuler':'');
         btnVerse.style.background='rgba(34,212,160,0.08)';
         btnVerse.style.borderColor='rgba(34,212,160,0.3)';
         btnVerse.style.color='var(--accent2)';
-        if(session.role==='admin'){
+        if(session.role===ROLES.ADMIN){
           btnVerse.style.cursor='pointer';
           btnVerse.onclick=()=>annulerVersement(versementExistant._id, (DB.commerciaux.find(c=>c._id===comId)||{}).nom||'?', fd);
         } else {
@@ -11926,7 +11988,7 @@ async function renderFiche(){
             <td style="text-align:center;">
               ${c.adhesionStatut==='paye'
                 ?'<span style=\"background:rgba(34,212,160,0.18);border:1px solid rgba(34,212,160,0.45);border-radius:20px;padding:3px 12px;font-size:11px;font-weight:700;color:var(--accent2)\">✅ Encaissée</span>'
-                :(role==='commercial'?`<div style=\"display:flex;align-items:center;gap:6px;justify-content:center;\"><span style=\"background:rgba(224,92,82,0.14);border:1px solid rgba(247,97,79,0.4);border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;color:var(--danger)\">❌ Non encaissée</span><button class=\"btn btn-xs\" style=\"background:rgba(34,212,160,0.18);color:var(--accent2);border:1px solid rgba(34,212,160,0.4);white-space:nowrap;\" onclick=\"encaisserAdhesionFiche('${c._id}')\">💵 Encaisser</button></div>`:'<span style=\"background:rgba(224,92,82,0.14);border:1px solid rgba(247,97,79,0.4);border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;color:var(--danger)\">❌ Non encaissée</span>')}
+                :(role===ROLES.COMMERCIAL?`<div style=\"display:flex;align-items:center;gap:6px;justify-content:center;\"><span style=\"background:rgba(224,92,82,0.14);border:1px solid rgba(247,97,79,0.4);border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;color:var(--danger)\">❌ Non encaissée</span><button class=\"btn btn-xs\" style=\"background:rgba(34,212,160,0.18);color:var(--accent2);border:1px solid rgba(34,212,160,0.4);white-space:nowrap;\" onclick=\"encaisserAdhesionFiche('${c._id}')\">💵 Encaisser</button></div>`:'<span style=\"background:rgba(224,92,82,0.14);border:1px solid rgba(247,97,79,0.4);border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;color:var(--danger)\">❌ Non encaissée</span>')}
             </td>
           </tr>`).join('')}
           </tbody>
@@ -12257,12 +12319,12 @@ window.openDet = function(cid){
   const livs=DB.livraisons.filter(l=>l.clientId===cid).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   document.getElementById('det-liv-list').innerHTML=livs.map(l=>`<tr><td>${esc(l.date)}</td><td class="fw6">${esc(getProd(l.produitId).nom)}</td><td>${esc(String(l.qty||""))}</td><td>${fmt(l.montant)}</td><td>${livStatut(l.statut)}</td></tr>`).join('')||'<tr><td colspan="5" class="emp">Aucune livraison</td></tr>';
   const adhPays=DB.adhesionPays.filter(a=>a.clientId===cid);
-  const detAdhIsAdmin = session && session.role==='admin';
-  document.getElementById('det-adh-content').innerHTML=`<div class="ib ${c.adhesionStatut==='paye'?'ib-green':'ib-red'}" style="margin-bottom:8px;"><strong>Adhésion : ${fmt(c.adhesion)}</strong> — ${c.adhesionStatut==='paye'?'✅ Payé':'❌ Non payé'}${c.adhesionStatut!=='paye'&&session.role==='admin'?`<br><button class="btn btn-success btn-xs no-print" onclick="closeM('m-detail');openAdh('${cid}')" style="margin-top:5px">Encaisser</button>`:''}</div>${adhPays.length>0?`<div class="tw" style="margin:0"><table><thead><tr><th>Date</th><th>Montant</th><th>Note</th>${detAdhIsAdmin?'<th class="no-print"></th>':''}</tr></thead><tbody>${adhPays.map(a=>`<tr><td>${esc(a.date)}</td><td style="color:var(--accent2);font-weight:600">${fmt(a.montant)}</td><td class="tm" style="font-size:10px">${esc(a.note||'—')}</td>${detAdhIsAdmin?`<td class="no-print" style="text-align:center;"><button onclick="supprimerAdhesionPay('${a._id}','${cid}')" title="Supprimer ce frais d'adhésion" style="background:rgba(224,92,82,0.12);border:1px solid rgba(224,92,82,0.35);border-radius:6px;padding:2px 7px;color:var(--danger);font-size:11px;cursor:pointer;">🗑</button></td>`:''}</tr>`).join('')}</tbody></table></div>`:'<div class="emp" style="padding:16px">Aucun paiement d\'adhésion</div>'}`;
+  const detAdhIsAdmin = session && session.role===ROLES.ADMIN;
+  document.getElementById('det-adh-content').innerHTML=`<div class="ib ${c.adhesionStatut==='paye'?'ib-green':'ib-red'}" style="margin-bottom:8px;"><strong>Adhésion : ${fmt(c.adhesion)}</strong> — ${c.adhesionStatut==='paye'?'✅ Payé':'❌ Non payé'}${c.adhesionStatut!=='paye'&&session.role===ROLES.ADMIN?`<br><button class="btn btn-success btn-xs no-print" onclick="closeM('m-detail');openAdh('${cid}')" style="margin-top:5px">Encaisser</button>`:''}</div>${adhPays.length>0?`<div class="tw" style="margin:0"><table><thead><tr><th>Date</th><th>Montant</th><th>Note</th>${detAdhIsAdmin?'<th class="no-print"></th>':''}</tr></thead><tbody>${adhPays.map(a=>`<tr><td>${esc(a.date)}</td><td style="color:var(--accent2);font-weight:600">${fmt(a.montant)}</td><td class="tm" style="font-size:10px">${esc(a.note||'—')}</td>${detAdhIsAdmin?`<td class="no-print" style="text-align:center;"><button onclick="supprimerAdhesionPay('${a._id}','${cid}')" title="Supprimer ce frais d'adhésion" style="background:rgba(224,92,82,0.12);border:1px solid rgba(224,92,82,0.35);border-radius:6px;padding:2px 7px;color:var(--danger);font-size:11px;cursor:pointer;">🗑</button></td>`:''}</tr>`).join('')}</tbody></table></div>`:'<div class="emp" style="padding:16px">Aucun paiement d\'adhésion</div>'}`;
   document.querySelectorAll('.det-tab').forEach(t=>t.classList.remove('active'));
   document.querySelector('.det-tab').classList.add('active');
   ['paiements','livraisons','adhesion'].forEach(t=>document.getElementById('det-'+t).style.display=t==='paiements'?'':'none');
-  document.getElementById('det-pay-btn').style.display = (session.role==='admin'||session.role==='commercial'||session.role==='chef_agence') ? '' : 'none';
+  document.getElementById('det-pay-btn').style.display = (session.role===ROLES.ADMIN||session.role===ROLES.COMMERCIAL||session.role===ROLES.CHEF_AGENCE) ? '' : 'none';
   document.getElementById('det-pay-btn').onclick=()=>{closeM('m-detail');openPay(cid);};
   openM('m-detail');
 };
@@ -12474,7 +12536,7 @@ window.saveArticle = async function(){
 };
 
 window.saveMvt = async function(){
-  if(session?.role==='controleur'){ notify('Accès refusé — lecture seule','err'); return; }
+  if(session?.role===ROLES.CONTROLEUR){ notify('Accès refusé — lecture seule','err'); return; }
   const artId=document.getElementById('mvt-art').value;
   const type=document.getElementById('mvt-type').value;
   const qty=parseInt(document.getElementById('mvt-qty').value)||0;
@@ -12634,7 +12696,7 @@ window.verifierPrefix = function(input){
 
 window.onRoleChange = function(role){
   const prefRow = document.getElementById('com-prefix-row');
-  prefRow.style.display = role==='commercial' ? '' : 'none';
+  prefRow.style.display = role===ROLES.COMMERCIAL ? '' : 'none';
   // L'agence est obligatoire uniquement pour commercial et secrétaire
   const agRow = document.getElementById('com-agence-row');
   if(agRow) agRow.style.display = ['commercial','secretaire','chef_agence'].includes(role) ? '' : 'none';
@@ -12647,10 +12709,10 @@ window.saveCom = async function(){
   const agenceId = document.getElementById('com-agence')?.value||'';
   if(['commercial','secretaire','chef_agence'].includes(role) && !agenceId){notify('Sélectionnez une agence','err');return;}
   let prefix='';
-  if(role==='commercial'){
+  if(role===ROLES.COMMERCIAL){
     prefix=document.getElementById('com-prefix').value.trim().toUpperCase();
     if(!prefix){notify('Le code préfixe est obligatoire pour un commercial','err');return;}
-    const existing=DB.commerciaux.filter(c=>c.role==='commercial').map(c=>(c.codePrefix||'').toUpperCase());
+    const existing=DB.commerciaux.filter(c=>c.role===ROLES.COMMERCIAL).map(c=>(c.codePrefix||'').toUpperCase());
     if(existing.includes(prefix)){notify(`Le préfixe "${prefix}" est déjà utilisé`,'err');return;}
   }
   const email = document.getElementById('com-email')?.value.trim().toLowerCase()||'';
@@ -12674,7 +12736,7 @@ window.saveCom = async function(){
     }
     closeM('m-com'); fillLogin();
     const ag = DB.agences.find(a=>a._id===agenceId);
-    const msg=role==='commercial'?`Commercial ${nom} créé ✓ — Préfixe : ${prefix}${ag?' — Agence : '+ag.nom:''}`:`Utilisateur ${nom} (${getRoleLabel(role)}) créé ✓${ag?' — Agence : '+ag.nom:''}`;
+    const msg=role===ROLES.COMMERCIAL?`Commercial ${nom} créé ✓ — Préfixe : ${prefix}${ag?' — Agence : '+ag.nom:''}`:`Utilisateur ${nom} (${getRoleLabel(role)}) créé ✓${ag?' — Agence : '+ag.nom:''}`;
     notify(msg);
   }catch(e){
     console.error('Échec création utilisateur:', e);
@@ -12841,7 +12903,7 @@ window.marquerPointsVerses = async function(){
   const role = session?.role;
   if(!['admin','secretaire'].includes(role)){ notify('Accès refusé','err'); return; }
   const sel = document.getElementById('fiche-com-select');
-  const comId = sel?.value || (DB.commerciaux.find(c=>c.role==='commercial')||{})._id;
+  const comId = sel?.value || (DB.commerciaux.find(c=>c.role===ROLES.COMMERCIAL)||{})._id;
   const date = document.getElementById('fiche-date').value || TODAY;
   if(!comId){ notify('Sélectionnez un commercial','err'); return; }
   const com = DB.commerciaux.find(c=>c._id===comId)||{nom:'?'};
@@ -13038,7 +13100,7 @@ window.openM = function(id){
     document.getElementById('cl-adhesion-statut').value='non_paye';
     const clAdhRNP=document.getElementById('cl-adh-non-paye'); if(clAdhRNP) clAdhRNP.checked=true;
     document.getElementById('cl-calc-info').style.display='none';
-    document.getElementById('cl-com').innerHTML='<option value="">— Sélectionner —</option>'+comsDansAgence().filter(c=>c.role==='commercial').map(c=>`<option value="${c._id}">${esc(c.nom)}</option>`).join('');
+    document.getElementById('cl-com').innerHTML='<option value="">— Sélectionner —</option>'+comsDansAgence().filter(c=>c.role===ROLES.COMMERCIAL).map(c=>`<option value="${c._id}">${esc(c.nom)}</option>`).join('');
     // Charger les articles multi-select
     resetArticlesAdded('cl');
   }
@@ -13105,7 +13167,7 @@ window.openM = function(id){
   }
   if(id==='m-livraison'){
     // Remplir la liste des commerciaux (filtre)
-    const comsActifs = DB.commerciaux.filter(c=>c.role==='commercial');
+    const comsActifs = DB.commerciaux.filter(c=>c.role===ROLES.COMMERCIAL);
     document.getElementById('liv-filter-com').innerHTML =
       '<option value="">— Tous les commerciaux —</option>' +
       comsActifs.map(c=>`<option value="${c._id}">${esc(c.nom)}${c.prefixCode?' ('+c.prefixCode+')':''}</option>`).join('');
@@ -13336,7 +13398,7 @@ function prepareImportPreview(rows){
   if(errors>0){ document.getElementById('import-errors').style.display=''; document.getElementById('import-errors').textContent = errors+' lignes ignorées (nom manquant).'; }
   else { document.getElementById('import-errors').style.display='none'; }
   document.getElementById('import-com').innerHTML = '<option value="">— Sélectionner —</option>' +
-    DB.commerciaux.filter(c=>c.role==='commercial').map(c=>'<option value="'+c._id+'">'+c.nom+'</option>').join('');
+    DB.commerciaux.filter(c=>c.role===ROLES.COMMERCIAL).map(c=>'<option value="'+c._id+'">'+c.nom+'</option>').join('');
 
   // Stats paiements
   const nbAvecCotisJ = importData.filter(r=>r.cotisationJour>0).length;
@@ -14064,7 +14126,7 @@ window.voirDetailComClient = function(cid){
   ['paiements','livraisons','adhesion','calendrier'].forEach(t=>document.getElementById('det-'+t).style.display=t==='paiements'?'':'none');
   _detClientCtxId = cid;
   // Masquer le bouton payer pour les commerciaux (lecture seule)
-  document.getElementById('det-pay-btn').style.display = (session.role==='admin'||session.role==='commercial'||session.role==='chef_agence') ? '' : 'none';
+  document.getElementById('det-pay-btn').style.display = (session.role===ROLES.ADMIN||session.role===ROLES.COMMERCIAL||session.role===ROLES.CHEF_AGENCE) ? '' : 'none';
   openM('m-detail');
 };
 
@@ -14271,7 +14333,7 @@ window.rechercherParCodeClient = function(){
   const q = document.getElementById('mise-search-id').value.trim();
   if(!q) return;
   let pool = clientsDansAgence();
-  if(session.role === 'commercial') pool = pool.filter(c => c.commercialId === session.userId);
+  if(session.role ===ROLES.COMMERCIAL) pool = pool.filter(c => c.commercialId === session.userId);
   const exactMatch = pool.find(c => c.codeClient && c.codeClient.toUpperCase() === q.toUpperCase());
   if(exactMatch){ selectMiseClient(exactMatch._id); document.getElementById('mise-search-results').style.display='none'; return; }
   miseLiveSearch();
@@ -14296,7 +14358,7 @@ function renderSaisieMises(){
   const infoLecture = document.getElementById('mise-lecture-seule-info');
 
   // Vérifier si les points du commercial sont déjà versés aujourd'hui
-  if(session.role === 'commercial'){
+  if(session.role ===ROLES.COMMERCIAL){
     const versementAujourdhui = getVersementDuJour(session.userId, TODAY);
     if(versementAujourdhui){
       if(saisieForm) saisieForm.style.display = 'none';
@@ -14346,7 +14408,7 @@ window.miseLiveSearch = function(){
   const res = document.getElementById('mise-search-results');
   if(!q){ res.style.display='none'; return; }
   let pool = clientsDansAgence();
-  if(session.role === 'commercial') pool = pool.filter(c => c.commercialId === session.userId);
+  if(session.role ===ROLES.COMMERCIAL) pool = pool.filter(c => c.commercialId === session.userId);
   const found = pool.filter(c =>
     (c.codeClient && c.codeClient.toLowerCase().includes(q)) ||
     c._id.toLowerCase().includes(q) ||
@@ -14419,7 +14481,7 @@ function miseAdhRefresh(id){
   const bloc = document.getElementById('mise-adh-bloc');
   if(!bloc) return;
   // Masquer le bloc adhésion pour les commerciaux
-  if(session && session.role === 'commercial'){ bloc.style.display = 'none'; return; }
+  if(session && session.role ===ROLES.COMMERCIAL){ bloc.style.display = 'none'; return; }
   const c = getCl(id);
   const sw = document.getElementById('mise-adh-status-wrap');
   const form = document.getElementById('mise-adh-form');
@@ -14788,7 +14850,7 @@ window.enregistrerMiseSaisie = async function(){
   const c = getCl(miseClientCtx);
 
   // ── BLOCAGE : vérifier si les points du jour sont déjà marqués versés ──
-  if(session.role === 'commercial'){
+  if(session.role ===ROLES.COMMERCIAL){
     const versementAujourdhui = getVersementDuJour(c.commercialId, TODAY);
     if(versementAujourdhui){
       notify(`🔒 Vos points du ${TODAY} ont déjà été marqués comme versés par la secrétaire. Vous ne pouvez pas enregistrer de mise aujourd'hui.`, 'err');
@@ -14827,8 +14889,8 @@ window.enregistrerMiseSaisie = async function(){
     const paiementMiseData = {
       clientId:miseClientCtx, commercialId:c.commercialId,
       cotisJour:jm(c), montant, date:dateChoisie, heure,
-      note: note || `${nb} cotisation(s) — saisie ${session.role==='secretaire'?'secrétaire':session.role==='admin'?'admin':session.role==='chef_agence'?'chef d\'agence':'commercial'}`,
-      nbCotis:nb, type:'mise', source:session.role==='secretaire'?'secretaire':session.role==='admin'?'admin':session.role==='chef_agence'?'chef_agence':'commercial',
+      note: note || `${nb} cotisation(s) — saisie ${session.role===ROLES.SECRETAIRE?'secrétaire':session.role===ROLES.ADMIN?'admin':session.role===ROLES.CHEF_AGENCE?'chef d\'agence':'commercial'}`,
+      nbCotis:nb, type:'mise', source:session.role===ROLES.SECRETAIRE?'secretaire':session.role===ROLES.ADMIN?'admin':session.role===ROLES.CHEF_AGENCE?'chef_agence':'commercial',
       saisiParId:session.userId, saisiParNom:session.nom,
       verrouille:true
     };
@@ -14901,7 +14963,7 @@ function renderSaisieAdhesions(){
   const selCom = document.getElementById('adh-filter-com');
   if(selCom){
     const comsVisibles = ['admin','chef_agence','secretaire'].includes(session.role)
-      ? comsDansAgence().filter(c=>c.role==='commercial')
+      ? comsDansAgence().filter(c=>c.role===ROLES.COMMERCIAL)
       : [DB.commerciaux.find(c=>c._id===session.userId)].filter(Boolean);
     const comsSig = comsVisibles.map(c=>c._id).join(',');
     const prev = selCom.value;
@@ -14914,7 +14976,7 @@ function renderSaisieAdhesions(){
       selCom.dataset.comsSig = comsSig;
     }
     // Pour le commercial, forcer son propre filtre
-    if(session.role === 'commercial') selCom.value = session.userId;
+    if(session.role ===ROLES.COMMERCIAL) selCom.value = session.userId;
   }
 
   const filtComId = document.getElementById('adh-filter-com')?.value || '';
@@ -14923,7 +14985,7 @@ function renderSaisieAdhesions(){
 
   // Base clients
   let clients = clientsDansAgence();
-  if(session.role === 'commercial') clients = clients.filter(c=>c.commercialId===session.userId);
+  if(session.role ===ROLES.COMMERCIAL) clients = clients.filter(c=>c.commercialId===session.userId);
   if(filtComId) clients = clients.filter(c=>c.commercialId===filtComId);
   if(filtStatut) clients = clients.filter(c=>(c.adhesionStatut||'non_paye')===filtStatut);
   if(q) clients = clients.filter(c=>
@@ -14941,7 +15003,7 @@ function renderSaisieAdhesions(){
   });
 
   // KPIs
-  const total = clientsDansAgence().filter(c=>session.role==='commercial'?c.commercialId===session.userId:true);
+  const total = clientsDansAgence().filter(c=>session.role===ROLES.COMMERCIAL?c.commercialId===session.userId:true);
   const nbPaye = total.filter(c=>c.adhesionStatut==='paye').length;
   const nbNonPaye = total.filter(c=>(c.adhesionStatut||'non_paye')==='non_paye').length;
   const montantTotal = nbPaye * 200;
@@ -15190,7 +15252,7 @@ window.enregistrerAdhesionMise = async function(){
   document.getElementById('mise-adh-montant').value = '';
   // ✅ Pour les commerciaux : formulaire entièrement vierge après confirmation.
   // Admin garde le client sélectionné (peut enchaîner d'autres opérations sur ce client).
-  if(session.role === 'commercial'){
+  if(session.role ===ROLES.COMMERCIAL){
     renderSaisieMises();
   } else {
     miseAdhRefresh(miseClientCtx);
@@ -16503,7 +16565,7 @@ window.depToggleAutre = function(){
 };
 
 function _depPopulateSelects(){
-  const coms = comsDansAgence().filter(c=>c.role==='commercial').sort((a,b)=>(a.nom||'').localeCompare(b.nom||''));
+  const coms = comsDansAgence().filter(c=>c.role===ROLES.COMMERCIAL).sort((a,b)=>(a.nom||'').localeCompare(b.nom||''));
   const selForm = document.getElementById('dep-commercial');
   const selFiltre = document.getElementById('dep-filtre-commercial');
   if(selForm){
@@ -16613,7 +16675,7 @@ window.depGenererPrimesJour = async function(){
       _fetchColByDate('adhesionPays', date)
     ]);
 
-    let coms = comsDansAgence().filter(c=>c.role==='commercial');
+    let coms = comsDansAgence().filter(c=>c.role===ROLES.COMMERCIAL);
     const comIds = new Set(coms.map(c=>c._id));
 
     const pays = paysDate.filter(p=>p.origine!=='import_historique' && p.source!=='transfert' && comIds.has(p.commercialId));
@@ -16729,7 +16791,7 @@ function renderDepensesCommerciaux(){
     tbody.innerHTML = '<tr><td colspan="7" class="emp">Aucune dépense enregistrée</td></tr>';
     return;
   }
-  const canDelete = session && session.role==='admin';
+  const canDelete = session && session.role===ROLES.ADMIN;
   tbody.innerHTML = depenses.map(d=>`<tr>
     <td class="tm">${d.date||'—'}</td>
     <td><strong>${esc(d.commercialNom||'—')}</strong></td>
@@ -16760,7 +16822,7 @@ function _recuPopulateSelects(){
   // ✅ PERF : ne reconstruire (innerHTML) que si la liste des commerciaux a
   // changé — cette fonction est appelée à CHAQUE frappe dans la recherche
   // via renderHistoriqueRecus() → dRender('renderHistoriqueRecus').
-  const coms = comsDansAgence().filter(c=>c.role==='commercial').sort((a,b)=>(a.nom||'').localeCompare(b.nom||''));
+  const coms = comsDansAgence().filter(c=>c.role===ROLES.COMMERCIAL).sort((a,b)=>(a.nom||'').localeCompare(b.nom||''));
   const comsSig = coms.map(c=>c._id).join(',');
   if (sel.dataset.comsSig === comsSig) return;
   const prev = sel.value;
@@ -16906,7 +16968,6 @@ window.addEventListener('unhandledrejection', function(e){
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('sw.js')
-      .then(reg => console.log('Service Worker enregistré :', reg.scope))
       .catch(err => console.error('Échec enregistrement Service Worker :', err));
   });
 }
