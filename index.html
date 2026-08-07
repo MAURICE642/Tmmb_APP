@@ -1885,6 +1885,10 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         onchange="renderLivraisons()">
         <option value="">Tous les produits</option>
       </select>
+      <!-- Filtre code produit -->
+      <input type="text" id="filter-liv-art-code" placeholder="Code produit..."
+        style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 10px;color:var(--accent);font-weight:700;letter-spacing:0.5px;text-transform:uppercase;outline:none;width:130px;"
+        oninput="dRender('renderLivraisons')">
       <!-- Filtre statut -->
       <select id="filter-liv-statut"
         style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 10px;color:var(--text);font-size:11px;outline:none;"
@@ -1933,6 +1937,12 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         <button class="btn btn-ghost btn-sm" onclick="document.getElementById('h-date').value='';renderHist()" style="font-size:11px;">Tout voir</button>
         <select id="h-filter-com" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 10px;color:var(--text);font-size:11px;outline:none;min-width:130px;" onchange="renderHist()">
           <option value="">Tous les commerciaux</option>
+        </select>
+        <select id="h-sort-heure" title="Trier par heure" onchange="renderHist()"
+          style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 10px;color:var(--text);font-size:11px;outline:none;">
+          <option value="">Trier : Date (défaut)</option>
+          <option value="asc">🕐 Heure ↑ (tôt → tard)</option>
+          <option value="desc">🕐 Heure ↓ (tard → tôt)</option>
         </select>
         <input type="text" id="h-search" placeholder="🔍 Nom, code, contrat..." oninput="dRender('renderHist')"
           style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 12px;color:var(--text);font-size:11px;outline:none;min-width:180px;">
@@ -4494,7 +4504,7 @@ const _PAGE_DEPS = {
   'commerciaux':        ['commerciaux','agences'],
   'agences':            ['agences','commerciaux'],
   'recouvrement':       ['clients','paiements','commerciaux'],
-  'fiche':              ['paiements','livraisons','adhesionPays','mises','versements','clients','commerciaux'],
+  'fiche':              ['paiements','livraisons','adhesionPays','rachatCarnetPays','mises','versements','clients','commerciaux'],
   'saisie-mises':       ['mises','clients','commerciaux','primesPaliers','versements'],
   'saisie-adhesions':   ['adhesionPays','rachatCarnetPays','clients','commerciaux'],
   'com-clients':        ['clients','paiements','commerciaux'],
@@ -10272,6 +10282,7 @@ function renderLivraisons(){
   const filtComId  = selCom?.value || '';
   const filtStatut = document.getElementById('filter-liv-statut')?.value || '';
   const filtArticleId = selArt?.value || '';
+  const filtArtCode = (document.getElementById('filter-liv-art-code')?.value || '').trim().toLowerCase();
 
   // ── Base de livraisons (filtrée par agence de session) ──
   let livs = livraisonsDansAgence();
@@ -10304,6 +10315,10 @@ function renderLivraisons(){
 
   // Filtre article
   if(filtArticleId) livs = livs.filter(l => l.produitId === filtArticleId);
+  if(filtArtCode) livs = livs.filter(l => {
+    const prod = getProdOuArticle(l.produitId);
+    return prod && (prod.ref||'').toLowerCase().includes(filtArtCode);
+  });
 
   // Filtre recherche texte (client)
   if(q){
@@ -10333,6 +10348,7 @@ function renderLivraisons(){
     if(filtComId){ const com = DB.commerciaux.find(c=>c._id===filtComId); if(com) parts.push(`👤 ${esc(com.nom)}`); }
     if(filtStatut){ parts.push(filtStatut==='en_attente'?'⏳ En attente':filtStatut==='livre'?'✅ Livrées':'❌ Annulées'); }
     if(filtArticleId){ const prod = (DB.produits||[]).find(p=>p._id===filtArticleId); if(prod) parts.push(`📦 ${esc(prod.nom)}`); }
+    if(filtArtCode){ parts.push(`🏷️ Code: ${esc(filtArtCode.toUpperCase())}`); }
     if(q) parts.push(`🔍 "${q}"`);
     labelEl.innerHTML = parts.length
       ? `<span style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.2);border-radius:6px;padding:3px 10px;">Filtres actifs : ${parts.join(' · ')}</span>`
@@ -10374,7 +10390,7 @@ window.livOnAgenceChange = function(){
 };
 
 window.livResetFiltres = function(){
-  const ids = ['search-liv-cl','filter-liv-date','filter-liv-agence','filter-liv-com','filter-liv-statut','filter-liv-article'];
+  const ids = ['search-liv-cl','filter-liv-date','filter-liv-agence','filter-liv-com','filter-liv-statut','filter-liv-article','filter-liv-art-code'];
   ids.forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
   renderLivraisons();
 };
@@ -10840,6 +10856,10 @@ async function renderHist(){
   // parcourir la collection entière, ce qui est un problème à part).
 
   const histSearch = (document.getElementById('h-search')?.value || '').toLowerCase().trim();
+  // ✅ Tri par heure (au lieu d'un filtre par plage horaire) — permet de
+  // classer les paiements du jour du plus tôt au plus tard (ou l'inverse)
+  // sans avoir à saisir d'heure précise.
+  const sortHeure = document.getElementById('h-sort-heure')?.value || '';
   let pays = paiementsDansAgence();
   if(fd) pays = pays.filter(p=>p.date===fd);
   if(filtreComId) pays = pays.filter(p=>p.commercialId===filtreComId);
@@ -10850,21 +10870,26 @@ async function renderHist(){
       || (cl.contrat||'').toLowerCase().includes(histSearch)
       || (cl.tel||'').includes(histSearch);
   });
-  pays = [...pays].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  pays = [...pays].sort((a,b)=>{
+    if(sortHeure==='asc') return (a.heure||'').localeCompare(b.heure||'') || (b.date||'').localeCompare(a.date||'');
+    if(sortHeure==='desc') return (b.heure||'').localeCompare(a.heure||'') || (b.date||'').localeCompare(a.date||'');
+    return (b.date||'').localeCompare(a.date||'');
+  });
   const tot = pays.reduce((a,p)=>a+p.montant,0);
   const tp = paiementsDansAgence().filter(p=>p.date===TODAY);
   // Label contextuel
   const labelEl = document.getElementById('h-visu-label');
   if(labelEl){
     const comLabel = filtreComId ? ` · <strong style="color:var(--accent)">${(DB.commerciaux.find(c=>c._id===filtreComId)||{nom:'?'}).nom}</strong>` : '';
+    const heureLabel = sortHeure ? ` · <strong style="color:#64a0f7">🕐 Trié par heure ${sortHeure==='asc'?'↑':'↓'}</strong>` : '';
     const searchLabel = histSearch ? ` · <strong style="color:var(--accent2)">🔍 "${histSearch}"</strong>` : '';
     if(fd){
       const d = new Date(fd+'T12:00:00');
       const ds = d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
       const isToday = fd===TODAY;
-      labelEl.innerHTML = `<span style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.25);border-radius:6px;padding:3px 10px;">&#128197; ${ds}${isToday?' <strong style="color:var(--accent2)"> — Aujourd\'hui</strong>':''}${comLabel}${searchLabel}</span>`;
+      labelEl.innerHTML = `<span style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.25);border-radius:6px;padding:3px 10px;">&#128197; ${ds}${isToday?' <strong style="color:var(--accent2)"> — Aujourd\'hui</strong>':''}${comLabel}${heureLabel}${searchLabel}</span>`;
     } else {
-      labelEl.innerHTML = `<span style="background:rgba(247,201,79,0.1);border:1px solid rgba(201,168,76,0.25);border-radius:6px;padding:3px 10px;color:var(--accent);">&#128203; Tous les paiements — ${pays.length} entr&eacute;e(s)${comLabel}${searchLabel}</span>`;
+      labelEl.innerHTML = `<span style="background:rgba(247,201,79,0.1);border:1px solid rgba(201,168,76,0.25);border-radius:6px;padding:3px 10px;color:var(--accent);">&#128203; Tous les paiements — ${pays.length} entr&eacute;e(s)${comLabel}${heureLabel}${searchLabel}</span>`;
     }
   }
   document.getElementById('h-kpi').innerHTML=`
@@ -11466,7 +11491,10 @@ function renderComs(){
   const pinColHeader = document.getElementById('th-pin-col');
   if(pinColHeader) pinColHeader.style.display = session?.role===ROLES.ADMIN ? '' : 'none';
   document.getElementById('tb-coms').innerHTML=DB.commerciaux.map(c=>{
-    const tot=DB.paiements.filter(p=>p.commercialId===c._id).reduce((a,p)=>a+p.montant,0);
+    const tot=DB.paiements.filter(p=>p.commercialId===c._id).reduce((a,p)=>a+p.montant,0)
+      // ✅ FIX : les rachats de carnet du commercial étaient absents du calcul
+      // de son solde (même bug que dans le Registre, corrigé de la même façon).
+      + (DB.rachatCarnetPays||[]).filter(r=>r.commercialId===c._id).reduce((a,r)=>a+Number(r.montant||0),0);
     const totMises=(DB.mises||[]).filter(m=>m.commercialId===c._id).reduce((a,m)=>a+m.montant,0);
     const solde=tot-totMises;
     const myCls=DB.clients.filter(cl=>cl.commercialId===c._id);
@@ -11820,12 +11848,13 @@ async function renderFiche(){
   const myFicheToken = ++_ficheDateQueryToken;
   const ficheContentEl = document.getElementById('fiche-content');
   if (ficheContentEl) ficheContentEl.innerHTML = '<div class="emp" style="padding:40px">⏳ Chargement des données du jour…</div>';
-  let paysDateFiche, adhDateFiche, clsFiche;
+  let paysDateFiche, adhDateFiche, clsFiche, rachatsDateFiche;
   try {
-    [paysDateFiche, adhDateFiche, clsFiche] = await Promise.all([
+    [paysDateFiche, adhDateFiche, clsFiche, rachatsDateFiche] = await Promise.all([
       _fetchColByDate('paiements', fd),
       _fetchColByDate('adhesionPays', fd),
-      _fetchClientsByCommercial(comId)
+      _fetchClientsByCommercial(comId),
+      _fetchColByDate('rachatCarnetPays', fd)
     ]);
   } catch(e) {
     if (ficheContentEl) ficheContentEl.innerHTML = '<div class="emp" style="padding:40px">Erreur de chargement : '+esc(e.message||String(e))+'</div>';
@@ -11853,10 +11882,16 @@ async function renderFiche(){
   const adhJourFiche = adhDateFiche.filter(a=>a.commercialId===comId)
     .slice().sort((a,b)=>(a.heure||'').localeCompare(b.heure||''));
   const totalAdhesions = adhJourFiche.reduce((a,x)=>a+Number(x.montant||0),0);
-  // Total général = cotisations + adhésions
-  const totalJour = total + totalAdhesions;
-  // Fiche visible si cotisations OU adhésions OU nouveaux clients ce jour
-  const rienDuTout = !clientsPayeurs.length && !adhJourFiche.length && !nouveauxClients.length;
+  // ✅ Rachats de carnet du jour pour ce commercial (même bug corrigé partout
+  // ailleurs : commercialId reste celui du commercial concerné même si la
+  // saisie a été faite par l'admin/chef d'agence en son nom).
+  const rachatsJourFiche = rachatsDateFiche.filter(r=>r.commercialId===comId)
+    .slice().sort((a,b)=>(a.heure||'').localeCompare(b.heure||''));
+  const totalRachatsFiche = rachatsJourFiche.reduce((a,x)=>a+Number(x.montant||0),0);
+  // Total général = cotisations + adhésions + rachats
+  const totalJour = total + totalAdhesions + totalRachatsFiche;
+  // Fiche visible si cotisations OU adhésions OU nouveaux clients OU rachats ce jour
+  const rienDuTout = !clientsPayeurs.length && !adhJourFiche.length && !nouveauxClients.length && !rachatsJourFiche.length;
 
   const headerHTML=`
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;padding-bottom:13px;border-bottom:2px solid var(--border);">
@@ -11896,10 +11931,15 @@ async function renderFiche(){
           <div style="font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:800;color:var(--accent);">${nouveauxClients.length}</div>
           <div style="font-size:10px;color:var(--muted);margin-top:3px;">enregistrés ce jour</div>
         </div>
+        <div style="background:linear-gradient(135deg,rgba(100,160,247,0.12),rgba(100,160,247,0.04));border:1px solid rgba(100,160,247,0.3);border-radius:10px;padding:14px;">
+          <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">📘 Rachats de carnet</div>
+          <div style="font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:800;color:#64a0f7;">${fmt(totalRachatsFiche)}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:3px;">${rachatsJourFiche.length} rachat(s)</div>
+        </div>
         <div style="background:linear-gradient(135deg,rgba(201,168,76,0.09),rgba(79,142,247,0.04));border:1px solid rgba(79,142,247,0.35);border-radius:10px;padding:14px;">
           <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">📊 TOTAL GÉNÉRAL</div>
           <div style="font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:800;color:var(--accent);">${fmt(totalJour)}</div>
-          <div style="font-size:10px;color:var(--muted);margin-top:3px;">Cotis. + Adhés.</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:3px;">Cotis. + Adhés. + Rachats</div>
         </div>
       </div>
 
@@ -11967,6 +12007,35 @@ async function renderFiche(){
             <tr style="background:var(--surface2);">
               <td colspan="3" style="padding:9px 8px;font-weight:800;text-align:right;font-family:'Space Grotesk',sans-serif;">Total adhésions :</td>
               <td style="padding:9px 8px;font-weight:800;font-size:15px;color:var(--accent);">${fmt(totalAdhesions)}</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table></div>
+      </div>`:''}
+
+      <!-- Tableau rachats de carnet du jour -->
+      ${rachatsJourFiche.length>0?`
+      <div style="margin-bottom:16px;">
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">📘 Rachats de carnet du jour</div>
+        <div class="tw" style="border-color:rgba(100,160,247,0.3);"><table>
+          <thead><tr>
+            <th>Code client</th><th>Nom</th><th>Heure</th><th>Montant</th><th>Note</th>
+          </tr></thead>
+          <tbody>${rachatsJourFiche.map(r=>{
+            const c = getCl(r.clientId)||{};
+            return '<tr>'
+              +'<td><span style="font-size:10px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.3);border-radius:4px;padding:0 5px;color:var(--accent);font-weight:700;">'+(c.codeClient||'—')+'</span></td>'
+              +'<td class="fw6">'+(c.nom||'—')+'</td>'
+              +'<td style="color:var(--muted);font-size:11px">'+(r.heure||'—')+badgeCorrection(r)+'</td>'
+              +'<td style="font-weight:800;color:#64a0f7;">'+fmt(r.montant)+'</td>'
+              +'<td style="font-size:10px;color:var(--muted)">'+(r.note||'—')+'</td>'
+              +'</tr>';
+          }).join('')}
+          </tbody>
+          <tfoot>
+            <tr style="background:var(--surface2);">
+              <td colspan="3" style="padding:9px 8px;font-weight:800;text-align:right;font-family:'Space Grotesk',sans-serif;">Total rachats :</td>
+              <td style="padding:9px 8px;font-weight:800;font-size:15px;color:#64a0f7;">${fmt(totalRachatsFiche)}</td>
               <td></td>
             </tr>
           </tfoot>
@@ -15833,6 +15902,9 @@ function renderRapportActivite(){
   // Filtrer les données
   const paiements = (DB.paiements||[]).filter(x=>_inPeriod(x.date||x.createdAt, debut, fin));
   const adhesions = (DB.adhesionPays||[]).filter(x=>_inPeriod(x.date||x.createdAt, debut, fin));
+  // ✅ FIX : rachats de carnet absents des KPI/classements de ce rapport
+  // (même bug que le Registre et la page Commerciaux, corrigé de la même façon).
+  const rachats = (DB.rachatCarnetPays||[]).filter(x=>_inPeriod(x.date||x.createdAt, debut, fin));
   const livraisons = (DB.livraisons||[]).filter(x=>_inPeriod(x.date||x.createdAt, debut, fin));
   const mises = (DB.mises||[]).filter(x=>_inPeriod(x.date||x.createdAt, debut, fin));
   const stockMvts = (DB.stockMvts||[]).filter(x=>_inPeriod(x.date||x.createdAt, debut, fin));
@@ -15844,6 +15916,7 @@ function renderRapportActivite(){
   // ── KPI financiers ──
   const totalPaiements = paiements.reduce((s,x)=>s+(Number(x.montant)||0),0);
   const totalCotisations = adhesions.reduce((s,x)=>s+(Number(x.montant)||0),0);
+  const totalRachats = rachats.reduce((s,x)=>s+(Number(x.montant)||0),0);
 
   // CA par agence
   const caParAgence = {};
@@ -15852,6 +15925,10 @@ function renderRapportActivite(){
     const cl = (DB.clients||[]).find(c=>c._id===p.clientId);
     if(cl){ const ag=cl.agenceId||'inconnue'; if(!caParAgence[ag]) caParAgence[ag]={nom:ag,total:0}; caParAgence[ag].total+=(Number(p.montant)||0); }
   });
+  rachats.forEach(r=>{
+    const cl = (DB.clients||[]).find(c=>c._id===r.clientId);
+    if(cl){ const ag=cl.agenceId||'inconnue'; if(!caParAgence[ag]) caParAgence[ag]={nom:ag,total:0}; caParAgence[ag].total+=(Number(r.montant)||0); }
+  });
 
   // Primes atteintes — chercher commerciaux ayant atteint un palier sur la période
   const primesAtteintes = [];
@@ -15859,7 +15936,8 @@ function renderRapportActivite(){
     const totalCom = paiements.filter(p=>{
       const cl=(DB.clients||[]).find(c=>c._id===p.clientId);
       return cl && cl.commercialId===com._id;
-    }).reduce((s,x)=>s+(Number(x.montant)||0),0);
+    }).reduce((s,x)=>s+(Number(x.montant)||0),0)
+      + rachats.filter(r=>r.commercialId===com._id).reduce((s,x)=>s+(Number(x.montant)||0),0);
     const palier = [...primes].sort((a,b)=>b.seuil-a.seuil).find(pr=>totalCom>=(Number(pr.seuil)||0));
     if(palier) primesAtteintes.push({com:com.nom, palier:palier.nom||`Palier ${palier.seuil}`, montant:palier.prime||0, ca:totalCom});
   });
@@ -15867,8 +15945,9 @@ function renderRapportActivite(){
   // Performance par commercial
   const perfCom = coms.map(com=>{
     const paysCom = paiements.filter(p=>{ const cl=(DB.clients||[]).find(c=>c._id===p.clientId); return cl&&cl.commercialId===com._id; });
+    const rachatsCom = rachats.filter(r=>r.commercialId===com._id);
     const clientsCom = clients.filter(c=>c.commercialId===com._id);
-    return { nom:com.nom, ca:paysCom.reduce((s,x)=>s+(Number(x.montant)||0),0), nbClients:clientsCom.length, nbPay:paysCom.length };
+    return { nom:com.nom, ca:paysCom.reduce((s,x)=>s+(Number(x.montant)||0),0)+rachatsCom.reduce((s,x)=>s+(Number(x.montant)||0),0), nbClients:clientsCom.length, nbPay:paysCom.length };
   }).sort((a,b)=>b.ca-a.ca);
 
   const maxCa = perfCom.length ? perfCom[0].ca : 1;
@@ -15919,6 +15998,11 @@ function renderRapportActivite(){
         <div class="rk-label">Cotisations collectées</div>
         <div class="rk-val">${_fmtMoney(totalCotisations)}</div>
         <div class="rk-sub">${adhesions.length} adhésion(s)</div>
+      </div>
+      <div class="rapport-kpi" style="border-color:rgba(100,160,247,0.35);">
+        <div class="rk-label">Rachats de carnet</div>
+        <div class="rk-val">${_fmtMoney(totalRachats)}</div>
+        <div class="rk-sub">${rachats.length} rachat(s)</div>
       </div>
       <div class="rapport-kpi">
         <div class="rk-label">Nouveaux clients</div>
