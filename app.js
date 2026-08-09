@@ -3383,16 +3383,33 @@ async function _chatEnsureConversation(convId, otherUid){
   }, {merge:true});
 }
 
-// ── Liste de MES conversations (tous rôles) ──
+// ── Liste de MES conversations (commercial/staff) OU de TOUTES les
+// conversations (admin — supervision complète de la messagerie) ──
 function _chatSubscribeConvList(){
+  const isAdminView = session.role === ROLES.ADMIN;
   const colRef = collection(db_fs,'chatConversations');
-  const q = query(colRef, where('participants','array-contains',session.userId));
+  // ✅ Admin : aucun filtre "participants" → voit toutes les conversations
+  // entre tous les utilisateurs, pas seulement les siennes.
+  const q = isAdminView ? colRef : query(colRef, where('participants','array-contains',session.userId));
   const unsub = onSnapshot(q, snap => {
     let totalUnread = 0;
     snap.forEach(d => {
       const data = {...d.data(), _id:d.id};
       _chatConversations.set(d.id, data);
-      totalUnread += (data.unread?.[session.userId] || 0);
+      if(isAdminView){
+        // ✅ L'admin n'étant pas participant, il n'a pas de compteur
+        // unread[uid] alimenté par les autres utilisateurs. On se base donc
+        // sur un horodatage "vu par l'admin" (adminSeenAt), comparé à la
+        // date du dernier message — 1 conversation avec activité non vue
+        // par l'admin = +1 sur le badge.
+        const dernierMsg = data.updatedAt || 0;
+        const vuLe = data.adminSeenAt?.[session.userId] || 0;
+        if(data.lastAuthorId && data.lastAuthorId !== session.userId && dernierMsg > vuLe){
+          totalUnread++;
+        }
+      } else {
+        totalUnread += (data.unread?.[session.userId] || 0);
+      }
     });
     // Suppression des conversations disparues côté serveur (rare)
     const liveIds = new Set(); snap.forEach(d=>liveIds.add(d.id));
@@ -3401,15 +3418,22 @@ function _chatSubscribeConvList(){
     if(_chatConvListReady){
       // Notifie pour toute nouvelle conversation ou réponse reçue d'un AUTRE utilisateur,
       // sauf si c'est le message qu'on vient d'envoyer soi-même ou la conv déjà ouverte.
+      // Pour l'admin : notifie pour TOUTE conversation entre TOUS les
+      // utilisateurs (pas seulement celles où il participe).
       snap.docChanges().forEach(ch=>{
         if(ch.type==='modified' || ch.type==='added'){
           const d = {...ch.doc.data(), _id:ch.doc.id};
           if(d.lastAuthorId && d.lastAuthorId !== session.userId && d._id !== _chatConvId){
             const nomExp = d.names?.[d.lastAuthorId] || 'un utilisateur';
+            // Pour l'admin, préciser aussi le destinataire (conversation entre 2 tiers)
+            const autreNom = isAdminView
+              ? (d.participants||[]).map(p=>d.names?.[p]).find(n=>n && n!==nomExp)
+              : null;
+            const libelle = autreNom ? `${nomExp} → ${autreNom}` : nomExp;
             playChatNotifSound();
-            notify(`💬 Nouveau message de ${nomExp}`);
+            notify(`💬 Nouveau message de ${libelle}`);
             if(document.hidden || !document.hasFocus()){
-              chatNotifNavigateur(`💬 ${nomExp}`, d.lastMsg||'Nouveau message');
+              chatNotifNavigateur(`💬 ${libelle}`, d.lastMsg||'Nouveau message');
             }
           }
         }
@@ -3639,12 +3663,23 @@ window.chatStartConvWith = async function(userId){
 window.chatSelectConv = function(convId){
   _chatConvId = convId;
   const conv = _chatConversations.get(convId) || {};
-  const otherUid = _chatOtherUid(convId);
-  const otherNom = conv.names?.[otherUid] || 'Utilisateur';
-  const otherRole = conv.roles?.[otherUid];
-  document.getElementById('chat-hdr-title').textContent = '💬 ' + otherNom;
-  document.getElementById('chat-hdr-sub').textContent = CHAT_ROLE_LABELS[otherRole] || otherRole || '';
+  const isAdminObserving = session.role===ROLES.ADMIN && !(conv.participants||[]).includes(session.userId);
+  if(isAdminObserving){
+    // ✅ Admin en supervision : ni l'un ni l'autre des 2 participants,
+    // donc afficher les 2 noms plutôt qu'un "autre" incorrect.
+    const noms = (conv.participants||[]).map(p=>conv.names?.[p]||'—');
+    document.getElementById('chat-hdr-title').textContent = '💬 ' + noms.join(' ↔ ');
+    document.getElementById('chat-hdr-sub').textContent = 'Supervision — conversation entre 2 utilisateurs';
+  } else {
+    const otherUid = _chatOtherUid(convId);
+    const otherNom = conv.names?.[otherUid] || 'Utilisateur';
+    const otherRole = conv.roles?.[otherUid];
+    document.getElementById('chat-hdr-title').textContent = '💬 ' + otherNom;
+    document.getElementById('chat-hdr-sub').textContent = CHAT_ROLE_LABELS[otherRole] || otherRole || '';
+  }
   _chatShowView('thread');
+  const inputBar = document.querySelector('.chat-input-bar');
+  if(inputBar) inputBar.style.display = isAdminObserving ? 'none' : '';
   _chatSubscribeMessages(convId);
   _chatSubscribeTyping(convId);
   _chatMarkRead();
@@ -3653,7 +3688,14 @@ window.chatSelectConv = function(convId){
 async function _chatMarkRead(){
   if(!_chatConvId) return;
   try{
-    await setDoc(doc(db_fs,'chatConversations',_chatConvId), {unread:{[session.userId]:0}}, {merge:true});
+    if(session.role === ROLES.ADMIN){
+      // ✅ L'admin n'est pas participant : on trace la date de dernière
+      // consultation par l'admin séparément (adminSeenAt), pour calculer
+      // le badge/notifications de supervision (voir _chatSubscribeConvList).
+      await setDoc(doc(db_fs,'chatConversations',_chatConvId), {adminSeenAt:{[session.userId]:Date.now()}}, {merge:true});
+    } else {
+      await setDoc(doc(db_fs,'chatConversations',_chatConvId), {unread:{[session.userId]:0}}, {merge:true});
+    }
   }catch(e){ console.error('[chat] marquage lu', e); }
 }
 
@@ -3661,21 +3703,34 @@ async function _chatMarkRead(){
 function renderChatConvList(){
   const el = document.getElementById('chat-conv-list');
   if(!el) return;
+  const isAdminView = session.role === ROLES.ADMIN;
   const convs = [..._chatConversations.values()].sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
   if(!convs.length){
     el.innerHTML = '<div class="chat-conv-empty">Aucune conversation pour le moment — cliquez sur ✎ pour écrire à quelqu\'un</div>';
     return;
   }
   el.innerHTML = convs.map(c=>{
-    const otherUid = c.participants?.find(p=>p!==session.userId) || _chatOtherUid(c._id);
-    const nom = c.names?.[otherUid] || '—';
-    const role = c.roles?.[otherUid] || '';
-    const unread = c.unread?.[session.userId] || 0;
+    let nom, role, unread;
+    if(isAdminView && !(c.participants||[]).includes(session.userId)){
+      // ✅ Vue supervision admin : afficher les 2 interlocuteurs (l'admin
+      // n'est ni l'un ni l'autre), et calculer le badge via adminSeenAt.
+      const noms = (c.participants||[]).map(p=>c.names?.[p]||'—');
+      nom = noms.join(' ↔ ');
+      role = '';
+      const dernierMsg = c.updatedAt || 0;
+      const vuLe = c.adminSeenAt?.[session.userId] || 0;
+      unread = (c.lastAuthorId && c.lastAuthorId!==session.userId && dernierMsg>vuLe) ? 1 : 0;
+    } else {
+      const otherUid = c.participants?.find(p=>p!==session.userId) || _chatOtherUid(c._id);
+      nom = c.names?.[otherUid] || '—';
+      role = c.roles?.[otherUid] || '';
+      unread = c.unread?.[session.userId] || 0;
+    }
     return `
     <div class="chat-conv-item" onclick="chatSelectConv('${c._id}')">
       <div class="chat-conv-avatar">${esc(_chatInitiales(nom))}</div>
       <div class="chat-conv-info">
-        <div class="chat-conv-name">${esc(nom)} <span style="color:var(--muted);font-weight:400;">· ${esc(CHAT_ROLE_LABELS[role]||role)}</span></div>
+        <div class="chat-conv-name">${esc(nom)}${role?` <span style="color:var(--muted);font-weight:400;">· ${esc(CHAT_ROLE_LABELS[role]||role)}</span>`:''}</div>
         <div class="chat-conv-last">${esc(c.lastMsg||'—')}</div>
       </div>
       ${unread?`<div class="chat-conv-badge">${unread>99?'99+':unread}</div>`:''}
