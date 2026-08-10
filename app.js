@@ -3492,12 +3492,28 @@ function playChatNotifSound(){
 }
 // Débloque l'audio dès la première interaction de l'utilisateur avec la page
 // (obligatoire dans les navigateurs modernes avant de pouvoir jouer un son)
-['click','keydown','touchstart'].forEach(evt=>{
-  document.addEventListener(evt, ()=>{
+// ✅ FIX : ne pas s'arrêter au tout premier tap ({once:true}) — si ce
+// premier tap arrive avant la connexion (session encore null, ex: tap sur
+// le champ de connexion), la demande de permission de notification était
+// perdue pour toujours (le listener était déjà consommé). On continue
+// maintenant d'écouter les interactions tant que la permission n'a pas été
+// explicitement accordée/refusée par le navigateur.
+function _armerDemandeNotifSurGeste(){
+  const onGeste = ()=>{
     if(!_chatAudioCtx){ try{ _chatAudioCtx = new (window.AudioContext||window.webkitAudioContext)(); }catch(_){} }
     if(session) chatDemanderPermissionNotif();
-  }, {once:true, passive:true});
-});
+    // Une fois la permission réellement tranchée (accordée ou refusée) par
+    // le navigateur, plus besoin d'écouter — sinon on continue d'essayer
+    // au prochain geste (utile si le 1er tap a eu lieu avant la connexion).
+    if(!('Notification' in window) || Notification.permission !== 'default'){
+      ['click','keydown','touchstart'].forEach(evt=>document.removeEventListener(evt, onGeste));
+    }
+  };
+  ['click','keydown','touchstart'].forEach(evt=>{
+    document.addEventListener(evt, onGeste, {passive:true});
+  });
+}
+_armerDemandeNotifSurGeste();
 
 // ── Messages d'une conversation ──
 function _chatSubscribeMessages(convId){
