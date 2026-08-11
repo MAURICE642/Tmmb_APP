@@ -5,13 +5,13 @@
 // mises en cache), repli sur le cache si hors-ligne.
 // ============================================================
 
-// ✅ v2 : version incrémentée suite au découpage de l'app en 3 fichiers
-// (index.html / styles.css / app.js au lieu d'un seul index.html
-// monolithique). Indispensable : sans ce changement de nom, les
-// utilisateurs ayant déjà visité l'app garderaient l'ancien index.html
-// en cache (stratégie "cache d'abord") et ne verraient pas la mise à
-// jour avant plusieurs visites.
-const CACHE_NAME = 'mmb-service-v2'; // ⚠️ incrémentez (v3, v4, ...) à chaque déploiement pour forcer la mise à jour
+// ✅ v3 : version incrémentée suite aux optimisations de performance
+// (app.js/styles.css minifiés, Chart.js chargé à la demande au lieu
+// d'être précaché en dur, preconnect ajoutés dans index.html). Le
+// contenu de app.js/styles.css a changé même si leur nom de fichier
+// reste identique — sans ce changement de version, les utilisateurs
+// garderaient l'ancien contenu en cache (stratégie "cache d'abord").
+const CACHE_NAME = 'mmb-service-v3'; // ⚠️ incrémentez (v4, v5, ...) à chaque déploiement pour forcer la mise à jour
 
 const ASSETS_TO_CACHE = [
   './',
