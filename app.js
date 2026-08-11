@@ -294,6 +294,15 @@ function _cacheWrite(col, data) {
     localStorage.setItem(_SS_PREFIX + col, JSON.stringify({ t: Date.now(), d: data }));
   } catch(e) {}
 }
+// ✅ FIX RECHARGEMENT INUTILE : le cache ne périme plus avec le temps (TTL
+// supprimé). Une fois chargées, les grosses collections restent en cache
+// localStorage indéfiniment d'une connexion à l'autre — c'est le listener
+// onSnapshot (voir setupPageListeners) qui garde les données à jour en
+// tâche de fond ET réécrit le cache à chaque changement réel reçu (voir
+// _cacheWrite appelé dans le handler onSnapshot). Le cache n'est donc plus
+// invalidé par le temps qui passe, seulement par : (a) une mise à jour
+// effective de la donnée, ou (b) une déconnexion (_cacheClear dans
+// doLogout), ou (c) le bouton "recharger" existant.
 function _cacheRead(col) {
   try {
     const raw = localStorage.getItem(_SS_PREFIX + col);
@@ -301,10 +310,6 @@ function _cacheRead(col) {
     const parsed = JSON.parse(raw);
     // Compat anciens caches sessionStorage (format brut sans { t, d })
     if (!parsed || typeof parsed !== 'object' || !('t' in parsed)) return null;
-    if (Date.now() - parsed.t > _CACHE_TTL_MS) {
-      localStorage.removeItem(_SS_PREFIX + col); // expiré : on nettoie et on relit
-      return null;
-    }
     return parsed.d;
   } catch(e) { return null; }
 }
@@ -317,20 +322,6 @@ function _cacheClear() {
       .forEach(k => sessionStorage.removeItem(k));
   } catch(e) {}
 }
-// ✅ FIX COÛT : vérifie si le cache d'une collection est encore valide (TTL
-// non expiré) SANS le consommer ni le supprimer — sert à décider si on doit
-// forcer une relecture Firestore (collections _NO_REALTIME_COLS) ou si on
-// peut réutiliser ce qui est déjà en mémoire/cache.
-function _isCacheFresh(col) {
-  try {
-    const raw = localStorage.getItem(_SS_PREFIX + col);
-    if (!raw) return false;
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object' || !('t' in parsed)) return false;
-    return (Date.now() - parsed.t) <= _CACHE_TTL_MS;
-  } catch(e) { return false; }
-}
-
 async function _loadCol(col) {
   if (!db_fs) return;
   const role = session ? session.role : null;
@@ -395,7 +386,13 @@ async function _loadCol(col) {
       q = query(colRef, limit(_PAGE_SIZE));
     }
     const cached = _cacheRead(_commercialCacheKey);
-    if (cached) { DB[col] = cached; _loadedCols.add(col); return; }
+    // ✅ FIX SYNCHRO CACHE : sans ce _trackMaxTs, _maxTsLoaded[col] restait
+    // vide après une restauration depuis le cache (au lieu d'un getDocs()) —
+    // le listener onSnapshot (_queryForCol) ne pouvait alors pas distinguer
+    // "collection chargée en entier via cache" de "jamais chargée", et
+    // retombait sur une relecture de _LISTENER_WINDOW documents à chaque
+    // fois au lieu d'un vrai delta (uniquement ce qui a changé).
+    if (cached) { DB[col] = cached; _loadedCols.add(col); _trackMaxTs(col, cached); return; }
     const snap = await getDocs(q);
     DB[col] = snap.docs.map(d => ({...d.data(), _id: d.id}));
     _cacheWrite(_commercialCacheKey, DB[col]);
@@ -411,7 +408,10 @@ async function _loadCol(col) {
     // "recharger" qui fait localStorage.removeItem(_SS_PREFIX+col)).
     if (!_pageCursors[col] && (!DB[col] || !DB[col].length)) {
       const cached = _cacheRead(col);
-      if (cached) { DB[col] = cached; _loadedCols.add(col); return; }
+      // ✅ FIX SYNCHRO CACHE : idem chemin commercial ci-dessus — sans ce
+      // _trackMaxTs, le listener temps réel ne connaît pas le point de
+      // reprise et relit une fenêtre entière au lieu du delta réel.
+      if (cached) { DB[col] = cached; _loadedCols.add(col); _trackMaxTs(col, cached); return; }
     }
     // Chargement paginé (500 à la fois) — les données précédentes sont conservées
     if (!DB[col]) DB[col] = [];
@@ -895,29 +895,15 @@ async function setupPageListeners(pageId) {
 
   if (!cols.length) { if (session && curPg === pageId) renderPg(pageId); return; }
 
-  // Collections sans listener temps réel : comme rien ne les tient à jour en
-  // arrière-plan, on les considère périmées après _CACHE_TTL_MS et on force
-  // alors une relecture fraîche à la prochaine ouverture de page qui en a
-  // besoin.
-  // ✅ FIX COÛT (v2) : avant, on invalidait INCONDITIONNELLEMENT à chaque
-  // ouverture de page, y compris en cliquant plusieurs fois entre deux pages
-  // en quelques secondes — ce qui payait une lecture Firestore complète à
-  // chaque clic. Désormais on ne force la relecture QUE si le cache a
-  // réellement dépassé son TTL (_isCacheFresh), sinon on réutilise ce qui
-  // est déjà en mémoire/cache sans aucune lecture supplémentaire.
-  cols.forEach(col => {
-    const isNoRealtimeForThisRole = _NO_REALTIME_COLS.has(col)
-      || (_NO_REALTIME_FOR_STAFF.has(col) && session && session.role !== 'commercial');
-    if (!isNoRealtimeForThisRole) return;
-    // La clé de cache diffère selon le rôle : voir _loadCol (commercial
-    // utilise une clé 'col:uid' pour isoler ses propres données en cache).
-    const cacheKey = (session && session.role ===ROLES.COMMERCIAL) ? (col + ':' + session.userId) : col;
-    if (!_isCacheFresh(cacheKey)) {
-      _loadedCols.delete(col);
-      delete _pageCursors[col];
-      DB[col] = [];
-    }
-  });
+  // ✅ FIX RECHARGEMENT INUTILE : le rechargement forcé basé sur un TTL a été
+  // retiré (voir _cacheRead). Pour les collections sans listener temps réel
+  // (_NO_REALTIME_COLS, ou _NO_REALTIME_FOR_STAFF pour le staff), le cache
+  // localStorage est maintenant réutilisé indéfiniment tant qu'aucune mise à
+  // jour n'est détectée. Ces collections n'ayant justement pas de listener
+  // pour se tenir à jour toutes seules, leur fraîcheur repose sur : (a) leur
+  // propre réécriture explicite après une action d'écriture réussie côté
+  // app (ex: _cacheWrite appelé après un ajout/modif), ou (b) le bouton
+  // "recharger" existant, ou (c) une déconnexion (_cacheClear).
 
   // Collections qui ont besoin d'un getDocs() préalable (pagination admin/
   // secrétaire, ou 'livraisons' côté commercial) — les autres (légères, ou
@@ -954,6 +940,31 @@ async function setupPageListeners(pageId) {
       });
       setSyncStatus(true);
       _loadedCols.add(col); // les données de cette collection sont maintenant fiables en mémoire
+
+      // ✅ FIX PERSISTANCE CACHE : sans ceci, un changement reçu en direct
+      // (fait par un AUTRE utilisateur/appareil) restait uniquement en
+      // mémoire — le cache localStorage sur disque n'était mis à jour que
+      // par les écritures LOCALES (_syncLocalAfterWrite). À la prochaine
+      // connexion, le cache aurait donc pu être relu sans ces changements.
+      // On ne réécrit QUE si DB[col] représente bien l'intégralité de la
+      // collection à cet instant, sinon le cache serait corrompu par une
+      // vue partielle :
+      //  - _listenerCoversFullLoad(col) : listener seul = source complète
+      //    (collections légères, ou rôle commercial hors 'livraisons').
+      //  - Sinon (grosses collections paginées admin/staff) : sûr UNIQUEMENT
+      //    une fois la pagination entièrement terminée (_loadedCols.has(col)
+      //    && plus de curseur en attente) — les deltas du listener viennent
+      //    alors garder ce jeu complet à jour sans jamais le tronquer.
+      //    Exclu explicitement : rôle commercial sur 'livraisons', dont le
+      //    listener ne couvre que les 30 premiers clients (vue volontairement
+      //    partielle, voir _queryForCol) — ne jamais l'écrire en cache.
+      const isCommercialLivraisonsPartialView = session && session.role === ROLES.COMMERCIAL && col === 'livraisons';
+      const safeToWriteCache = !isCommercialLivraisonsPartialView
+        && (_listenerCoversFullLoad(col) || (_loadedCols.has(col) && !_pageCursors[col]));
+      if (safeToWriteCache) {
+        const cacheKey = (session && session.role ===ROLES.COMMERCIAL) ? (col + ':' + session.userId) : col;
+        _cacheWrite(cacheKey, DB[col]);
+      }
 
       if (_firstSnap) {
         _firstSnap = false;
