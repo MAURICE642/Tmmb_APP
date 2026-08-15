@@ -732,6 +732,27 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     <div class="tw"><table><thead><tr><th>Client</th><th>Téléphone</th><th class="no-print">Commercial</th><th>Contrat</th><th>Cotisation</th><th>Dernière MàJ</th><th>Niveau</th><th id="ctrl-th-info">Statut</th><th class="no-print">Actions</th></tr></thead><tbody id="tb-controle"></tbody></table></div>
   </div>
 
+  <!-- ADMIN/CONTRÔLEUR: CONTRÔLE AVANT DÉPART -->
+  <div id="page-controle-depart" class="page">
+    <div class="sec-hdr">
+      <div class="sec-title">🚪 Contrôle avant départ</div>
+    </div>
+    <div style="margin-bottom:14px;font-size:12.5px;color:var(--muted);max-width:760px;">
+      Sélectionnez un commercial pour obtenir la liste <strong>complète</strong> des clients avec lesquels il a réellement travaillé
+      (au moins un paiement enregistré à son nom) — y compris ceux déjà réaffectés à un autre commercial entre-temps.
+      Utile avant un départ ou une mutation, pour exiger un contrôle intégral du portefeuille et éviter qu'un remplaçant
+      ne découvre des clients qu'il ne connaît pas.
+    </div>
+    <div style="margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+      <select id="cd-com-select" onchange="renderControleDepart()"
+        style="min-width:260px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 14px;color:var(--text);font-size:13px;outline:none;">
+        <option value="">— Sélectionner un commercial —</option>
+      </select>
+    </div>
+    <div id="cd-summary" class="kpi-row kpi-4" style="display:none;margin-bottom:16px;"></div>
+    <div id="cd-result"><div class="emp" style="padding:40px;">Sélectionnez un commercial pour générer la liste complète des clients avec lesquels il a réellement travaillé.</div></div>
+  </div>
+
   <!-- ADMIN: ARTICLES -->
   <div id="page-articles" class="page">
     <div class="sec-hdr">
