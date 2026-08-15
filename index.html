@@ -483,6 +483,13 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     <button id="hamburger-btn" onclick="toggleSidebar()" aria-label="Menu">☰</button>
     <div class="page-title" id="pg-title">—</div>
     <div class="topbar-right">
+      <!-- Badge synchro mobile : duplique sync-status/offline-badge du sidebar, masqué en desktop -->
+      <span id="sync-status-mobile" class="sync-status-mobile">
+        <span class="sync-dot"></span><span id="sync-status-mobile-txt">Synchronisé</span>
+      </span>
+      <span id="offline-badge-mobile" class="offline-badge-mobile">
+        <span class="offline-badge-dot"></span><span id="offline-badge-mobile-count">0 en attente</span>
+      </span>
       <span class="today-pill" id="today-pill"></span>
       <button class="btn btn-ghost no-print" id="btn-refresh" onclick="actualiserSysteme()" title="Actualiser les données"
         style="padding:8px 14px;font-size:20px;line-height:1;" title="Actualiser">↻</button>
