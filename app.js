@@ -11677,8 +11677,7 @@ function afficherRecu(data, opts){
     .ticket{padding-bottom:90px;}
   }
   @media print{
-    @page{margin:2mm;size:auto;}
-    html{font-size:14px !important;}
+    @page{margin:4mm;size:auto;}
     html,body{
       width:100% !important;
       height:auto !important;
@@ -11694,35 +11693,30 @@ function afficherRecu(data, opts){
       box-shadow:none !important;
       border-radius:0 !important;
       page-break-inside:avoid !important;
-      break-inside:avoid !important;
       border:none !important;
     }
     .hdr{
-      background:#fff !important;
-      color:#0c0e12 !important;
+      background:#0c0e12 !important;
       -webkit-print-color-adjust:exact !important;
       print-color-adjust:exact !important;
       border-radius:0 !important;
-      border-bottom:2px solid #0c0e12 !important;
-      padding:6px 10px 5px !important;
+      padding:12px 14px !important;
     }
-    .hdr-name{font-size:12px !important;color:#0c0e12 !important;}
-    .hdr-type{font-size:8.5px !important;margin-top:3px !important;color:#333 !important;}
-    .body{padding:6px 10px 4px !important;}
-    .sep{margin:4px 0 !important;}
-    .row{font-size:9.5px !important;padding:1.5px 0 !important;gap:8px !important;}
+    .hdr-name{font-size:14px !important;}
+    .hdr-type{font-size:10px !important;}
+    .body{padding:10px 14px 8px !important;}
+    .sep{margin:8px 0 !important;}
+    .row{font-size:11px !important;padding:3px 0 !important;}
     .lbl{color:#555 !important;}
-    .val{max-width:160px !important;font-size:9.5px !important;}
-    .amt{padding:6px 0 4px !important;}
-    .amt-val{font-size:17px !important;}
-    .amt-sub{font-size:8.5px !important;margin-top:3px !important;}
+    .val{max-width:180px !important;font-size:11px !important;}
+    .amt-val{font-size:22px !important;}
+    .amt-sub{font-size:10px !important;}
     .ftr{
       background:#f5f5f8 !important;
       -webkit-print-color-adjust:exact !important;
       print-color-adjust:exact !important;
-      padding:5px 10px !important;
-      font-size:8.5px !important;
-      line-height:1.4 !important;
+      padding:8px 14px !important;
+      font-size:10px !important;
       border-radius:0 !important;
     }
     .actions{display:none !important;}
