@@ -738,10 +738,10 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
       <div class="sec-title">🚪 Contrôle avant départ</div>
     </div>
     <div style="margin-bottom:14px;font-size:12.5px;color:var(--muted);max-width:760px;">
-      Sélectionnez un commercial pour obtenir la liste <strong>complète</strong> des clients avec lesquels il a réellement travaillé
-      (au moins un paiement enregistré à son nom) — y compris ceux déjà réaffectés à un autre commercial entre-temps.
-      Utile avant un départ ou une mutation, pour exiger un contrôle intégral du portefeuille et éviter qu'un remplaçant
-      ne découvre des clients qu'il ne connaît pas.
+      Sélectionnez un commercial pour obtenir la liste des clients ayant payé <strong>au moins une fois avec lui depuis sa prise
+      de poste</strong> (date de sa dernière affectation à ces clients — mutation, transfert). Pratique quand un commercial a été
+      muté sur un marché et remplacé par un autre : ça permet de vérifier que le nouveau encaisse bien auprès des clients qui
+      lui ont été confiés, sans compter d'anciens paiements hérités d'avant sa prise de poste.
     </div>
     <div style="margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
       <select id="cd-com-select" onchange="renderControleDepart()"
