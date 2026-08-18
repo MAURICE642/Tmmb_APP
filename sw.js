@@ -1,84 +1,114 @@
-// ============================================================
-// Service Worker — Triomphant MMB Service
-// Stratégie : cache du shell applicatif (HTML/CSS/JS/icônes),
-// réseau prioritaire pour les requêtes Firebase / API (jamais
-// mises en cache), repli sur le cache si hors-ligne.
-// ============================================================
+// ═══════════════════════════════════════════════════════════════
+// SERVICE WORKER — TRIOMPHANT MMB SERVICE
+// Objectif : que l'app se charge INSTANTANÉMENT (shell HTML/CSS/JS/assets)
+// même en 2G/connexion instable/coupure, pendant que les données métier
+// (Firestore, via app.js) se synchronisent séparément en arrière-plan.
+//
+// ⚠️ CE SERVICE WORKER NE TOUCHE JAMAIS AUX DONNÉES MÉTIER :
+// - Il n'intercepte QUE les requêtes same-origin (notre propre domaine).
+// - Toutes les requêtes vers Firebase/Firestore/Auth/Storage (domaines
+//   googleapis.com, firebaseio.com, cloudfunctions.net, gstatic.com) sont
+//   cross-origin et donc jamais interceptées ici — elles passent normalement
+//   et restent gérées par la persistance IndexedDB de Firestore elle-même.
+// - Il ne fait AUCUN cache d'API, aucune donnée utilisateur : uniquement
+//   les fichiers statiques qui composent l'interface.
+// ═══════════════════════════════════════════════════════════════
 
-// ✅ v3 : version incrémentée suite aux optimisations de performance
-// (app.js/styles.css minifiés, Chart.js chargé à la demande au lieu
-// d'être précaché en dur, preconnect ajoutés dans index.html). Le
-// contenu de app.js/styles.css a changé même si leur nom de fichier
-// reste identique — sans ce changement de version, les utilisateurs
-// garderaient l'ancien contenu en cache (stratégie "cache d'abord").
-const CACHE_NAME = 'mmb-service-v3'; // ⚠️ incrémentez (v4, v5, ...) à chaque déploiement pour forcer la mise à jour
+// ⚠️ Incrémenter ce numéro à chaque déploiement pour forcer la mise à jour
+// du shell chez les utilisateurs (sinon ils resteraient bloqués sur une
+// version en cache). Ex : 'mmb-shell-v2', 'mmb-shell-v3', ...
+const CACHE_NAME = 'mmb-shell-v1';
 
-const ASSETS_TO_CACHE = [
+// Fichiers du shell applicatif à mettre en cache dès l'installation.
+// Volontairement minimal et 100% same-origin (pas de CDN externe ici —
+// Chart.js/polices restent gérés par le cache HTTP normal du navigateur,
+// car les mettre en cache ici avec leur intégrité SRI est plus fragile).
+const PRECACHE_URLS = [
   './',
   './index.html',
-  './styles.css',
-  './app.js',
+  './app.min.js',
+  './styles.min.css',
   './manifest.json',
-  './icons/icon-72x72.png',
-  './icons/icon-96x96.png',
-  './icons/icon-128x128.png',
-  './icons/icon-144x144.png',
-  './icons/icon-152x152.png',
-  './icons/icon-192x192.png',
-  './icons/icon-384x384.png',
-  './icons/icon-512x512.png'
+  './logo.jpg',
+  './icons/icon-192x192.png'
 ];
 
-// ── Installation : mise en cache du shell ─────────────────────
+// ── INSTALL : précharge le shell ──
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(ASSETS_TO_CACHE))
-      .then(() => self.skipWaiting())
+      .then((cache) => cache.addAll(PRECACHE_URLS))
+      .catch((err) => {
+        // Un seul fichier manquant (ex: icône renommée) ne doit pas empêcher
+        // l'installation du Service Worker — on log et on continue.
+        console.warn('[SW] Précache partiel (fichier(s) manquant(s) ignoré(s)) :', err);
+      })
   );
+  self.skipWaiting(); // active la nouvelle version dès qu'elle est prête, sans attendre la fermeture des onglets
 });
 
-// ── Activation : suppression des anciens caches ───────────────
+// ── ACTIVATE : nettoie les anciens caches (versions précédentes) ──
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(
-        keys.filter((key) => key !== CACHE_NAME)
-            .map((key) => caches.delete(key))
+        keys
+          .filter((key) => key !== CACHE_NAME)
+          .map((key) => caches.delete(key))
       )
-    ).then(() => self.clients.claim())
+    )
   );
+  self.clients.claim(); // prend le contrôle immédiatement, sans attendre un rechargement
 });
 
-// ── Fetch : ne jamais intercepter Firebase / domaines externes ─
+// ── FETCH : stratégie stale-while-revalidate pour le shell same-origin ──
 self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url);
+  const req = event.request;
 
-  // Laisser passer directement (réseau) tout ce qui n'est pas
-  // une requête GET same-origin : API Firebase, Firestore,
-  // appels POST/PUT, CDN externes utilisés par l'app, etc.
-  const isExternal = url.origin !== self.location.origin;
-  const isGet = event.request.method === 'GET';
+  // On n'intercepte que le GET (jamais les écritures/POST/PUT — de toute
+  // façon Firestore n'utilise pas de simples GET/POST classiques ici).
+  if (req.method !== 'GET') return;
 
-  if (isExternal || !isGet) {
-    return; // pas de event.respondWith() => comportement réseau normal
-  }
+  const url = new URL(req.url);
 
-  // Pour les fichiers du shell applicatif : cache d'abord,
-  // puis réseau en repli, et mise à jour silencieuse du cache.
+  // ⚠️ GARDE-FOU CRITIQUE : on ignore tout ce qui n'est pas notre propre
+  // origine. Ça exclut explicitement Firebase/Firestore/Auth/Storage/CDN,
+  // qui doivent toujours passer directement au réseau sans passer par ce
+  // cache (sans quoi on risquerait de servir des données périmées ou de
+  // casser l'authentification/la synchro temps réel).
+  if (url.origin !== self.location.origin) return;
+
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const networkFetch = fetch(event.request)
-        .then((response) => {
-          if (response && response.status === 200) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-          }
-          return response;
-        })
-        .catch(() => cached); // hors-ligne : on retombe sur le cache
+    caches.open(CACHE_NAME).then(async (cache) => {
+      const cached = await cache.match(req);
 
-      return cached || networkFetch;
+      // Va chercher une version fraîche en tâche de fond, met à jour le
+      // cache si ça réussit ; en cas d'échec réseau (coupure), on ignore
+      // silencieusement l'erreur — la version en cache reste servie.
+      const network = fetch(req)
+        .then((res) => {
+          if (res && res.ok) cache.put(req, res.clone());
+          return res;
+        })
+        .catch(() => null);
+
+      // Sert immédiatement le cache s'il existe (chargement instantané,
+      // même hors-ligne ou en connexion très dégradée) ; sinon on attend
+      // le réseau. Si les deux échouent (jamais visité + hors-ligne), la
+      // page de secours ci-dessous est utilisée pour une navigation HTML.
+      if (cached) return cached;
+      const fresh = await network;
+      if (fresh) return fresh;
+
+      if (req.mode === 'navigate') {
+        const fallback = await cache.match('./index.html');
+        if (fallback) return fallback;
+      }
+      return new Response('Hors-ligne — aucune version en cache disponible.', {
+        status: 503,
+        statusText: 'Offline',
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+      });
     })
   );
 });
