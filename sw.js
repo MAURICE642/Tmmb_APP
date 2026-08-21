@@ -44,7 +44,12 @@ self.addEventListener('install', (event) => {
         console.warn('[SW] Précache partiel (fichier(s) manquant(s) ignoré(s)) :', err);
       })
   );
-  self.skipWaiting(); // active la nouvelle version dès qu'elle est prête, sans attendre la fermeture des onglets
+  // ⚠️ On n'appelle PLUS self.skipWaiting() automatiquement ici : la nouvelle
+  // version reste "en attente" (waiting) jusqu'à ce que l'utilisateur clique
+  // sur "Mettre à jour" dans l'app (voir app.js). Ça évite de rafraîchir la
+  // page brutalement pendant qu'un commercial est en train de saisir une
+  // livraison ou une adhésion. Le passage à l'activation se fait via le
+  // message 'SKIP_WAITING' ci-dessous.
 });
 
 // ── ACTIVATE : nettoie les anciens caches (versions précédentes) ──
@@ -59,6 +64,14 @@ self.addEventListener('activate', (event) => {
     )
   );
   self.clients.claim(); // prend le contrôle immédiatement, sans attendre un rechargement
+});
+
+// ── MESSAGE : reçoit l'ordre de l'utilisateur (via app.js) d'activer la
+// nouvelle version en attente (bouton "Mettre à jour" dans l'app) ──
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 // ── FETCH : stratégie stale-while-revalidate pour le shell same-origin ──
