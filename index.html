@@ -243,6 +243,16 @@
                                && request.resource.data.imageUrl.size() > 0
                                && request.resource.data.imageUrl.size() <= 600
                                && request.resource.data.imageUrl.matches('https://.*'))
+                             ||
+                             // 'recu' : envoi d'un reçu (historique des reçus) au commercial
+                             // concerné — le message ne contient qu'une référence (recuId),
+                             // l'ouverture/impression va relire le document /recus/{recuId} à
+                             // la demande (règle de lecture : isStaff(), déjà couvert plus haut).
+                             (request.resource.data.type == 'recu'
+                               && request.resource.data.recuId is string
+                               && request.resource.data.recuId.size() > 0
+                               && request.resource.data.texte is string
+                               && request.resource.data.texte.size() <= 4000)
                            );
            allow update: if false;
            // Suppression : l'auteur du message peut le supprimer, ainsi que l'admin.
