@@ -1149,7 +1149,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
             <div style="font-size:10px;color:var(--muted);margin-top:4px;">⚠️ Sera affiché comme correction admin — visible par le commercial, avec la date réelle de saisie et votre nom.</div>
           </div>
           <div id="mise-saisie-warn" style="display:none;margin-bottom:10px;"></div>
-          <button onclick="enregistrerMiseSaisie()" style="width:100%;padding:14px;font-size:15px;font-weight:700;font-family:'Space Grotesk',sans-serif;background:linear-gradient(135deg,#15803d,#22d4a0);border:none;border-radius:9px;color:#fff;cursor:pointer;transition:opacity 0.15s;" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+          <button id="mise-saisie-btn-confirm" onclick="enregistrerMiseSaisie()" style="width:100%;padding:14px;font-size:15px;font-weight:700;font-family:'Space Grotesk',sans-serif;background:linear-gradient(135deg,#15803d,#22d4a0);border:none;border-radius:9px;color:#fff;cursor:pointer;transition:opacity 0.15s;" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
             ✅ Confirmer le paiement — irrévocable
           </button>
           </div><!-- fin mise-saisie-form-zone -->
