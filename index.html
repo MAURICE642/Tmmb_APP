@@ -1303,7 +1303,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         <div class="fr"><label>Date de début</label><input type="date" id="com-ncl-debut" readonly style="opacity:0.6;cursor:not-allowed;background:var(--surface2);" onchange="calcJourComNcl()"></div>
         <div class="fr"><label>Note</label><input type="text" id="com-ncl-note" placeholder="Remarque..."></div>
         <div id="com-ncl-result" class="ib ib-green" style="display:none;margin-top:12px;font-size:13px;"></div>
-        <button onclick="saveComNouveauClient()" style="width:100%;margin-top:14px;padding:13px;font-size:14px;font-weight:700;font-family:'Space Grotesk',sans-serif;background:linear-gradient(135deg,#0f766e,#22d4a0);border:none;border-radius:9px;color:#fff;cursor:pointer;transition:opacity 0.15s;" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+        <button id="com-ncl-btn-confirm" onclick="saveComNouveauClient()" style="width:100%;margin-top:14px;padding:13px;font-size:14px;font-weight:700;font-family:'Space Grotesk',sans-serif;background:linear-gradient(135deg,#0f766e,#22d4a0);border:none;border-radius:9px;color:#fff;cursor:pointer;transition:opacity 0.15s;" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
           ✓ Créer le client
         </button>
       </div>
@@ -1826,11 +1826,11 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
 
 <!-- RAPPORT DE CONTRÔLE -->
 <div class="mo" id="m-rapport-controle">
-  <div class="md" style="border:1px solid rgba(100,160,247,0.4);max-width:400px;">
+  <div class="md" style="border:1px solid rgba(100,160,247,0.4);max-width:420px;">
     <div class="md-title" style="color:#64a0f7;">📊 Rapport de contrôle</div>
     <div class="fr">
       <label>Statut à inclure</label>
-      <select id="rc-statut" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px 11px;color:var(--text);font-size:12px;outline:none;">
+      <select id="rc-statut" onchange="_rcTogglePeriodeZone()" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px 11px;color:var(--text);font-size:12px;outline:none;">
         <option value="tous">Tous les clients</option>
         <option value="controle">✅ Contrôlés uniquement</option>
         <option value="non_controle">⏳ Non contrôlés uniquement</option>
@@ -1839,6 +1839,32 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     <div class="fr">
       <label>Commercial</label>
       <select id="rc-com" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px 11px;color:var(--text);font-size:12px;outline:none;"><option value="">— Tous les commerciaux —</option></select>
+    </div>
+    <div class="fr">
+      <label>Quartier</label>
+      <select id="rc-quartier" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px 11px;color:var(--text);font-size:12px;outline:none;"><option value="">— Tous les quartiers —</option></select>
+    </div>
+    <div class="fr">
+      <label>Trier par</label>
+      <select id="rc-tri" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px 11px;color:var(--text);font-size:12px;outline:none;">
+        <option value="az">Nom du client — A → Z</option>
+        <option value="za">Nom du client — Z → A</option>
+      </select>
+    </div>
+    <div class="fr" id="rc-periode-zone">
+      <label>Période des contrôles <span style="font-weight:400;color:var(--muted);font-size:10.5px;">(filtre la date à laquelle le contrôle a été fait — sans effet sur les clients non contrôlés)</span></label>
+      <select id="rc-periode" onchange="_rcTogglePeriodePerso()" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px 11px;color:var(--text);font-size:12px;outline:none;margin-bottom:8px;">
+        <option value="toutes">Toutes les dates</option>
+        <option value="semaine">Cette semaine</option>
+        <option value="mois">Ce mois-ci</option>
+        <option value="perso">Période personnalisée…</option>
+      </select>
+      <div id="rc-periode-perso-zone" style="display:none;gap:8px;">
+        <div style="display:flex;gap:8px;">
+          <input type="date" id="rc-date-debut" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px 10px;color:var(--text);font-size:12px;outline:none;">
+          <input type="date" id="rc-date-fin" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px 10px;color:var(--text);font-size:12px;outline:none;">
+        </div>
+      </div>
     </div>
     <div class="ma" style="margin-top:14px;">
       <button class="btn btn-ghost" onclick="closeM('m-rapport-controle')">Annuler</button>
@@ -1904,7 +1930,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
       <div class="fr"><label>Commercial</label><select id="cl-com"><option value="">— Sélectionner —</option></select></div>
     </div>
     <div class="fr"><label>Note</label><input type="text" id="cl-note" placeholder="Remarque..."></div>
-    <div class="ma"><button class="btn btn-ghost" onclick="closeM('m-client')">Annuler</button><button class="btn btn-primary" onclick="saveCl()">Enregistrer</button></div>
+    <div class="ma"><button class="btn btn-ghost" onclick="closeM('m-client')">Annuler</button><button id="cl-btn-confirm" class="btn btn-primary" onclick="saveCl()">Enregistrer</button></div>
   </div>
 </div>
 
