@@ -1010,6 +1010,14 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     <div class="tw"><table><thead><tr><th>Date</th><th>Client</th><th>Commercial</th><th>Produit</th><th>Qté</th><th>Montant</th><th>Statut</th><th>Actions</th></tr></thead><tbody id="tb-livraisons"></tbody></table></div>
   </div>
 
+  <!-- DEMANDES DE LIVRAISON (chef d'agence ↔ gestionnaire de stock) -->
+  <div id="page-demandes-livraison" class="page">
+    <div class="sec-hdr">
+      <div class="sec-title">Demandes de livraison</div>
+    </div>
+    <div id="dl-liste"></div>
+  </div>
+
   <!-- ADMIN: REGISTRE -->
   <div id="page-registre" class="page">
     <div class="sec-hdr no-print">
@@ -2247,6 +2255,24 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     <div id="liv-info" class="ib ib-blue" style="display:none;"></div>
     <div class="fr"><label>Note</label><input type="text" id="liv-note" placeholder="Adresse, remarque..."></div>
     <div class="ma"><button class="btn btn-ghost" onclick="closeM('m-livraison')">Annuler</button><button class="btn btn-primary" onclick="saveLivraison()">Enregistrer</button></div>
+  </div>
+</div>
+
+<!-- NOUVELLE DEMANDE DE LIVRAISON (chef d'agence) -->
+<div class="mo" id="m-demande-livraison">
+  <div class="md md-lg">
+    <div class="md-title">📦 Nouvelle demande de livraison</div>
+    <div class="fg">
+      <div class="fr">
+        <label>Produit</label>
+        <select id="dl-produit"><option value="">— Sélectionner un produit —</option></select>
+      </div>
+      <div class="fr"><label>Quantité</label><input type="number" id="dl-qty" value="1" min="1"></div>
+    </div>
+    <div style="margin:6px 0 14px;"><button class="btn btn-ghost btn-sm" onclick="dlAjouterLigne()">+ Ajouter à la demande</button></div>
+    <div class="tw"><table><thead><tr><th>Produit</th><th>Qté demandée</th><th></th></tr></thead><tbody id="dl-lignes-body"></tbody></table></div>
+    <div class="fr" style="margin-top:14px;"><label>Note (optionnel)</label><input type="text" id="dl-note" placeholder="Précision, urgence..."></div>
+    <div class="ma"><button class="btn btn-ghost" onclick="closeM('m-demande-livraison')">Annuler</button><button class="btn btn-primary" onclick="saveDemandeLivraison()">Envoyer la demande</button></div>
   </div>
 </div>
 
