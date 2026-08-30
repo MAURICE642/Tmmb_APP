@@ -2264,8 +2264,12 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     <div class="md-title">📦 Nouvelle demande de livraison</div>
     <div class="fg">
       <div class="fr">
+        <label>Code / Référence</label>
+        <input type="text" id="dl-ref" placeholder="Ex: ELEC-002" onchange="dlChercherParRef()">
+      </div>
+      <div class="fr">
         <label>Produit</label>
-        <select id="dl-produit"><option value="">— Sélectionner un produit —</option></select>
+        <select id="dl-produit" onchange="dlSyncRefDepuisSelect()"><option value="">— Sélectionner un produit —</option></select>
       </div>
       <div class="fr"><label>Quantité</label><input type="number" id="dl-qty" value="1" min="1"></div>
     </div>
