@@ -17,7 +17,7 @@
 // ⚠️ Incrémenter ce numéro à chaque déploiement pour forcer la mise à jour
 // du shell chez les utilisateurs (sinon ils resteraient bloqués sur une
 // version en cache). Ex : 'mmb-shell-v2', 'mmb-shell-v3', ...
-const CACHE_NAME = 'mmb-shell-v7';
+const CACHE_NAME = 'mmb-shell-v11';
 
 // Fichiers du shell applicatif à mettre en cache dès l'installation.
 // Volontairement minimal et 100% same-origin (pas de CDN externe ici —
