@@ -178,6 +178,12 @@
          match /produitsPrive/{d}      { allow read, write: if isAdmin(); }
          match /stockMvts/{d}          { allow read: if isStaff(); allow create: if isOneOf(['admin','gestionnaire_stock']); allow update,delete: if isAdmin(); }
          match /livraisons/{d}         { allow read: if isStaff(); allow create,update: if isOneOf(['admin','commercial','secretaire']); allow delete: if isAdmin(); }
+         // ⚠️ AJOUTÉ : cette collection n'avait aucune règle dédiée — elle tombait donc dans
+         // le "allow read, write: if false" par défaut (tout en bas de ce fichier), ce qui
+         // aurait bloqué la fonctionnalité "Demandes de livraison" si ces règles avaient été
+         // republiées telles quelles. La suppression est réservée à l'admin (bouton 🗑 ajouté
+         // dans l'écran "Demandes de livraison", uniquement visible pour ce rôle).
+         match /demandesLivraison/{d}  { allow read: if isStaff(); allow create,update: if isOneOf(['admin','chef_agence','gestionnaire_stock']); allow delete: if isAdmin(); }
          match /adhesionPays/{d}       { allow read: if isStaff(); allow create: if isOneOf(['admin','commercial','secretaire']); allow update,delete: if isAdmin(); }
          match /mises/{d}              { allow read: if isStaff(); allow create: if isOneOf(['admin','commercial','secretaire']); allow update,delete: if isAdmin(); }
          match /versements/{d}         { allow read: if isStaff(); allow create,update: if isOneOf(['admin','secretaire']); allow delete: if isAdmin(); }
