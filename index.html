@@ -648,6 +648,26 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         </div>
       </div>
     </div>
+
+    <!-- ═══ SECTION : Maintenance — totalPaye cumulé (admin) ═══ -->
+    <div class="dash-section collapsed" id="ds-maintenance">
+      <div class="dash-sec-hdr" onclick="toggleDashSection('ds-maintenance')">
+        <span class="dash-sec-title">🔧 Maintenance — Total payé cumulé</span>
+        <span class="dash-chevron">▾</span>
+      </div>
+      <div class="dash-sec-body">
+        <div class="ib ib-blue" style="margin-bottom:12px;">
+          Ces outils recalculent/vérifient le champ <code>totalPaye</code> stocké sur chaque client
+          (utilisé pour le recouvrement). La vérification ne modifie rien ; la migration corrige les écarts trouvés.
+          Les deux peuvent être relancées autant de fois que nécessaire, sans risque.
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+          <button class="btn btn-ghost btn-sm" onclick="uiVerifierTotalPaye()">🔍 Vérifier la cohérence</button>
+          <button class="btn btn-primary btn-sm" onclick="uiMigrerTotalPaye()">🔄 Lancer / corriger la migration</button>
+        </div>
+        <div id="maintenance-totalpaye-result"></div>
+      </div>
+    </div>
   </div>
 
   <!-- ADMIN: AGENCES -->
