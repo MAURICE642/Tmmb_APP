@@ -178,6 +178,13 @@
          // document, y compris un champ prixAchat qu'on voudrait cacher côté UI).
          match /produitsPrive/{d}      { allow read, write: if isAdmin(); }
          match /stockMvts/{d}          { allow read: if isStaff(); allow create: if isOneOf(['admin','gestionnaire_stock']); allow update,delete: if isAdmin(); }
+         // ⚠️ stockAgences : solde de stock par agence (voir ajusterStockAgence côté
+         // app.js). Contrairement à stockMvts (journal, corrigé seulement par un
+         // admin), c'est un solde courant que gestionnaire_stock/secretaire/
+         // chef_agence doivent pouvoir INCRÉMENTER (sortie vers agence) ou
+         // DÉCRÉMENTER (livraison client) au fil de l'eau — d'où "update" ouvert
+         // à ces rôles, pas réservé à l'admin.
+         match /stockAgences/{d}       { allow read: if isStaff(); allow create,update: if isOneOf(['admin','gestionnaire_stock','secretaire','chef_agence']); allow delete: if isAdmin(); }
          match /livraisons/{d}         { allow read: if isStaff(); allow create,update: if isOneOf(['admin','commercial','secretaire']); allow delete: if isAdmin(); }
          // ⚠️ AJOUTÉ : cette collection n'avait aucune règle dédiée — elle tombait donc dans
          // le "allow read, write: if false" par défaut (tout en bas de ce fichier), ce qui
@@ -1320,6 +1327,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
               <option value="custom">Autre durée…</option>
             </select>
             <input type="number" id="com-ncl-duree" value="372" oninput="calcJourComNcl()" style="display:none;margin-top:6px;" placeholder="Nombre de jours">
+            <div id="com-ncl-duree-lock-note" style="display:none;margin-top:5px;font-size:11px;color:var(--warn);"></div>
           </div>
         </div>
         <div id="com-ncl-calc-info" class="ib ib-green" style="display:none;font-size:12px;margin-bottom:8px;"></div>
@@ -1945,6 +1953,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
           <option value="custom">Autre durée…</option>
         </select>
         <input type="number" id="cl-duree" value="372" oninput="calcJour()" style="display:none;margin-top:6px;" placeholder="Nombre de jours">
+        <div id="cl-duree-lock-note" style="display:none;margin-top:5px;font-size:11px;color:var(--warn);"></div>
       </div>
     </div>
     <div id="cl-calc-info" class="ib ib-green" style="display:none;font-size:12px;"></div>
@@ -2835,10 +2844,25 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         <input type="text" id="prod-ref" placeholder="Ex : PROD-001" autocomplete="off">
       </div>
     </div>
-    <!-- Prix d'achat : champ réservé à l'admin, masqué par défaut (voir applyProduitAdminVisibility) -->
+    <!-- ✅ Durée de contrat limitée : si renseignée, choisir ce produit dans un
+         nouveau contrat bascule automatiquement la durée du contrat sur cette
+         valeur (voir appliquerDureeLimiteeParProduits). Vide = aucune
+         restriction, le produit reste sélectionnable pour toute durée. -->
+    <div class="fr">
+      <label>Durée de contrat limitée <span style="color:var(--muted);font-weight:400;">— optionnel</span></label>
+      <select id="prod-duree-limite" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px 10px;color:var(--text);font-size:13px;outline:none;width:100%;">
+        <option value="">Aucune restriction (toutes durées)</option>
+        <option value="93">3 mois (93 jours)</option>
+        <option value="186">6 mois (186 jours)</option>
+        <option value="372">1 an (372 jours)</option>
+      </select>
+    </div>
+    <!-- Prix d'achat : champ réservé à l'admin, masqué par défaut (voir ouvrirModalProduit).
+         ✅ Calculé automatiquement = somme des prix d'achat des articles de la composition
+         (pa × qté par composant) — n'est plus saisi manuellement, voir calculerCoutArticlesProduit(). -->
     <div class="fr" id="prod-prix-achat-wrap" style="display:none;">
-      <label>Prix d'achat (FCFA) <span style="color:var(--muted);font-weight:400;">— visible admin uniquement</span></label>
-      <input type="number" id="prod-prix-achat" placeholder="0" min="0" oninput="prodCalcInfo()">
+      <label>Prix d'achat (FCFA) <span style="color:var(--muted);font-weight:400;">— calculé automatiquement (somme des articles), visible admin uniquement</span></label>
+      <input type="number" id="prod-prix-achat" placeholder="0" readonly tabindex="-1" style="background:var(--surface2);cursor:not-allowed;">
     </div>
     <div class="fr">
       <label>Description</label>
