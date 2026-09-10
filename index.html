@@ -900,6 +900,14 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
           <option value="entree">📥 Entrées</option>
           <option value="sortie">📤 Sorties</option>
         </select>
+        <select id="stock-mvt-sort"
+          style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:4px 8px;color:var(--text);font-size:11px;outline:none;"
+          onchange="renderStockMvts()">
+          <option value="date-desc">📅 Date (récent d'abord)</option>
+          <option value="date-asc">📅 Date (ancien d'abord)</option>
+          <option value="nom-asc">🔤 Article (A→Z)</option>
+          <option value="nom-desc">🔤 Article (Z→A)</option>
+        </select>
         <button class="btn btn-primary btn-sm" onclick="openM('m-stock-mvt')">+ Mouvement</button>
         <label class="btn btn-ghost btn-sm" style="cursor:pointer;margin:0;" id="btn-import-mvt-wrap">📥 Import Excel/CSV<input type="file" id="import-mvt-file" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleImportMvts(event)"></label>
         <button class="btn btn-ghost btn-sm" onclick="downloadMvtTemplate()" title="Télécharger le modèle à remplir">📋 Modèle</button>
