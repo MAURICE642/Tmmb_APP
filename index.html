@@ -196,6 +196,7 @@
          match /mises/{d}              { allow read: if isStaff(); allow create: if isOneOf(['admin','commercial','secretaire']); allow update,delete: if isAdmin(); }
          match /versements/{d}         { allow read: if isStaff(); allow create,update: if isOneOf(['admin','secretaire']); allow delete: if isAdmin(); }
          match /primesPaliers/{d}      { allow read: if isStaff(); allow write: if isAdmin(); }
+         match /paliersDuree/{d}       { allow read: if isStaff(); allow write: if isAdmin(); }
          match /pointsJour/{d}         { allow read: if isStaff(); allow write: if isOneOf(['admin','commercial','secretaire']); }
          match /transferts/{d}         { allow read: if isStaff(); allow create: if isOneOf(['admin','secretaire']); allow update,delete: if isAdmin(); }
 
@@ -1036,6 +1037,15 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
   <div id="page-demandes-livraison" class="page">
     <div class="sec-hdr">
       <div class="sec-title">Demandes de livraison</div>
+    </div>
+    <!-- Filtre par date (sur la date de création de la demande) -->
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+      <label style="font-size:11px;color:var(--muted);">Du</label>
+      <input type="date" id="dl-date-debut" oninput="renderDemandesLivraison()" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);">
+      <label style="font-size:11px;color:var(--muted);">au</label>
+      <input type="date" id="dl-date-fin" oninput="renderDemandesLivraison()" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);">
+      <button class="btn btn-ghost btn-xs" onclick="document.getElementById('dl-date-debut').value='';document.getElementById('dl-date-fin').value='';renderDemandesLivraison();">✕ Dates</button>
+      <span id="dl-date-count" style="font-size:11px;color:var(--muted);"></span>
     </div>
     <div id="dl-liste"></div>
   </div>
@@ -2746,6 +2756,56 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
   </div>
 </div>
 
+<!-- PALIERS MONTANT → DURÉE DE CONTRAT -->
+<div class="mo" id="m-paliers-duree">
+  <div class="md md-lg">
+    <div class="md-title">⏱️ Paliers durée de contrat</div>
+    <div class="ib ib-blue" style="margin-bottom:14px;font-size:12px;">
+      Définissez des paliers montant → durée. Dès que le montant total d'un contrat est inférieur ou égal au seuil d'un palier, la durée correspondante est appliquée automatiquement (et verrouillée) à la création du client. Un montant supérieur à tous les seuils définis n'impose aucune durée. La « prise d'effet » permet de préparer un palier à l'avance : il n'entrera en vigueur qu'à partir de la date choisie (laisser vide pour un effet immédiat).
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:14px;align-items:flex-end;flex-wrap:wrap;">
+      <div style="flex:1;min-width:160px;">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px;">Montant plafond (FCFA)</div>
+        <input type="number" id="pd-seuil" placeholder="ex: 10000" min="0" step="500"
+          style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-size:13px;outline:none;">
+      </div>
+      <div style="flex:1;min-width:160px;">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px;">Durée appliquée</div>
+        <select id="pd-duree" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-size:13px;outline:none;">
+          <option value="93">3 mois (93 jours)</option>
+          <option value="186">6 mois (186 jours)</option>
+          <option value="372">1 an (372 jours)</option>
+        </select>
+      </div>
+      <div style="flex:1;min-width:160px;">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px;">Libellé (optionnel)</div>
+        <input type="text" id="pd-label" placeholder="ex: Petit contrat…"
+          style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-size:13px;outline:none;">
+      </div>
+      <div style="flex:1;min-width:160px;">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px;">Prise d'effet <span style="text-transform:none;">— optionnel</span></div>
+        <input type="date" id="pd-date-effet"
+          style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-size:13px;outline:none;">
+        <div style="font-size:10px;color:var(--muted);margin-top:3px;">Vide = effet immédiat</div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="ajouterPalierDuree()" style="white-space:nowrap;height:34px;">+ Ajouter palier</button>
+    </div>
+    <div class="tw" style="margin-bottom:0;">
+      <table>
+        <thead><tr>
+          <th>Libellé</th>
+          <th style="text-align:right;">Montant plafond</th>
+          <th style="text-align:right;">Durée appliquée</th>
+          <th style="text-align:center;">Prise d'effet</th>
+          <th style="text-align:center;">Action</th>
+        </tr></thead>
+        <tbody id="paliers-duree-list"></tbody>
+      </table>
+    </div>
+    <div class="ma"><button class="btn btn-ghost" onclick="closeM('m-paliers-duree')">Fermer</button></div>
+  </div>
+</div>
+
 <!-- IMPORT ARTICLES PREVIEW -->
 <div class="mo" id="m-import-articles">
   <div class="md md-lg" style="max-width:820px;">
@@ -2843,19 +2903,6 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         <label>Référence / Code</label>
         <input type="text" id="prod-ref" placeholder="Ex : PROD-001" autocomplete="off">
       </div>
-    </div>
-    <!-- ✅ Durée de contrat limitée : si renseignée, choisir ce produit dans un
-         nouveau contrat bascule automatiquement la durée du contrat sur cette
-         valeur (voir appliquerDureeLimiteeParProduits). Vide = aucune
-         restriction, le produit reste sélectionnable pour toute durée. -->
-    <div class="fr">
-      <label>Durée de contrat limitée <span style="color:var(--muted);font-weight:400;">— optionnel</span></label>
-      <select id="prod-duree-limite" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px 10px;color:var(--text);font-size:13px;outline:none;width:100%;">
-        <option value="">Aucune restriction (toutes durées)</option>
-        <option value="93">3 mois (93 jours)</option>
-        <option value="186">6 mois (186 jours)</option>
-        <option value="372">1 an (372 jours)</option>
-      </select>
     </div>
     <!-- Prix d'achat : champ réservé à l'admin, masqué par défaut (voir ouvrirModalProduit).
          ✅ Calculé automatiquement = somme des prix d'achat des articles de la composition
