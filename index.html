@@ -815,7 +815,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     <div id="art-view-galerie" class="art-gallery"></div>
     <!-- Vue liste -->
     <div id="art-view-liste" style="display:none;">
-      <div class="tw"><table><thead><tr><th></th><th>Réf.</th><th>Désignation</th><th>Catégorie</th><th>Prix vente</th><th>Prix achat</th><th>Stock</th><th>Min.</th><th>Statut</th><th>Actions</th></tr></thead><tbody id="tb-articles"></tbody></table></div>
+      <div class="tw"><table><thead><tr><th></th><th>Réf.</th><th>Désignation</th><th>Catégorie</th><th>Prix achat</th><th>Stock</th><th>Min.</th><th>Statut</th><th>Actions</th></tr></thead><tbody id="tb-articles"></tbody></table></div>
     </div>
   </div>
 
@@ -2101,11 +2101,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     <!-- Infos article -->
     <div style="padding:16px 20px;">
       <div id="zoom-cat-desc" style="font-size:12px;color:var(--muted);line-height:1.8;margin-bottom:14px;"></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;" id="zoom-cat-info-grid">
-        <div style="background:var(--surface2);border-radius:9px;padding:12px;text-align:center;">
-          <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;">Prix de vente</div>
-          <div id="zoom-cat-pv" style="font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:800;color:var(--accent);"></div>
-        </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;" id="zoom-cat-info-grid">
         <div id="zoom-cat-stock-wrap" style="background:var(--surface2);border-radius:9px;padding:12px;text-align:center;">
           <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;">Stock</div>
           <div id="zoom-cat-stock" style="font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:800;"></div>
