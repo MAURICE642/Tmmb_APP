@@ -674,6 +674,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
       <div class="sec-title">Tous les clients</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
         <select id="filter-com" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 10px;color:var(--text);font-size:11px;outline:none;" onchange="onClFilterChange()"><option value="">— Sélectionner un commercial —</option></select>
+        <input type="text" id="filter-quartier" placeholder="🏘️ Quartier…" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 10px;color:var(--text);font-size:11px;outline:none;width:130px;" oninput="dRender('onClFilterChange')">
         <button class="btn btn-ghost btn-sm" onclick="printClients()">🖨️ Imprimer</button>
         <label class="btn btn-ghost btn-sm" style="cursor:pointer;margin:0;">📥 Importer Excel/CSV<input type="file" id="import-file" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleImport(event)"></label>
         <button class="btn btn-ghost btn-sm" onclick="openM('m-import-guide')">❓ Guide Access</button>
