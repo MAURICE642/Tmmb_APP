@@ -463,14 +463,30 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     <div class="login-logo" style="display:flex;flex-direction:column;align-items:center;gap:6px;"><img src="logo.jpg" alt="Logo" style="height:72px;width:72px;object-fit:contain;border-radius:10px;"><span>TRIOMPHANT MMB SERVICE</span></div>
     <div class="login-sub">Gestion Commerciale</div>
     <div class="online-badge"><div class="online-dot"></div><span id="mode-badge">En ligne — données partagées</span></div>
-    <div class="lform">
+    <div class="lform" id="login-form-normal">
       <label>Identifiant</label>
       <input type="text" id="login-user" placeholder="Nom d'utilisateur ou Gmail" autocomplete="username" style="font-size:13px;" onkeydown="if(event.key==='Enter')document.getElementById('login-pin').focus()">
       <label>Mot de passe</label>
       <input type="password" id="login-pin" placeholder="••••••••" style="letter-spacing:2px;font-size:16px;text-align:left;" onkeydown="if(event.key==='Enter')doLogin()">
     </div>
     <div class="login-err" id="login-err">Identifiant ou mot de passe incorrect.</div>
-    <button class="btn btn-primary" style="width:100%;padding:11px;font-size:13px;margin-top:4px;" onclick="doLogin()">Connexion</button>
+    <div style="text-align:right;margin-top:-8px;margin-bottom:4px;" id="login-forgot-link-wrap">
+      <a href="#" style="font-size:11px;color:var(--muted);text-decoration:underline;" onclick="ouvrirMotDePasseOublie();return false;">Mot de passe oublié ?</a>
+    </div>
+    <button class="btn btn-primary" id="login-btn-confirm" style="width:100%;padding:11px;font-size:13px;margin-top:4px;" onclick="doLogin()">Connexion</button>
+
+    <!-- Mot de passe oublié — masqué par défaut, affiché à la place du formulaire normal -->
+    <div class="lform" id="login-form-forgot" style="display:none;">
+      <label>Adresse email</label>
+      <input type="email" id="forgot-email" placeholder="votre@email.com" autocomplete="email" style="font-size:13px;" onkeydown="if(event.key==='Enter')envoyerResetMotDePasse()">
+      <div style="font-size:11px;color:var(--muted);margin-top:2px;">Un lien de réinitialisation sera envoyé à cette adresse si un compte y est associé. Vous ne connaissez pas votre email ? Contactez votre administrateur.</div>
+    </div>
+    <div class="login-err" id="forgot-err" style="display:none;"></div>
+    <div class="login-err" id="forgot-ok" style="display:none;color:var(--accent2);">✉️ Si un compte existe avec cet email, un lien de réinitialisation vient d'être envoyé.</div>
+    <div id="login-forgot-actions" style="display:none;gap:8px;margin-top:4px;">
+      <button class="btn btn-ghost" style="flex:1;padding:11px;font-size:13px;" onclick="fermerMotDePasseOublie()">← Retour</button>
+      <button class="btn btn-primary" id="forgot-btn-confirm" style="flex:1;padding:11px;font-size:13px;" onclick="envoyerResetMotDePasse()">Envoyer le lien</button>
+    </div>
   </div>
 </div>
 
@@ -1749,7 +1765,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         ✏️ Modifier le contrat de ce client
       </button>
     </div>
-    <div class="ma"><button class="btn btn-ghost" onclick="closeM('m-pay')">Annuler</button><button id="pay-btn-confirm" class="btn btn-success" onclick="savePay()">✓ Confirmer</button></div>
+    <div class="ma"><button id="pay-btn-cancel" class="btn btn-ghost" onclick="closeM('m-pay')">Annuler</button><button id="pay-btn-confirm" class="btn btn-success" onclick="savePay()">✓ Confirmer</button></div>
   </div>
 </div>
 
