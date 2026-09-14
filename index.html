@@ -2231,6 +2231,29 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
   </div>
 </div>
 
+<!-- MODAL DETAIL CLIENTS EN COURS PAR PRODUIT (badge carte/fiche produit) -->
+<div class="mo" id="m-prodclients-detail">
+  <div class="md md-lg">
+    <div class="md-title" id="m-prodclients-detail-title">👥 Clients en cours — Produit</div>
+    <div id="m-prodclients-detail-kpi" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;"></div>
+    <input type="text" id="m-prodclients-detail-search" placeholder="🔍 Rechercher un client..."
+      style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 14px;color:var(--text);font-size:13px;outline:none;margin-bottom:10px;"
+      oninput="filterProdClientsDetailSearch()">
+    <div class="tw" style="max-height:380px;overflow-y:auto;">
+      <table>
+        <thead><tr>
+          <th>#</th><th>Client</th><th>Téléphone</th><th>Commercial</th><th>% payé</th><th>Reste à payer</th>
+        </tr></thead>
+        <tbody id="m-prodclients-detail-body"></tbody>
+      </table>
+    </div>
+    <div class="ma">
+      <button class="btn btn-ghost btn-sm" onclick="exportDetailClientsProduitCSV()" style="margin-right:auto;">⬇️ Export CSV</button>
+      <button class="btn btn-ghost" onclick="closeM('m-prodclients-detail')">Fermer</button>
+    </div>
+  </div>
+</div>
+
 <!-- IMPORT MOUVEMENTS DE STOCK -->
 <div class="mo" id="m-import-mvt">
   <div class="md md-lg">
@@ -2867,9 +2890,10 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
       <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;"><input type="checkbox" id="import-chk-adhesion" checked style="cursor:pointer;">🎫 Droit d'adhésion</label>
       <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;"><input type="checkbox" id="import-chk-paye" checked style="cursor:pointer;">✅ Montant déjà payé</label>
       <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;"><input type="checkbox" id="import-chk-divers" checked style="cursor:pointer;">🧾 Montant divers (pénalité/remise/frais)</label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;"><input type="checkbox" id="import-chk-contrat" style="cursor:pointer;">📋 Contrat (code produit)</label>
     </div>
     <div class="ib ib-blue" style="font-size:11px;margin-bottom:10px;">
-      ℹ️ Si le <strong>code client</strong> d'une ligne correspond à un client déjà existant dans l'appli, ses informations de base ne seront <strong>pas modifiées</strong> — seules les informations cochées ci-dessus (cotisation, adhésion, paiement, divers) lui seront <strong>ajoutées</strong>.
+      ℹ️ Si le <strong>code client</strong> d'une ligne correspond à un client déjà existant dans l'appli, ses informations de base ne seront <strong>pas modifiées</strong> — seules les informations cochées ci-dessus (cotisation, adhésion, paiement, divers) lui seront <strong>ajoutées</strong>. Exception : <strong>« Contrat (code produit) »</strong>, si cochée, <strong>remplace</strong> le contrat déjà enregistré du client par la valeur du fichier (colonne « contrat »/« produit »/« designation ») — mettez-y le <strong>code du produit</strong> (ex: MOB-001) pour qu'il soit reconnu automatiquement ; sinon le texte est importé tel quel.
     </div>
     <div class="tw" style="max-height:280px;overflow-y:auto;margin-bottom:10px;">
       <table><thead><tr><th>#</th><th>Nom</th><th>Téléphone</th><th>Ville</th><th>Contrat</th><th>Cotis./j</th><th>Déjà payé</th><th>Début</th><th>Adhésion</th><th>Divers</th><th>Code client</th><th>Statut</th></tr></thead>
@@ -3015,6 +3039,11 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
       <div id="pz-stock-wrap" style="display:none;margin-bottom:14px;padding:8px 12px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);">
         <div style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Stock disponible théorique</div>
         <div id="pz-stock" style="font-size:18px;font-weight:800;font-family:'Space Grotesk',sans-serif;"></div>
+      </div>
+      <!-- Clients en cours (chef d'agence / admin / gestionnaire de stock) -->
+      <div id="pz-clients-wrap" style="display:none;margin-bottom:14px;padding:8px 12px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);">
+        <div style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">👥 Clients en cours sur ce produit</div>
+        <div id="pz-clients" style="font-size:18px;font-weight:800;font-family:'Space Grotesk',sans-serif;"></div>
       </div>
       <!-- Composition -->
       <div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">🔧 Composition</div>
