@@ -692,6 +692,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         <select id="filter-com" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 10px;color:var(--text);font-size:11px;outline:none;" onchange="onClFilterChange()"><option value="">— Sélectionner un commercial —</option></select>
         <input type="text" id="filter-quartier" placeholder="🏘️ Quartier…" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 10px;color:var(--text);font-size:11px;outline:none;width:130px;" oninput="dRender('onClFilterChange')">
         <button class="btn btn-ghost btn-sm" onclick="printClients()">🖨️ Imprimer</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportListeClientsExcel()">📊 Exporter (Excel)</button>
         <label class="btn btn-ghost btn-sm" style="cursor:pointer;margin:0;">📥 Importer Excel/CSV<input type="file" id="import-file" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleImport(event)"></label>
         <button class="btn btn-ghost btn-sm" onclick="openM('m-import-guide')">❓ Guide Access</button>
         <button class="btn btn-primary btn-sm" onclick="openM('m-client')">+ Nouveau client</button>
@@ -1063,6 +1064,14 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
       <input type="date" id="dl-date-fin" oninput="renderDemandesLivraison()" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);">
       <button class="btn btn-ghost btn-xs" onclick="document.getElementById('dl-date-debut').value='';document.getElementById('dl-date-fin').value='';renderDemandesLivraison();">✕ Dates</button>
       <span id="dl-date-count" style="font-size:11px;color:var(--muted);"></span>
+    </div>
+    <!-- Filtre par statut -->
+    <div id="dl-filtre-statut-bar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+      <span style="font-size:11px;color:var(--muted);font-weight:600;margin-right:2px;">Statut :</span>
+      <button class="prod-filter-chip active" onclick="filtrerDemandesStatut('',this)">Toutes (<span id="dl-cnt-toutes">0</span>)</button>
+      <button class="prod-filter-chip" onclick="filtrerDemandesStatut('en_attente',this)">⏳ En attente (<span id="dl-cnt-en_attente">0</span>)</button>
+      <button class="prod-filter-chip" onclick="filtrerDemandesStatut('partielle',this)">⚠️ Partielle (<span id="dl-cnt-partielle">0</span>)</button>
+      <button class="prod-filter-chip" onclick="filtrerDemandesStatut('cloturee',this)">✅ Clôturée (<span id="dl-cnt-cloturee">0</span>)</button>
     </div>
     <div id="dl-liste"></div>
   </div>
@@ -1663,6 +1672,9 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     <div style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
       <select id="dep-filtre-commercial" onchange="renderDepensesCommerciaux()" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:6px 10px;color:var(--text);font-size:11px;outline:none;">
         <option value="">— Tous les commerciaux —</option>
+      </select>
+      <select id="dep-filtre-nature" onchange="renderDepensesCommerciaux()" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:6px 10px;color:var(--text);font-size:11px;outline:none;">
+        <option value="">— Toutes les natures —</option>
       </select>
       <input type="date" id="dep-filtre-date-debut" onchange="renderDepensesCommerciaux()" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:6px 10px;color:var(--text);font-size:11px;outline:none;">
       <span style="font-size:11px;color:var(--muted);">à</span>
