@@ -2965,21 +2965,19 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
       <textarea id="prod-desc" rows="2" placeholder="Description du produit..." style="resize:vertical;min-height:52px;"></textarea>
     </div>
 
-    <!-- Image -->
+    <!-- Photos du produit (galerie, 5 max) -->
     <div class="fr">
-      <label>Image du produit</label>
-      <div style="display:flex;align-items:center;gap:10px;">
-        <div id="prod-img-preview-wrap" style="display:none;position:relative;">
-          <img id="prod-img-preview" style="width:72px;height:72px;object-fit:cover;border-radius:9px;border:1px solid var(--border);">
-          <button onclick="prodSupprimerImage()" style="position:absolute;top:-6px;right:-6px;background:var(--danger);border:none;border-radius:50%;width:18px;height:18px;color:#fff;font-size:11px;cursor:pointer;line-height:18px;text-align:center;">✕</button>
-        </div>
-        <label style="cursor:pointer;padding:7px 14px;border:1px dashed var(--border);border-radius:8px;font-size:12px;color:var(--muted);transition:all 0.15s;"
-          onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
-          onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">
-          📷 Choisir une image
-          <input type="file" id="prod-img-input" accept="image/*" style="display:none" onchange="prodChargerImage(this)">
-        </label>
-      </div>
+      <label>Photos du produit
+        <span style="color:var(--muted);font-weight:400;">— jusqu'à 5 motifs ; la première est la photo principale</span>
+        <span id="prod-gallery-count" style="float:right;color:var(--muted);font-weight:400;font-size:11px;">0 / 5</span>
+      </label>
+      <div id="prod-gallery" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;"></div>
+      <label id="prod-img-add-btn" style="cursor:pointer;display:inline-block;padding:7px 14px;border:1px dashed var(--border);border-radius:8px;font-size:12px;color:var(--muted);transition:all 0.15s;"
+        onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
+        onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">
+        📷 Ajouter des photos
+        <input type="file" id="prod-img-input" accept="image/*" multiple style="display:none" onchange="prodChargerImages(this)">
+      </label>
     </div>
 
     <!-- Composition : articles -->
@@ -3031,8 +3029,18 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
   <div class="md md-lg" style="padding:0;overflow:hidden;border-radius:16px;">
     <!-- Image -->
     <div id="pz-img-wrap" style="width:100%;height:220px;background:var(--surface2);display:flex;align-items:center;justify-content:center;position:relative;flex-shrink:0;">
-      <img id="pz-img" style="width:100%;height:100%;object-fit:cover;display:none;cursor:zoom-in;" onclick="openImageLightbox(document.getElementById('pz-img').src, event)">
+      <img id="pz-img" style="width:100%;height:100%;object-fit:cover;display:none;cursor:zoom-in;"
+        onclick="openImageLightbox(document.getElementById('pz-img').src, event)"
+        ontouchstart="pzTouchStart(event)" ontouchend="pzTouchEnd(event)">
       <div id="pz-noimg" style="font-size:72px;">📦</div>
+      <!-- Carrousel : masqué s'il n'y a qu'une seule photo (voir _pzAfficher) -->
+      <div id="pz-nav" style="display:none;">
+        <button type="button" onclick="pzPrecedent(event)" aria-label="Photo précédente"
+          style="position:absolute;top:50%;left:8px;transform:translateY(-50%);background:rgba(0,0,0,0.55);border:none;border-radius:50%;width:34px;height:34px;color:#fff;font-size:15px;cursor:pointer;line-height:34px;text-align:center;padding:0;">◀</button>
+        <button type="button" onclick="pzSuivant(event)" aria-label="Photo suivante"
+          style="position:absolute;top:50%;right:8px;transform:translateY(-50%);background:rgba(0,0,0,0.55);border:none;border-radius:50%;width:34px;height:34px;color:#fff;font-size:15px;cursor:pointer;line-height:34px;text-align:center;padding:0;">▶</button>
+      </div>
+      <div id="pz-dots" style="position:absolute;bottom:8px;left:0;right:0;display:flex;gap:5px;justify-content:center;align-items:center;"></div>
       <button onclick="closeM('m-prod-zoom')" style="position:absolute;top:10px;right:12px;background:rgba(0,0,0,0.55);border:none;border-radius:50%;width:30px;height:30px;color:#fff;font-size:16px;cursor:pointer;line-height:30px;text-align:center;">✕</button>
     </div>
     <div style="padding:18px 20px 20px;">
