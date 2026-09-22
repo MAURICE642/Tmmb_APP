@@ -3022,7 +3022,19 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
 <!-- LIGHTBOX PHOTO PLEIN ÉCRAN -->
 <div class="img-lightbox" id="m-img-lightbox" onclick="closeImageLightbox(event)">
   <button class="img-lightbox-close" onclick="closeImageLightbox(event)">✕</button>
-  <img id="img-lightbox-img" src="" alt="">
+  <img id="img-lightbox-img" src="" alt=""
+    onclick="event.stopPropagation()"
+    ontouchstart="lbTouchStart(event)" ontouchend="lbTouchEnd(event)">
+  <!-- Compteur, flèches et pastilles : masqués s'il n'y a qu'une photo
+       (voir _lbAfficher). Une seule photo ⇒ écran identique à avant. -->
+  <div id="img-lightbox-count" style="display:none;position:absolute;top:14px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.6);color:#fff;font-size:12px;font-weight:700;padding:4px 12px;border-radius:14px;pointer-events:none;"></div>
+  <div id="img-lightbox-nav" style="display:none;">
+    <button type="button" onclick="lbPrecedent(event)" aria-label="Photo précédente"
+      style="position:absolute;top:50%;left:12px;transform:translateY(-50%);background:rgba(0,0,0,0.55);border:none;border-radius:50%;width:44px;height:44px;color:#fff;font-size:19px;cursor:pointer;line-height:44px;text-align:center;padding:0;">◀</button>
+    <button type="button" onclick="lbSuivant(event)" aria-label="Photo suivante"
+      style="position:absolute;top:50%;right:12px;transform:translateY(-50%);background:rgba(0,0,0,0.55);border:none;border-radius:50%;width:44px;height:44px;color:#fff;font-size:19px;cursor:pointer;line-height:44px;text-align:center;padding:0;">▶</button>
+  </div>
+  <div id="img-lightbox-dots" style="position:absolute;bottom:18px;left:0;right:0;display:flex;gap:6px;justify-content:center;align-items:center;"></div>
 </div>
 
 <div class="mo" id="m-prod-zoom">
@@ -3030,7 +3042,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     <!-- Image -->
     <div id="pz-img-wrap" style="width:100%;height:220px;background:var(--surface2);display:flex;align-items:center;justify-content:center;position:relative;flex-shrink:0;">
       <img id="pz-img" style="width:100%;height:100%;object-fit:cover;display:none;cursor:zoom-in;"
-        onclick="openImageLightbox(document.getElementById('pz-img').src, event)"
+        onclick="pzPleinEcran(event)"
         ontouchstart="pzTouchStart(event)" ontouchend="pzTouchEnd(event)">
       <div id="pz-noimg" style="font-size:72px;">📦</div>
       <!-- Carrousel : masqué s'il n'y a qu'une seule photo (voir _pzAfficher) -->
