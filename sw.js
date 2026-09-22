@@ -17,7 +17,7 @@
 // ⚠️ Incrémenter ce numéro à chaque déploiement pour forcer la mise à jour
 // du shell chez les utilisateurs (sinon ils resteraient bloqués sur une
 // version en cache). Ex : 'mmb-shell-v2', 'mmb-shell-v3', ...
-const CACHE_NAME = 'mmb-shell-v12';
+const CACHE_NAME = 'mmb-shell-v13';
 
 // Fichiers du shell applicatif à mettre en cache dès l'installation.
 // Volontairement minimal et 100% same-origin (pas de CDN externe ici —
@@ -54,16 +54,28 @@ self.addEventListener('install', (event) => {
 
 // ── ACTIVATE : nettoie les anciens caches (versions précédentes) ──
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
-        keys
-          .filter((key) => key !== CACHE_NAME)
-          .map((key) => caches.delete(key))
-      )
-    )
-  );
-  self.clients.claim(); // prend le contrôle immédiatement, sans attendre un rechargement
+  event.waitUntil((async () => {
+    // Nettoyage des anciennes versions du cache.
+    const keys = await caches.keys();
+    await Promise.all(
+      keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+    );
+
+    // ── NAVIGATION PRELOAD ──
+    // Sans cela, une navigation attend que le Service Worker démarre AVANT
+    // que la requête réseau ne parte : sur un téléphone lent, le démarrage
+    // du worker coûte à lui seul plusieurs centaines de millisecondes, et
+    // ce temps est perdu. Avec le preload, le navigateur lance la requête
+    // EN PARALLÈLE du démarrage du worker. Ignoré silencieusement par les
+    // navigateurs qui ne le supportent pas (Safari).
+    if (self.registration.navigationPreload) {
+      try { await self.registration.navigationPreload.enable(); } catch (e) { /* non supporté */ }
+    }
+
+    // clients.claim() DANS le waitUntil : sinon l'activation pouvait être
+    // considérée terminée avant que la prise de contrôle soit effective.
+    await self.clients.claim();
+  })());
 });
 
 // ── MESSAGE : reçoit l'ordre de l'utilisateur (via app.js) d'activer la
@@ -98,9 +110,23 @@ self.addEventListener('fetch', (event) => {
       // Va chercher une version fraîche en tâche de fond, met à jour le
       // cache si ça réussit ; en cas d'échec réseau (coupure), on ignore
       // silencieusement l'erreur — la version en cache reste servie.
-      const network = fetch(req)
+      //
+      // ⚠️ On réutilise la réponse du NAVIGATION PRELOAD quand elle existe
+      // (voir activate) : sans cela, la requête lancée en parallèle par le
+      // navigateur serait purement et simplement gaspillée, et on en
+      // referait une seconde.
+      const network = Promise.resolve(event.preloadResponse)
+        .then((pre) => pre || fetch(req))
         .then((res) => {
-          if (res && res.ok) cache.put(req, res.clone());
+          // ⚠️ `res.ok` est vrai pour TOUT le 2xx, y compris 206 Partial
+          // Content (requête Range). Mettre un fragment en cache puis le
+          // servir en réponse à une requête complète donnerait un fichier
+          // TRONQUÉ — JavaScript coupé au milieu, page cassée, et le cache
+          // est persistant donc la panne survivrait aux rechargements.
+          // On n'accepte donc QUE les réponses 200 complètes.
+          if (res && res.status === 200 && res.type !== 'opaque') {
+            cache.put(req, res.clone());
+          }
           return res;
         })
         .catch(() => null);
