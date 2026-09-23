@@ -1063,6 +1063,15 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
       <label style="font-size:11px;color:var(--muted);">au</label>
       <input type="date" id="dl-date-fin" oninput="renderDemandesLivraison()" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);">
       <button class="btn btn-ghost btn-xs" onclick="document.getElementById('dl-date-debut').value='';document.getElementById('dl-date-fin').value='';renderDemandesLivraison();">✕ Dates</button>
+      <!-- ── VOLET 15 ── filtre agence. Masque pour le chef d'agence, qui ne
+           voit deja que la sienne (filtrage par role dans
+           renderDemandesLivraison). Peuple par le code, depuis DB.agences. -->
+      <span id="dl-agence-wrap" style="display:none;align-items:center;gap:6px;">
+        <label style="font-size:11px;color:var(--muted);">Agence</label>
+        <select id="dl-filter-agence" onchange="renderDemandesLivraison()" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);font-size:12px;">
+          <option value="">Toutes les agences</option>
+        </select>
+      </span>
       <span id="dl-date-count" style="font-size:11px;color:var(--muted);"></span>
     </div>
     <!-- Filtre par statut -->
