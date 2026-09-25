@@ -1051,6 +1051,54 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     <div class="tw"><table><thead><tr><th>Date</th><th>Client</th><th>Commercial</th><th>Produit</th><th>Qté</th><th>Montant</th><th>Statut</th><th>Actions</th></tr></thead><tbody id="tb-livraisons"></tbody></table></div>
   </div>
 
+  <!-- ══ VOLET 18 ══ DÉCOMPTE DES CARNETS ATTRIBUÉS AUX COMMERCIAUX ══
+       Accès : admin, chef d'agence (son agence), contrôleur (consultation).
+       Le solde n'est PAS un champ stocké : c'est la somme des mouvements,
+       calculée par agrégation serveur. Voir _carnetSoldes() dans app.js. -->
+  <div id="page-carnets" class="page">
+    <div class="sec-hdr">
+      <div class="sec-title" style="color:var(--accent);">📓 Carnets des commerciaux</div>
+    </div>
+    <div class="kpi-row" id="carnet-kpi"></div>
+
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0;">
+      <span id="carnet-agence-wrap" style="display:none;align-items:center;gap:6px;">
+        <label style="font-size:11px;color:var(--muted);">Agence</label>
+        <select id="carnet-filter-agence" onchange="renderCarnets()" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);font-size:12px;">
+          <option value="">Toutes les agences</option>
+        </select>
+      </span>
+      <input type="text" id="carnet-search" placeholder="🔍 Rechercher un commercial…" oninput="dRender('renderCarnets')"
+        style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 10px;color:var(--text);font-size:12px;min-width:200px;">
+      <button class="btn btn-ghost btn-xs" onclick="renderCarnets(true)" title="Recalculer les soldes depuis le serveur">↻ Actualiser</button>
+      <span id="carnet-maj" style="font-size:11px;color:var(--muted);"></span>
+    </div>
+
+    <div class="tw"><table><thead><tr>
+      <th>Commercial</th><th>Agence</th>
+      <th style="text-align:center;">Attribués</th>
+      <th style="text-align:center;">Consommés</th>
+      <th style="text-align:center;">Solde</th>
+      <th style="text-align:center;"></th>
+    </tr></thead><tbody id="tb-carnets"></tbody></table></div>
+
+    <div class="sec-hdr" style="margin-top:22px;">
+      <div class="sec-title" style="font-size:15px;">Historique des mouvements</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+      <label style="font-size:11px;color:var(--muted);">Du</label>
+      <input type="date" id="carnet-date-debut" oninput="renderCarnetMvts()" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);">
+      <label style="font-size:11px;color:var(--muted);">au</label>
+      <input type="date" id="carnet-date-fin" oninput="renderCarnetMvts()" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);">
+      <button class="btn btn-ghost btn-xs" onclick="document.getElementById('carnet-date-debut').value='';document.getElementById('carnet-date-fin').value='';renderCarnetMvts();">✕ Dates</button>
+      <span id="carnet-mvt-count" style="font-size:11px;color:var(--muted);"></span>
+    </div>
+    <div class="tw"><table><thead><tr>
+      <th>Date</th><th>Commercial</th><th>Type</th>
+      <th style="text-align:center;">Qté</th><th>Motif</th><th>Saisi par</th>
+    </tr></thead><tbody id="tb-carnet-mvts"></tbody></table></div>
+  </div>
+
   <!-- DEMANDES DE LIVRAISON (chef d'agence ↔ gestionnaire de stock) -->
   <div id="page-demandes-livraison" class="page">
     <div class="sec-hdr">
@@ -2750,6 +2798,34 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
      Consultable par admin / secretaire / chef d'agence ; la suppression
      (bouton 🗑) n'apparait que pour l'admin, conformement aux regles
      Firestore (`allow delete: if isAdmin()` sur rachatCarnetPays). -->
+<!-- ── VOLET 18 ── Attribution de carnets à un commercial. -->
+<div class="mo" id="m-carnet-attribuer">
+  <div class="md" style="border-color:rgba(201,168,76,0.4);">
+    <div class="md-title" style="color:var(--accent);">📓 Attribuer des carnets</div>
+    <div class="fr">
+      <label>Commercial *</label>
+      <select id="carnet-att-com" onchange="carnetAttMajSolde()"><option value="">— Sélectionner —</option></select>
+    </div>
+    <div id="carnet-att-solde" class="ib ib-blue" style="margin-bottom:12px;font-size:12px;display:none;"></div>
+    <div class="fr">
+      <label>Nombre de carnets remis *</label>
+      <input type="number" id="carnet-att-qty" min="1" step="1" placeholder="ex : 50">
+    </div>
+    <div class="fr">
+      <label>Motif / référence (optionnel)</label>
+      <input type="text" id="carnet-att-motif" placeholder="ex : Livraison du 25/09, bon n°123">
+    </div>
+    <div class="fr">
+      <label>Date de remise</label>
+      <input type="date" id="carnet-att-date">
+    </div>
+    <div class="ma">
+      <button class="btn btn-ghost" onclick="closeM('m-carnet-attribuer')">Annuler</button>
+      <button class="btn btn-success" onclick="confirmerAttributionCarnets()">✅ Attribuer</button>
+    </div>
+  </div>
+</div>
+
 <div class="mo" id="m-rachats-liste">
   <div class="md" style="border-color:rgba(100,160,247,0.4);max-width:620px;">
     <div class="md-title" style="color:#64a0f7;">📘 Rachats de carnet</div>
