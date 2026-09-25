@@ -2746,6 +2746,22 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
 </div>
 
 <!-- MODAL RACHAT DE CARNET (frais séparé, répétable, ex: perte de carnet) -->
+<!-- ── VOLET 16 ── Liste des rachats de carnet d'un client.
+     Consultable par admin / secretaire / chef d'agence ; la suppression
+     (bouton 🗑) n'apparait que pour l'admin, conformement aux regles
+     Firestore (`allow delete: if isAdmin()` sur rachatCarnetPays). -->
+<div class="mo" id="m-rachats-liste">
+  <div class="md" style="border-color:rgba(100,160,247,0.4);max-width:620px;">
+    <div class="md-title" style="color:#64a0f7;">📘 Rachats de carnet</div>
+    <div id="m-rachats-info" class="ib ib-blue" style="margin-bottom:12px;font-size:12px;"></div>
+    <div id="m-rachats-body" style="max-height:52vh;overflow:auto;"></div>
+    <input type="hidden" id="m-rachats-client-id">
+    <div class="ma">
+      <button class="btn btn-ghost" onclick="closeM('m-rachats-liste')">Fermer</button>
+    </div>
+  </div>
+</div>
+
 <div class="mo" id="m-rachat-carnet">
   <div class="md" style="border-color:rgba(100,160,247,0.4);">
     <div class="md-title" style="color:#64a0f7;">📘 Rachat de carnet</div>
