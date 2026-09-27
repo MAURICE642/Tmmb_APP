@@ -491,6 +491,38 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
 </div>
 
 <!-- SIDEBAR -->
+<!-- ── VOLET 21 ── Styles du menu repliable. Ajoutes ici, en ligne, et non
+     dans styles.min.css : ce fichier n'est pas versionne avec app.js, et une
+     regle manquante rendrait le menu inutilisable. Les selecteurs sont
+     prefixes .nav-grp / .nav-sec-clic pour ne rien recouvrir d'existant. -->
+<style>
+  .nav-sec-clic{
+    cursor:pointer; user-select:none;
+    display:flex; align-items:center; justify-content:space-between;
+    gap:8px; border-radius:7px; transition:background .15s, color .15s;
+  }
+  .nav-sec-clic:hover{ background:rgba(201,168,76,0.10); color:var(--accent); }
+  .nav-sec-clic .nav-chev{
+    flex-shrink:0; font-size:9px; line-height:1; opacity:.55;
+    transition:transform .18s ease;
+  }
+  .nav-sec-clic[aria-expanded="true"] .nav-chev{ transform:rotate(90deg); opacity:1; }
+  .nav-sec-clic[aria-expanded="true"]{ color:var(--accent); }
+  .nav-sec-clic .nav-cnt{
+    flex-shrink:0; font-size:9px; font-weight:700; opacity:.5;
+    padding:1px 6px; border-radius:10px; border:1px solid currentColor;
+  }
+  .nav-sec-clic[aria-expanded="true"] .nav-cnt{ display:none; }
+  /* Replie par defaut : l'ouverture est pilotee par navToggleGroupe(). */
+  .nav-grp{ display:none; }
+  .nav-grp.ouvert{ display:block; }
+  /* Un groupe contenant la page courante reste signale meme replie. */
+  .nav-sec-clic.contient-actif::after{
+    content:''; width:5px; height:5px; border-radius:50%;
+    background:var(--accent); flex-shrink:0; margin-left:2px;
+  }
+  .nav-sec-clic[aria-expanded="true"].contient-actif::after{ display:none; }
+</style>
 <aside id="sidebar">
   <div class="logo">
     <div class="logo-text" style="display:flex;align-items:center;gap:8px;"><img src="logo.jpg" alt="Logo" style="height:32px;width:32px;object-fit:contain;border-radius:6px;flex-shrink:0;">TRIOMPHANT MMB SERVICE</div>
@@ -1049,6 +1081,117 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     <!-- Label résumé filtres actifs -->
     <div id="liv-filtre-label" style="font-size:11px;color:var(--muted);margin-bottom:8px;padding:0 2px;"></div>
     <div class="tw"><table><thead><tr><th>Date</th><th>Client</th><th>Commercial</th><th>Produit</th><th>Qté</th><th>Montant</th><th>Statut</th><th>Actions</th></tr></thead><tbody id="tb-livraisons"></tbody></table></div>
+  </div>
+
+  <!-- ══ VOLET 20 ══ ANALYSE DE LA BASE CLIENTÈLE (ADMIN UNIQUEMENT) ══
+       Cette page ne charge RIEN à son ouverture : on règle les critères, puis
+       le bouton « Analyser » déclenche le chargement. Voir
+       lancerAnalyseClients() dans app.js. -->
+  <div id="page-analyse-clients" class="page">
+    <div class="sec-hdr">
+      <div class="sec-title" style="color:var(--accent);">🔍 Analyse de la base clientèle</div>
+    </div>
+
+    <div class="ib ib-blue" style="font-size:12px;margin-bottom:14px;">
+      Réglez vos critères puis appuyez sur <strong>Analyser</strong>.
+      Rien n'est chargé avant. Les critères laissés vides sont ignorés.
+    </div>
+
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px;">
+
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;">Périmètre</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:18px;">
+        <select id="ac-agence" onchange="acMajCommerciaux()" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:12px;">
+          <option value="">Toutes les agences</option>
+        </select>
+        <select id="ac-commercial" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:12px;">
+          <option value="">Tous les commerciaux</option>
+        </select>
+        <select id="ac-statut" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:12px;">
+          <option value="">Tous les contrats</option>
+          <option value="actif">Contrats actifs seulement</option>
+          <option value="resilie">Contrats résiliés seulement</option>
+        </select>
+      </div>
+
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;">Inactivité</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:18px;">
+        <label style="font-size:12px;color:var(--muted);">Aucun paiement depuis plus de</label>
+        <input type="number" id="ac-inactif-jours" min="1" step="1" placeholder="ex : 30" style="width:100px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:12px;">
+        <label style="font-size:12px;color:var(--muted);">jours</label>
+        <label style="font-size:12px;color:var(--muted);display:inline-flex;align-items:center;gap:6px;margin-left:10px;">
+          <input type="checkbox" id="ac-jamais-paye"> Inclure ceux qui n'ont <strong>jamais</strong> payé
+        </label>
+      </div>
+
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;">Montants — laissez vide ce qui ne vous intéresse pas</div>
+      <div id="ac-montants" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;margin-bottom:8px;">
+
+        <div style="display:flex;gap:6px;align-items:center;">
+          <span style="font-size:12px;min-width:112px;">Total versé</span>
+          <select id="ac-tp-op" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px;color:var(--text);font-size:12px;">
+            <option value="">—</option><option value="lte">≤</option><option value="gte">≥</option>
+          </select>
+          <input type="number" id="ac-tp-val" min="0" step="1" placeholder="FCFA" style="width:110px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);font-size:12px;">
+        </div>
+
+        <div style="display:flex;gap:6px;align-items:center;">
+          <span style="font-size:12px;min-width:112px;" title="Total versé moins les livraisons déjà reçues">Solde disponible ⓘ</span>
+          <select id="ac-sd-op" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px;color:var(--text);font-size:12px;">
+            <option value="">—</option><option value="lte">≤</option><option value="gte">≥</option>
+          </select>
+          <input type="number" id="ac-sd-val" step="1" placeholder="FCFA" style="width:110px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);font-size:12px;">
+        </div>
+
+        <div style="display:flex;gap:6px;align-items:center;">
+          <span style="font-size:12px;min-width:112px;">Reste à payer</span>
+          <select id="ac-rp-op" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px;color:var(--text);font-size:12px;">
+            <option value="">—</option><option value="lte">≤</option><option value="gte">≥</option>
+          </select>
+          <input type="number" id="ac-rp-val" step="1" placeholder="FCFA" style="width:110px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);font-size:12px;">
+        </div>
+
+        <div style="display:flex;gap:6px;align-items:center;">
+          <span style="font-size:12px;min-width:112px;">Avancement</span>
+          <select id="ac-pc-op" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px;color:var(--text);font-size:12px;">
+            <option value="">—</option><option value="lte">≤</option><option value="gte">≥</option>
+          </select>
+          <input type="number" id="ac-pc-val" min="0" max="100" step="1" placeholder="%" style="width:110px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);font-size:12px;">
+        </div>
+      </div>
+
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin:16px 0 10px;">Situations à risque</div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:18px;">
+        <label style="font-size:12px;display:inline-flex;align-items:center;gap:6px;" title="Contrat entièrement payé mais aucune livraison enregistrée — de l'argent encaissé avec une dette de marchandise en face">
+          <input type="checkbox" id="ac-solde-non-livre"> Contrat soldé mais <strong>non livré</strong>
+        </label>
+        <label style="font-size:12px;display:inline-flex;align-items:center;gap:6px;">
+          <input type="checkbox" id="ac-adh-impayee"> Adhésion <strong>jamais encaissée</strong>
+        </label>
+        <label style="font-size:12px;display:inline-flex;align-items:center;gap:6px;" title="Contrat résilié dont le solde disponible reste positif">
+          <input type="checkbox" id="ac-resilie-solde"> Résilié avec <strong>solde restant</strong>
+        </label>
+      </div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        <button class="btn btn-primary" onclick="lancerAnalyseClients()" id="ac-btn-analyser">🔍 Analyser</button>
+        <button class="btn btn-ghost btn-sm" onclick="acReinitialiser()">↺ Réinitialiser</button>
+        <button class="btn btn-ghost btn-sm" onclick="exporterAnalyseClientsCSV()" id="ac-btn-export" style="display:none;">📥 Exporter en CSV</button>
+        <span id="ac-etat" style="font-size:11px;color:var(--muted);"></span>
+      </div>
+    </div>
+
+    <div class="kpi-row" id="ac-kpi"></div>
+    <div id="ac-resume" style="font-size:12px;color:var(--muted);margin:10px 0;"></div>
+    <div class="tw" id="ac-table-wrap" style="display:none;"><table><thead><tr>
+      <th>Code</th><th>Client</th><th>Commercial</th>
+      <th style="text-align:right;">Total versé</th>
+      <th style="text-align:right;">Solde dispo.</th>
+      <th style="text-align:right;">Reste</th>
+      <th style="text-align:center;">Avanc.</th>
+      <th style="text-align:center;">Dernier paiement</th>
+      <th>Signaux</th>
+    </tr></thead><tbody id="tb-analyse-clients"></tbody></table></div>
   </div>
 
   <!-- ══ VOLET 18 ══ DÉCOMPTE DES CARNETS ATTRIBUÉS AUX COMMERCIAUX ══
