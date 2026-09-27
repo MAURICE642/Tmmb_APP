@@ -496,32 +496,81 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
      regle manquante rendrait le menu inutilisable. Les selecteurs sont
      prefixes .nav-grp / .nav-sec-clic pour ne rien recouvrir d'existant. -->
 <style>
-  .nav-sec-clic{
+  /* ══ VOLET 22 ══ Habillage « rail doré » du menu repliable.
+     Ce bloc est dans le <body>, donc APRES styles.min.css dans l'ordre des
+     sources : a specificite egale, ce sont ces regles qui gagnent. Les
+     selecteurs qui doivent surcharger .nav-sec portent les DEUX classes
+     (.nav-sec.nav-sec-clic), pour ne pas dependre du seul ordre.
+     Aucune couleur nouvelle : uniquement --accent et les gris du theme. La
+     couleur reste porteuse de sens dans l'application (or = action, menthe =
+     montant positif, rouge = danger) — un menu bariole l'affaiblirait. */
+
+  /* ── En-tete de groupe ─────────────────────────────────────────────── */
+  .nav-sec.nav-sec-clic{
     cursor:pointer; user-select:none;
-    display:flex; align-items:center; justify-content:space-between;
-    gap:8px; border-radius:7px; transition:background .15s, color .15s;
+    display:flex; align-items:center; gap:10px;
+    padding:10px 10px 10px 0; margin:0;
+    border-radius:8px; background:none; border:0; width:100%; text-align:left;
+    font-family:'Space Grotesk','Outfit',system-ui,sans-serif;
+    font-size:11px; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--muted,#8b93a7);
+    transition:color .15s ease;
   }
-  .nav-sec-clic:hover{ background:rgba(201,168,76,0.10); color:var(--accent); }
-  .nav-sec-clic .nav-chev{
-    flex-shrink:0; font-size:9px; line-height:1; opacity:.55;
-    transition:transform .18s ease;
+  .nav-sec.nav-sec-clic:hover{ color:var(--accent,#c9a84c); }
+  .nav-sec.nav-sec-clic[aria-expanded="true"]{ color:var(--accent,#c9a84c); }
+  .nav-sec.nav-sec-clic:focus-visible{
+    outline:2px solid var(--accent,#c9a84c); outline-offset:2px;
   }
-  .nav-sec-clic[aria-expanded="true"] .nav-chev{ transform:rotate(90deg); opacity:1; }
-  .nav-sec-clic[aria-expanded="true"]{ color:var(--accent); }
+
+  /* Segment de rail sur l'en-tete : gris au repos, dore a l'ouverture,
+     dore pale quand le groupe replie contient la page courante. */
+  .nav-sec-clic .nav-rail-t{
+    flex-shrink:0; width:3px; height:20px; border-radius:2px;
+    background:var(--border,#2a3142); transition:background .18s ease;
+  }
+  .nav-sec-clic.contient-actif .nav-rail-t{ background:rgba(201,168,76,.38); }
+  .nav-sec-clic[aria-expanded="true"] .nav-rail-t{ background:var(--accent,#c9a84c); }
+
+  .nav-sec-clic .nav-lbl{ flex:1 1 auto; min-width:0; }
+
+  /* Pastille : le groupe est replie ET contient la page courante. */
+  .nav-sec-clic .nav-dot{
+    flex-shrink:0; width:5px; height:5px; border-radius:50%;
+    background:var(--accent,#c9a84c); display:none;
+  }
+  .nav-sec-clic.contient-actif .nav-dot{ display:block; }
+  .nav-sec-clic[aria-expanded="true"] .nav-dot{ display:none; }
+
+  /* Compteur : visible UNIQUEMENT replie — c'est precisement l'information
+     que le repliement fait perdre (« Administration cache 5 pages »). */
   .nav-sec-clic .nav-cnt{
-    flex-shrink:0; font-size:9px; font-weight:700; opacity:.5;
-    padding:1px 6px; border-radius:10px; border:1px solid currentColor;
+    flex-shrink:0; font-size:10px; font-weight:700; letter-spacing:0;
+    color:var(--muted,#8b93a7); background:var(--surface2,#1a2035);
+    border-radius:9px; padding:1px 7px; font-variant-numeric:tabular-nums;
   }
   .nav-sec-clic[aria-expanded="true"] .nav-cnt{ display:none; }
-  /* Replie par defaut : l'ouverture est pilotee par navToggleGroupe(). */
-  .nav-grp{ display:none; }
-  .nav-grp.ouvert{ display:block; }
-  /* Un groupe contenant la page courante reste signale meme replie. */
-  .nav-sec-clic.contient-actif::after{
-    content:''; width:5px; height:5px; border-radius:50%;
-    background:var(--accent); flex-shrink:0; margin-left:2px;
+
+  .nav-sec-clic .nav-chev{
+    flex-shrink:0; width:9px; font-size:8px; line-height:1; text-align:center;
+    opacity:.6; transition:transform .18s ease, opacity .15s ease;
   }
-  .nav-sec-clic[aria-expanded="true"].contient-actif::after{ display:none; }
+  .nav-sec-clic[aria-expanded="true"] .nav-chev{ transform:rotate(90deg); opacity:1; }
+
+  /* ── Groupe ouvert : le rail relie ses entrees ─────────────────────── */
+  .nav-grp{ display:none; }
+  .nav-grp.ouvert{ display:flex; padding:0 0 10px; }
+  .nav-grp > .nav-rail{
+    flex-shrink:0; width:3px; border-radius:2px;
+    background:linear-gradient(180deg, rgba(201,168,76,.55) 0%, rgba(201,168,76,.12) 100%);
+  }
+  .nav-grp > .nav-grp-items{
+    flex:1 1 auto; min-width:0; padding-left:7px;
+    display:flex; flex-direction:column; gap:1px;
+  }
+  .nav-grp > .nav-grp-items > .nav-item{ margin:0; }
+
+  /* Ecrans courts : le menu defile au lieu de pousser le pied de page. */
+  #nav-menu{ overflow-y:auto; }
 </style>
 <aside id="sidebar">
   <div class="logo">
