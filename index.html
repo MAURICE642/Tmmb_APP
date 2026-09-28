@@ -3258,6 +3258,24 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
       <textarea id="prod-desc" rows="2" placeholder="Description du produit..." style="resize:vertical;min-height:52px;"></textarea>
     </div>
 
+    <!-- ── VOLET 23 ── Disponibilité à la vente.
+         « Indisponible » n'est PAS une suppression : le produit reste en base,
+         reste livrable aux clients qui l'ont déjà à leur contrat, et peut être
+         remis en vente d'un clic. -->
+    <div class="fr" id="prod-dispo-wrap">
+      <label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-weight:600;">
+        <input type="checkbox" id="prod-indisponible" onchange="prodMajBandeauDispo()" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;">
+        <span>🚫 Indisponible à la vente</span>
+      </label>
+      <div id="prod-dispo-aide" style="font-size:11px;color:var(--muted);margin-top:5px;line-height:1.5;">
+        Coché, ce produit ne peut plus être ajouté au contrat d'un client — ni à
+        la création, ni en modification. Il reste <strong>livrable</strong> aux
+        clients qui l'avaient déjà, et l'agence peut toujours en demander au
+        gestionnaire de stock.
+      </div>
+      <div id="prod-dispo-info" style="display:none;font-size:11px;margin-top:7px;padding:7px 10px;border-radius:7px;background:rgba(224,92,82,0.10);border:1px solid rgba(224,92,82,0.32);color:var(--danger);"></div>
+    </div>
+
     <!-- Photos du produit (galerie, 5 max) -->
     <div class="fr">
       <label>Photos du produit
