@@ -572,6 +572,28 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
   /* Ecrans courts : le menu defile au lieu de pousser le pied de page. */
   #nav-menu{ overflow-y:auto; }
 </style>
+<style>
+/* ── VOLET 28 ── En-tete de section repliable.
+   Reprend l'habillage du rail dore du volet 22 : une barre discrete qui
+   s'eclaire au survol, pour que le caractere cliquable se voie sans crier.
+   Le focus clavier est VISIBLE — sans quoi la navigation au clavier, que le
+   role=button rend possible, resterait inutilisable en pratique. */
+.sec-pliable{
+  border-radius:9px;
+  padding:7px 11px;
+  margin-left:-11px;
+  margin-right:-11px;
+  transition:background .16s ease, box-shadow .16s ease;
+}
+.sec-pliable:hover{ background:rgba(201,168,76,0.07); }
+.sec-pliable:focus-visible{
+  outline:none;
+  box-shadow:0 0 0 2px rgba(201,168,76,0.55);
+  background:rgba(201,168,76,0.07);
+}
+.sec-pliable #carnet-chev-coms,
+.sec-pliable span[id^="carnet-chev"]{ transition:transform .16s ease; }
+</style>
 <aside id="sidebar">
   <div class="logo">
     <div class="logo-text" style="display:flex;align-items:center;gap:8px;"><img src="logo.jpg" alt="Logo" style="height:32px;width:32px;object-fit:contain;border-radius:6px;flex-shrink:0;">TRIOMPHANT MMB SERVICE</div>
@@ -1266,29 +1288,64 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
       <span id="carnet-maj" style="font-size:11px;color:var(--muted);"></span>
     </div>
 
-    <div class="tw"><table><thead><tr>
-      <th>Commercial</th><th>Agence</th>
-      <th style="text-align:center;">Attribués</th>
-      <th style="text-align:center;">Consommés</th>
-      <th style="text-align:center;">Solde</th>
-      <th style="text-align:center;"></th>
-    </tr></thead><tbody id="tb-carnets"></tbody></table></div>
+    <!-- ── VOLET 28 ── bandeau de diagnostic. Vide et masque par defaut ;
+         renseigne par renderCarnets() uniquement quand au moins un solde
+         manque, avec la cause reelle et la marche a suivre. -->
+    <div id="carnet-diag" style="display:none;margin:10px 0;padding:11px 14px;border-radius:9px;
+         border:1px solid rgba(247,201,79,0.35);background:rgba(247,201,79,0.08);
+         color:var(--text);font-size:12px;line-height:1.5;"></div>
 
-    <div class="sec-hdr" style="margin-top:22px;">
-      <div class="sec-title" style="font-size:15px;">Historique des mouvements</div>
+    <!-- ── VOLET 28 ── SECTION REPLIABLE : tableau des commerciaux.
+         L'en-tete entier est cliquable (zone de clic large, utile au doigt).
+         role/tabindex/aria-expanded : la section reste utilisable au clavier
+         et annoncee correctement par un lecteur d'ecran. -->
+    <div class="sec-hdr sec-pliable" role="button" tabindex="0"
+         aria-controls="carnet-bloc-coms" id="carnet-chev-coms-hdr"
+         onclick="basculerSection('carnets-coms','carnet-bloc-coms','carnet-chev-coms')"
+         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();basculerSection('carnets-coms','carnet-bloc-coms','carnet-chev-coms');}"
+         style="margin-top:4px;cursor:pointer;user-select:none;">
+      <div class="sec-title" style="font-size:15px;display:flex;align-items:center;gap:8px;">
+        <span id="carnet-chev-coms" aria-expanded="true"
+              style="display:inline-block;width:14px;color:var(--accent);font-size:12px;">▾</span>
+        Soldes par commercial
+      </div>
     </div>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
-      <label style="font-size:11px;color:var(--muted);">Du</label>
-      <input type="date" id="carnet-date-debut" oninput="renderCarnetMvts()" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);">
-      <label style="font-size:11px;color:var(--muted);">au</label>
-      <input type="date" id="carnet-date-fin" oninput="renderCarnetMvts()" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);">
-      <button class="btn btn-ghost btn-xs" onclick="document.getElementById('carnet-date-debut').value='';document.getElementById('carnet-date-fin').value='';renderCarnetMvts();">✕ Dates</button>
-      <span id="carnet-mvt-count" style="font-size:11px;color:var(--muted);"></span>
+    <div id="carnet-bloc-coms">
+      <div class="tw"><table><thead><tr>
+        <th>Commercial</th><th>Agence</th>
+        <th style="text-align:center;">Attribués</th>
+        <th style="text-align:center;">Consommés</th>
+        <th style="text-align:center;">Solde</th>
+        <th style="text-align:center;"></th>
+      </tr></thead><tbody id="tb-carnets"></tbody></table></div>
     </div>
-    <div class="tw"><table><thead><tr>
-      <th>Date</th><th>Commercial</th><th>Type</th>
-      <th style="text-align:center;">Qté</th><th>Motif</th><th>Saisi par</th>
-    </tr></thead><tbody id="tb-carnet-mvts"></tbody></table></div>
+
+    <!-- ── VOLET 28 ── SECTION REPLIABLE : historique des mouvements. -->
+    <div class="sec-hdr sec-pliable" role="button" tabindex="0"
+         aria-controls="carnet-bloc-hist"
+         onclick="basculerSection('carnets-hist','carnet-bloc-hist','carnet-chev-hist')"
+         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();basculerSection('carnets-hist','carnet-bloc-hist','carnet-chev-hist');}"
+         style="margin-top:22px;cursor:pointer;user-select:none;">
+      <div class="sec-title" style="font-size:15px;display:flex;align-items:center;gap:8px;">
+        <span id="carnet-chev-hist" aria-expanded="true"
+              style="display:inline-block;width:14px;color:var(--accent);font-size:12px;">▾</span>
+        Historique des mouvements
+      </div>
+    </div>
+    <div id="carnet-bloc-hist">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+        <label style="font-size:11px;color:var(--muted);">Du</label>
+        <input type="date" id="carnet-date-debut" oninput="renderCarnetMvts()" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);">
+        <label style="font-size:11px;color:var(--muted);">au</label>
+        <input type="date" id="carnet-date-fin" oninput="renderCarnetMvts()" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);">
+        <button class="btn btn-ghost btn-xs" onclick="document.getElementById('carnet-date-debut').value='';document.getElementById('carnet-date-fin').value='';renderCarnetMvts();">✕ Dates</button>
+        <span id="carnet-mvt-count" style="font-size:11px;color:var(--muted);"></span>
+      </div>
+      <div class="tw"><table><thead><tr>
+        <th>Date</th><th>Commercial</th><th>Type</th>
+        <th style="text-align:center;">Qté</th><th>Motif</th><th>Saisi par</th>
+      </tr></thead><tbody id="tb-carnet-mvts"></tbody></table></div>
+    </div>
   </div>
 
   <!-- DEMANDES DE LIVRAISON (chef d'agence ↔ gestionnaire de stock) -->
