@@ -1333,11 +1333,28 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
       </div>
     </div>
     <div id="carnet-bloc-hist">
+      <!-- ── VOLET 29 ── Filtre commercial. Choisir un commercial declenche
+           une lecture CIBLEE de ses seuls mouvements, au lieu de charger ceux
+           de tout le perimetre. Un seul champ filtre : aucun index composite
+           requis, donc cette lecture fonctionne meme quand les agregations
+           sont refusees. -->
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+        <label style="font-size:11px;color:var(--muted);font-weight:600;">Commercial</label>
+        <select id="carnet-mvt-com" onchange="carnetFiltrerCommercial()"
+          style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);font-size:12px;min-width:210px;">
+          <option value="">Tous (journée en cours)</option>
+        </select>
+        <span id="carnet-mvt-etat" style="font-size:11px;color:var(--accent);"></span>
+      </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
         <label style="font-size:11px;color:var(--muted);">Du</label>
-        <input type="date" id="carnet-date-debut" oninput="renderCarnetMvts()" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);">
+        <input type="date" id="carnet-date-debut" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);">
         <label style="font-size:11px;color:var(--muted);">au</label>
-        <input type="date" id="carnet-date-fin" oninput="renderCarnetMvts()" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);">
+        <input type="date" id="carnet-date-fin" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);">
+        <!-- ── VOLET 29 ── le chargement d'une plage est DEMANDE, pas
+             declenche a la frappe : une date intermediaire absurde partait
+             sinon en lecture facturee. -->
+        <button class="btn btn-ghost btn-xs" onclick="carnetChargerPeriode()" title="Lit les mouvements de tous les commerciaux du périmètre sur cette période">⇣ Charger la période</button>
         <button class="btn btn-ghost btn-xs" onclick="document.getElementById('carnet-date-debut').value='';document.getElementById('carnet-date-fin').value='';renderCarnetMvts();">✕ Dates</button>
         <span id="carnet-mvt-count" style="font-size:11px;color:var(--muted);"></span>
       </div>
