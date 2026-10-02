@@ -1834,6 +1834,50 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
       <span id="rapport-periode-txt">—</span>
     </div>
 
+    <!-- ══════════════════════════════════════════════════════════════
+         VOLET 33 — RECOUVREMENTS PAR DATE ET PAR COMMERCIAL
+         Bloc repliable, REPLIE PAR DEFAUT, et qui ne lit RIEN tant que
+         « ⇣ Charger le mois » n'a pas ete clique. Un mois de paiements peut
+         representer des dizaines de milliers de documents : ce chargement ne
+         doit jamais partir tout seul.
+         ══════════════════════════════════════════════════════════════ -->
+    <div class="sec-hdr sec-pliable no-print" role="button" tabindex="0"
+         aria-controls="rec-detail-bloc"
+         onclick="basculerSection('rapport-rec-detail','rec-detail-bloc','rec-detail-chev')"
+         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();basculerSection('rapport-rec-detail','rec-detail-bloc','rec-detail-chev');}"
+         style="margin-top:18px;cursor:pointer;user-select:none;">
+      <div class="sec-title" style="font-size:15px;display:flex;align-items:center;gap:8px;">
+        <span id="rec-detail-chev" aria-expanded="false"
+              style="display:inline-block;width:14px;color:var(--accent);font-size:12px;">▸</span>
+        📅 Recouvrements par date et par commercial
+      </div>
+    </div>
+    <div id="rec-detail-bloc" style="display:none;">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0;">
+        <label style="font-size:11px;color:var(--muted);font-weight:600;">Mois</label>
+        <input type="month" id="rec-detail-mois"
+          style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);font-size:12px;">
+        <label style="font-size:11px;color:var(--muted);font-weight:600;">Agence</label>
+        <select id="rec-detail-agence" onchange="renderRecDetail()"
+          style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);font-size:12px;">
+          <option value="">Toutes les agences</option>
+        </select>
+        <label style="font-size:11px;color:var(--muted);font-weight:600;">Nature</label>
+        <select id="rec-detail-nature" onchange="renderRecDetail()"
+          style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);font-size:12px;">
+          <option value="cotisations">Cotisations seules</option>
+          <option value="tout">Cotisations + adhésions + rachats</option>
+        </select>
+        <button class="btn btn-ghost btn-xs" onclick="recDetailCharger()"
+          title="Lit les encaissements de ce mois sur le serveur — une seule fois par mois consulté">⇣ Charger le mois</button>
+        <button class="btn btn-ghost btn-xs" onclick="recDetailExportCSV()">📄 Export CSV</button>
+        <span id="rec-detail-etat" style="font-size:11px;color:var(--accent);"></span>
+      </div>
+      <div id="rec-detail-body">
+        <div class="emp" style="padding:26px;">Choisissez un mois puis cliquez <strong>⇣ Charger le mois</strong>.</div>
+      </div>
+    </div>
+
     <!-- Contenu du rapport -->
     <div id="rapport-body">
       <div class="rapport-loading">⏳ Chargement du rapport…</div>
