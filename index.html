@@ -1858,9 +1858,17 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         <input type="month" id="rec-detail-mois"
           style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);font-size:12px;">
         <label style="font-size:11px;color:var(--muted);font-weight:600;">Agence</label>
-        <select id="rec-detail-agence" onchange="renderRecDetail()"
+        <select id="rec-detail-agence" onchange="recDetailAgenceChange()"
           style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);font-size:12px;">
           <option value="">Toutes les agences</option>
+        </select>
+        <!-- ── VOLET 34 ── filtre commercial. Appliqué en mémoire sur le mois
+             déjà lu : en changer ne déclenche aucune lecture. La liste suit
+             l'agence choisie. -->
+        <label style="font-size:11px;color:var(--muted);font-weight:600;">Commercial</label>
+        <select id="rec-detail-com" onchange="renderRecDetail()"
+          style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);font-size:12px;min-width:180px;">
+          <option value="">Tous les commerciaux</option>
         </select>
         <label style="font-size:11px;color:var(--muted);font-weight:600;">Nature</label>
         <select id="rec-detail-nature" onchange="renderRecDetail()"
