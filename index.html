@@ -860,6 +860,14 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap;">
       <button class="btn btn-sm ctrl-tab active" id="ctrl-tab-attente" onclick="setControleTab('attente')">⏳ À contrôler (<span id="ctrl-count-attente">0</span>)</button>
       <button class="btn btn-sm ctrl-tab" id="ctrl-tab-fait" onclick="setControleTab('fait')">✅ Contrôlés (<span id="ctrl-count-fait">0</span>)</button>
+      <!-- ── VOLET 37 ── Trace du travail du contrôleur connecté. Ce n'est PAS
+           un onglet : c'est un indicateur. « Contrôlés » compte tout le monde ;
+           celui-ci ne compte que les siens, sur le périmètre affiché. -->
+      <span id="ctrl-moi-bloc" style="display:inline-flex;align-items:center;gap:7px;margin-left:4px;padding:5px 12px;border-radius:20px;border:1px solid rgba(94,140,255,0.4);background:rgba(94,140,255,0.10);font-size:11.5px;white-space:nowrap;">
+        <span style="color:var(--muted);">👤 Mes contrôles</span>
+        <strong id="ctrl-count-moi" style="font-family:'Space Grotesk',sans-serif;font-size:14px;color:#5e8cff;">0</strong>
+        <span id="ctrl-count-moi-jour" style="color:var(--muted);font-size:10px;"></span>
+      </span>
       <button class="btn btn-sm no-print" style="margin-left:auto;background:rgba(100,160,247,0.15);color:#64a0f7;border:1px solid rgba(100,160,247,0.4);font-weight:700;" onclick="ouvrirRapportControle()">📊 Rapport de contrôle</button>
     </div>
     <!-- Barre recherche + filtre commercial + filtre statut -->
@@ -1984,6 +1992,15 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         <div class="fr">
           <label>Nature de la dépense</label>
           <select id="dep-nature" onchange="depToggleAutre()">
+            <!-- ── VOLET 36 ── Prime du samedi, saisie à la main. Elle est
+                 placée en tête parce que c'est une PRIME, pas une dépense de
+                 fonctionnement : la confondre avec « Entraide » ou
+                 « Transport » fausserait toute lecture ultérieure des
+                 charges. La valeur est volontairement distincte de
+                 « Prime journalière » (générée automatiquement) : les deux ne
+                 doivent jamais se confondre dans les totaux ni dans le
+                 contrôle des doublons. -->
+            <option value="Prime journalière samedi">🗓️ Prime journalière samedi</option>
             <option value="Entraide">🤝 Entraide</option>
             <option value="Carburant">⛽ Carburant</option>
             <option value="Vidange">🛢️ Vidange</option>
