@@ -597,7 +597,10 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
 <aside id="sidebar">
   <div class="logo">
     <div class="logo-text" style="display:flex;align-items:center;gap:8px;"><img src="logo.jpg" alt="Logo" style="height:32px;width:32px;object-fit:contain;border-radius:6px;flex-shrink:0;">TRIOMPHANT MMB SERVICE</div>
-    <div class="logo-sub">Fleximarket App</div>
+    <!-- ── VOLET 39 ── version affichee : quand un agent signale un probleme,
+         la premiere question est « quelle version ? ». Elle doit etre lisible
+         sans ouvrir la console. Renseignee par le code (voir APP_VERSION). -->
+    <div class="logo-sub">Fleximarket App <span id="app-version-badge" style="opacity:.65;font-weight:700;"></span></div>
     <div class="sync-status" id="sync-status"><div class="sync-dot"></div><span>Synchronisé</span></div>
     <div class="offline-badge" id="offline-badge"><div class="offline-badge-dot"></div><span id="offline-badge-count">0 en attente</span></div>
     <div class="offline-badge" id="unstable-badge" style="display:none;background:rgba(201,168,76,0.12);border-color:rgba(201,168,76,0.35);"><div class="offline-badge-dot" style="background:var(--accent);"></div><span>⚠️ Connexion instable — mode cache local</span></div>
@@ -1166,6 +1169,150 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
        Cette page ne charge RIEN à son ouverture : on règle les critères, puis
        le bouton « Analyser » déclenche le chargement. Voir
        lancerAnalyseClients() dans app.js. -->
+  <!-- ══════════════════════════════════════════════════════════════
+       VOLET 38 — JOURNAL D'AUDIT (admin uniquement)
+       Qui a supprimé quoi, quand et pourquoi. Rien n'est lu tant que
+       « ⇣ Charger le journal » n'a pas été cliqué.
+       ══════════════════════════════════════════════════════════════ -->
+  <!-- ══════════════════════════════════════════════════════════════
+       VOLET 39 — ERREURS APPLICATIVES (admin uniquement)
+       Lecture à la demande de la collection logs_erreurs_app, regroupée
+       par message : ce qui compte est « quelle panne revient », pas la
+       liste brute des occurrences.
+       ══════════════════════════════════════════════════════════════ -->
+  <!-- ══════════════════════════════════════════════════════════════
+       VOLET 39 — SANTÉ DES DONNÉES (admin uniquement)
+       Anomalies MÉTIER, celles qu'aucun filet technique ne voit.
+       Ne corrige rien : désigne, et dit quoi faire.
+       ══════════════════════════════════════════════════════════════ -->
+  <div id="page-sante" class="page">
+    <div class="sec-hdr">
+      <div class="sec-title" style="color:var(--accent);">🩺 Santé des données</div>
+      <div style="font-size:11px;color:var(--muted);">Contrôles à la demande · aucune correction automatique</div>
+    </div>
+
+    <div class="ib" style="margin-bottom:12px;font-size:11.5px;line-height:1.55;">
+      Ces contrôles cherchent les anomalies <strong>métier</strong> — celles qu'aucune alerte technique
+      ne voit : une saisie datée dans le futur, un montant stocké en texte, un stock négatif.
+      <strong>Rien n'est corrigé automatiquement</strong> : chaque anomalie est désignée avec de quoi
+      la retrouver et la traiter à la main.
+    </div>
+
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+      <button class="btn btn-ghost btn-xs" onclick="santeLancer()">▶ Lancer les contrôles</button>
+      <button class="btn btn-ghost btn-xs" onclick="santeExportCSV()">📄 Export CSV</button>
+      <span id="sante-etat" style="font-size:11px;color:var(--accent);"></span>
+    </div>
+
+    <div class="kpi-row" id="sante-kpi"></div>
+    <div id="sante-body" style="margin-top:12px;">
+      <div class="emp" style="padding:28px;">Cliquez <strong>▶ Lancer les contrôles</strong>.</div>
+    </div>
+  </div>
+
+  <div id="page-erreurs" class="page">
+    <div class="sec-hdr">
+      <div class="sec-title" style="color:var(--accent);">⚠️ Erreurs applicatives</div>
+      <div style="font-size:11px;color:var(--muted);">Diagnostic distant · lecture seule</div>
+    </div>
+
+    <div id="err-telemesure" style="margin-bottom:12px;padding:10px 13px;border-radius:9px;border:1px solid var(--border);background:rgba(255,255,255,0.02);font-size:11.5px;line-height:1.5;"></div>
+
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+      <label style="font-size:11px;color:var(--muted);font-weight:600;">Du</label>
+      <input type="date" id="err-date-debut" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);">
+      <label style="font-size:11px;color:var(--muted);">au</label>
+      <input type="date" id="err-date-fin" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);">
+      <button class="btn btn-ghost btn-xs" onclick="errCharger()">⇣ Charger</button>
+      <button class="btn btn-ghost btn-xs" onclick="errExportCSV()">📄 Export CSV</button>
+      <span id="err-etat" style="font-size:11px;color:var(--accent);"></span>
+    </div>
+
+    <div class="kpi-row" id="err-kpi"></div>
+
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0;">
+      <select id="err-type" onchange="_errRendre()" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);font-size:12px;">
+        <option value="">Tous les types</option>
+        <option value="error">Erreur JavaScript</option>
+        <option value="unhandledrejection">Promesse rejetée</option>
+      </select>
+      <select id="err-page" onchange="_errRendre()" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);font-size:12px;">
+        <option value="">Toutes les pages</option>
+      </select>
+      <select id="err-agent" onchange="_errRendre()" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);font-size:12px;">
+        <option value="">Tous les utilisateurs</option>
+      </select>
+      <select id="err-version" onchange="_errRendre()" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);font-size:12px;">
+        <option value="">Toutes les versions</option>
+      </select>
+      <input type="text" id="err-recherche" placeholder="🔍 Message, trace, page…" oninput="dRender('_errRendre')"
+        style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 10px;color:var(--text);font-size:12px;min-width:200px;">
+      <button class="btn btn-ghost btn-xs" onclick="errResetFiltres()">✕ Filtres</button>
+    </div>
+
+    <div id="err-body">
+      <div class="emp" style="padding:28px;">Choisissez une période puis cliquez <strong>⇣ Charger</strong>.</div>
+    </div>
+  </div>
+
+  <div id="page-audit" class="page">
+    <div class="sec-hdr">
+      <div class="sec-title" style="color:var(--accent);">🛡️ Journal d'audit</div>
+      <div style="font-size:11px;color:var(--muted);">Traçabilité des suppressions · lecture seule</div>
+    </div>
+
+    <div class="ib" style="margin-bottom:12px;font-size:11.5px;line-height:1.55;">
+      Ce journal est <strong>en ajout seul</strong> : une fois écrite, une entrée ne peut plus être
+      modifiée ni supprimée, pas même par un administrateur.
+      Les suppressions antérieures au 06/10/2026 n'y figurent que pour les paiements verrouillés
+      et les rachats de carnet — les autres types n'étaient alors pas tracés.
+    </div>
+
+    <!-- Période de SUPPRESSION -->
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+      <label style="font-size:11px;color:var(--muted);font-weight:600;">Supprimé entre le</label>
+      <input type="date" id="audit-date-debut" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);">
+      <label style="font-size:11px;color:var(--muted);">et le</label>
+      <input type="date" id="audit-date-fin" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);">
+      <button class="btn btn-ghost btn-xs" onclick="auditCharger()" title="Lit le journal sur cette période — une seule fois par période">⇣ Charger le journal</button>
+      <button class="btn btn-ghost btn-xs" onclick="auditExportCSV()">📄 Export CSV</button>
+      <span id="audit-etat" style="font-size:11px;color:var(--accent);"></span>
+    </div>
+
+    <div class="kpi-row" id="audit-kpi"></div>
+
+    <!-- Filtres appliqués en mémoire : aucun ne déclenche de lecture -->
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0;">
+      <select id="audit-type" onchange="_auditRendre()" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);font-size:12px;">
+        <option value="">Tous les types</option>
+      </select>
+      <select id="audit-agence" onchange="_auditRendre()" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);font-size:12px;">
+        <option value="">Toutes les agences</option>
+      </select>
+      <select id="audit-commercial" onchange="_auditRendre()" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);font-size:12px;">
+        <option value="">Tous les commerciaux</option>
+      </select>
+      <select id="audit-auteur" onchange="_auditRendre()" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);font-size:12px;">
+        <option value="">Tous les auteurs</option>
+      </select>
+      <input type="text" id="audit-recherche" placeholder="🔍 Client, code, motif, montant…" oninput="dRender('_auditRendre')"
+        style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 10px;color:var(--text);font-size:12px;min-width:210px;">
+      <button class="btn btn-ghost btn-xs" onclick="auditResetFiltres()">✕ Filtres</button>
+    </div>
+
+    <!-- Second filtre de date : celle du DOCUMENT supprimé, pas celle de la suppression -->
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;padding:8px 11px;border-radius:8px;border:1px solid var(--border);background:rgba(255,255,255,0.02);">
+      <span style="font-size:11px;color:var(--muted);">📄 Date du <strong>document supprimé</strong> (différente de la date de suppression) — du</span>
+      <input type="date" id="audit-doc-debut" onchange="_auditRendre()" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:4px 7px;color:var(--text);font-size:11px;">
+      <span style="font-size:11px;color:var(--muted);">au</span>
+      <input type="date" id="audit-doc-fin" onchange="_auditRendre()" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:4px 7px;color:var(--text);font-size:11px;">
+    </div>
+
+    <div id="audit-body">
+      <div class="emp" style="padding:28px;">Choisissez une période puis cliquez <strong>⇣ Charger le journal</strong>.</div>
+    </div>
+  </div>
+
   <div id="page-analyse-clients" class="page">
     <div class="sec-hdr">
       <div class="sec-title" style="color:var(--accent);">🔍 Analyse de la base clientèle</div>
