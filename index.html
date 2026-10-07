@@ -600,7 +600,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     <!-- ── VOLET 39 ── version affichee : quand un agent signale un probleme,
          la premiere question est « quelle version ? ». Elle doit etre lisible
          sans ouvrir la console. Renseignee par le code (voir APP_VERSION). -->
-    <div class="logo-sub">Fleximarket App <span id="app-version-badge" style="opacity:.65;font-weight:700;"></span></div>
+    <div class="logo-sub">TMMB <span id="app-version-badge" style="opacity:.65;font-weight:700;"></span></div>
     <div class="sync-status" id="sync-status"><div class="sync-dot"></div><span>Synchronisé</span></div>
     <div class="offline-badge" id="offline-badge"><div class="offline-badge-dot"></div><span id="offline-badge-count">0 en attente</span></div>
     <div class="offline-badge" id="unstable-badge" style="display:none;background:rgba(201,168,76,0.12);border-color:rgba(201,168,76,0.35);"><div class="offline-badge-dot" style="background:var(--accent);"></div><span>⚠️ Connexion instable — mode cache local</span></div>
@@ -1271,9 +1271,9 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     <!-- Période de SUPPRESSION -->
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
       <label style="font-size:11px;color:var(--muted);font-weight:600;">Supprimé entre le</label>
-      <input type="date" id="audit-date-debut" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);">
+      <input type="date" id="audit-date-debut" onchange="auditPeriodeChangee()" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);">
       <label style="font-size:11px;color:var(--muted);">et le</label>
-      <input type="date" id="audit-date-fin" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);">
+      <input type="date" id="audit-date-fin" onchange="auditPeriodeChangee()" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);">
       <button class="btn btn-ghost btn-xs" onclick="auditCharger()" title="Lit le journal sur cette période — une seule fois par période">⇣ Charger le journal</button>
       <button class="btn btn-ghost btn-xs" onclick="auditExportCSV()">📄 Export CSV</button>
       <span id="audit-etat" style="font-size:11px;color:var(--accent);"></span>
@@ -2097,7 +2097,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
           <input type="text" id="tr-motif" placeholder="ex: Changement de contrat client…">
         </div>
       </div>
-      <div id="tr-warn" style="display:none;margin-top:8px;" class="ib ib-yellow"></div>
+      <div id="trs-warn" style="display:none;margin-top:8px;" class="ib ib-yellow"></div>
       <div class="ma" style="margin-top:14px;">
         <button class="btn btn-ghost" onclick="trReset()">✖ Annuler</button>
         <button class="btn btn-primary" id="tr-btn-confirm" onclick="trConfirmer()"
@@ -2110,13 +2110,23 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     <!-- Historique des transferts -->
     <div style="margin-top:18px;">
       <div class="sec-title" style="font-size:12px;margin-bottom:10px;">📋 Historique des transferts</div>
+      <!-- ── VOLET 40 ── filtres de l'historique -->
+      <div class="no-print" style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-bottom:10px;">
+        <div class="fr" style="margin:0;min-width:130px;"><label>Du</label><input type="date" id="trf-du" onchange="renderTransfertResiliation()"></div>
+        <div class="fr" style="margin:0;min-width:130px;"><label>Au</label><input type="date" id="trf-au" onchange="renderTransfertResiliation()"></div>
+        <div class="fr" style="margin:0;min-width:170px;"><label>Commercial</label><select id="trf-commercial" onchange="renderTransfertResiliation()"><option value="">Tous les commerciaux</option></select></div>
+        <div class="fr" style="margin:0;min-width:130px;"><label>Statut</label><select id="trf-statut" onchange="renderTransfertResiliation()"><option value="">Tous</option><option value="actif">Actifs</option><option value="annule">Annulés</option></select></div>
+        <button class="btn btn-ghost btn-xs" onclick="trFiltresReset()" style="height:34px;">✖ Effacer les filtres</button>
+      </div>
+      <div id="trf-resume" style="font-size:11px;color:var(--muted);margin-bottom:8px;"></div>
       <div class="tw">
         <table>
           <thead><tr>
             <th>Date</th><th>Heure</th><th>Client source</th><th>Client dest.</th>
-            <th>Montant</th><th>Motif</th><th>Opérateur</th>
+            <th>Commercial</th><th>Montant</th><th>Motif</th><th>Opérateur</th>
+            <th id="tr-th-actions" style="display:none;">Actions</th>
           </tr></thead>
-          <tbody id="tr-historique-body"><tr><td colspan="7" class="emp">Aucun transfert enregistré</td></tr></tbody>
+          <tbody id="tr-historique-body"><tr><td colspan="8" class="emp">Aucun transfert enregistré</td></tr></tbody>
         </table>
       </div>
     </div>
