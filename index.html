@@ -1110,17 +1110,8 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         <button class="btn btn-primary btn-sm" onclick="openM('m-livraison')">+ Livraison</button>
       </div>
     </div>
-    <!-- ── VOLET 43 ── demandes de livraison envoyées par les agents -->
-    <div id="dlc-staff-zone" class="transfert-card" style="display:none;margin-bottom:14px;border-color:rgba(247,201,79,0.35);">
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
-        <div id="dlc-staff-titre" style="font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;color:var(--accent);">📦 Demandes des agents</div>
-        <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px;"><input type="checkbox" id="dlc-staff-toutes" onchange="_dlcRenderStaff()"> Afficher aussi les demandes traitées</label>
-      </div>
-      <div class="tw" style="max-height:40vh;overflow:auto;"><table>
-        <thead><tr><th>Date</th><th>Agent</th><th>Client</th><th>Produit</th><th>Payé</th><th>Statut</th><th></th></tr></thead>
-        <tbody id="dlc-staff-body"></tbody>
-      </table></div>
-    </div>
+    <!-- ── VOLET 44 ── bandeau : demandes des agents en attente → page dédiée -->
+    <div id="dlc-staff-banner" class="ib ib-yellow" style="display:none;margin-bottom:12px;font-size:12px;"></div>
     <!-- Barre de filtres livraisons -->
     <div class="liv-filtres-bar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:11px;">
       <!-- Recherche client -->
@@ -1744,6 +1735,31 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
   </div>
 
   <!-- COMMERCIAL: MES CLIENTS (lecture seule) -->
+  <!-- ═══ VOLET 44 — PAGE BUREAU « DEMANDES DES AGENTS » ═══ -->
+  <div id="page-demandes-agents" class="page">
+    <div class="ib ib-blue no-print" style="font-size:12px;margin-bottom:12px;">
+      Demandes de livraison envoyées par les agents pour leurs clients. <strong>🚚 Créer la livraison</strong> ouvre le formulaire
+      de livraison habituel, prérempli : les contrôles de solde, d'adhésion et de stock s'appliquent.
+    </div>
+    <div class="kpi-row" id="dla-kpi"></div>
+    <div class="no-print" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin:12px 0;">
+      <div class="fr" style="margin:0;min-width:120px;"><label>Du</label><input type="date" id="dla-du" onchange="renderDemandesAgents()"></div>
+      <div class="fr" style="margin:0;min-width:120px;"><label>Au</label><input type="date" id="dla-au" onchange="renderDemandesAgents()"></div>
+      <div class="fr" style="margin:0;min-width:130px;"><label>Statut</label><select id="dla-statut" onchange="renderDemandesAgents()">
+        <option value="en_attente" selected>En attente</option><option value="">Tous</option><option value="traitee">Livraison créée</option><option value="refusee">Refusées</option><option value="annulee">Annulées</option></select></div>
+      <div class="fr" style="margin:0;min-width:150px;"><label>Agent</label><select id="dla-agent" onchange="renderDemandesAgents()"><option value="">Tous les agents</option></select></div>
+      <div class="fr" style="margin:0;min-width:160px;"><label>Produit</label><select id="dla-produit" onchange="renderDemandesAgents()"><option value="">Tous les produits</option></select></div>
+      <div class="fr" id="dla-agence-wrap" style="margin:0;min-width:150px;display:none;"><label>Agence</label><select id="dla-agence" onchange="renderDemandesAgents()"><option value="">Toutes les agences</option></select></div>
+      <div class="fr" style="margin:0;flex:1;min-width:170px;"><label>Recherche</label><input type="text" id="dla-search" placeholder="🔍 Client, code, produit, note…" oninput="dRender('renderDemandesAgents')"></div>
+      <button class="btn btn-ghost btn-xs" onclick="dlaResetFiltres()" style="height:34px;">✖ Filtres</button>
+    </div>
+    <div class="tw" style="max-height:62vh;overflow:auto;"><table>
+      <thead><tr><th>Date</th><th>Agent</th><th>Client</th><th>Produit</th><th>Payé</th><th>Statut</th><th></th></tr></thead>
+      <tbody id="dla-body"><tr><td colspan="7" class="emp">Chargement…</td></tr></tbody>
+    </table></div>
+  </div>
+  <!-- FIN PAGE DEMANDES-AGENTS -->
+
   <!-- ═══ VOLET 43 — PAGE AGENT « LIVRAISONS CLIENTS » ═══ -->
   <div id="page-com-livraisons" class="page">
     <!-- 1. Clients presque à la fin -->
@@ -1760,8 +1776,12 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
           <option value="90">90 % payé et plus</option>
           <option value="100">Soldés (100 %)</option>
         </select>
+        <select id="dlc-proches-produit" onchange="_dlcRenderProches()" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:6px 10px;color:var(--text);font-size:12px;max-width:200px;">
+          <option value="">Tous les produits</option>
+        </select>
         <input type="text" id="dlc-proches-search" placeholder="🔍 Code, nom, téléphone…" oninput="dRender('_dlcRenderProches')"
           style="flex:1;min-width:160px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:6px 10px;color:var(--text);font-size:12px;">
+        <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px;"><input type="checkbox" id="dlc-proches-sans-demande" onchange="_dlcRenderProches()"> Masquer ceux déjà demandés</label>
       </div>
       <div class="tw" style="max-height:45vh;overflow:auto;"><table>
         <thead><tr><th>Client</th><th>Téléphone</th><th>Payé</th><th>Reste</th><th></th></tr></thead>
@@ -1782,7 +1802,11 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         <div class="fr"><label>Nom</label><input type="text" id="dlc-client-nom" readonly placeholder="—"></div>
       </div>
       <div id="dlc-client-info" class="ib ib-blue" style="display:none;margin-top:6px;font-size:12px;"></div>
-      <div class="fr" style="margin-top:8px;">
+      <div class="fg" style="margin-top:8px;">
+        <div class="fr"><label>Code produit</label><input type="text" id="dlc-prod-code" placeholder="ex: PRD-001 ou nom…" oninput="dlcFiltrerProduits()" autocomplete="off" style="text-transform:uppercase;font-weight:700;letter-spacing:1px;"></div>
+        <div class="fr"><label>Catégorie</label><select id="dlc-prod-cat" onchange="dlcFiltrerProduits()"><option value="">Toutes catégories</option></select></div>
+      </div>
+      <div class="fr">
         <label>Produit à livrer</label>
         <select id="dlc-produit"><option value="">— Choisir le produit à livrer —</option></select>
       </div>
@@ -1795,7 +1819,12 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
 
     <!-- 3. Mes demandes -->
     <div style="margin-top:16px;">
-      <div class="sec-title" style="font-size:12px;margin-bottom:8px;">📋 Mes demandes</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+        <div class="sec-title" style="font-size:12px;">📋 Mes demandes</div>
+        <select id="dlc-mes-statut" onchange="_dlcRenderMesDemandes()" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 9px;color:var(--text);font-size:12px;">
+          <option value="">Tous les statuts</option><option value="en_attente">En attente</option><option value="traitee">Livraison créée</option><option value="refusee">Refusées</option><option value="annulee">Annulées</option>
+        </select>
+      </div>
       <div class="tw"><table>
         <thead><tr><th>Date</th><th>Client</th><th>Produit</th><th>Statut</th><th></th></tr></thead>
         <tbody id="dlc-mes-body"><tr><td colspan="5" class="emp">Aucune demande envoyée.</td></tr></tbody>
