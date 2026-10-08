@@ -1110,6 +1110,17 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         <button class="btn btn-primary btn-sm" onclick="openM('m-livraison')">+ Livraison</button>
       </div>
     </div>
+    <!-- ── VOLET 43 ── demandes de livraison envoyées par les agents -->
+    <div id="dlc-staff-zone" class="transfert-card" style="display:none;margin-bottom:14px;border-color:rgba(247,201,79,0.35);">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+        <div id="dlc-staff-titre" style="font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;color:var(--accent);">📦 Demandes des agents</div>
+        <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px;"><input type="checkbox" id="dlc-staff-toutes" onchange="_dlcRenderStaff()"> Afficher aussi les demandes traitées</label>
+      </div>
+      <div class="tw" style="max-height:40vh;overflow:auto;"><table>
+        <thead><tr><th>Date</th><th>Agent</th><th>Client</th><th>Produit</th><th>Payé</th><th>Statut</th><th></th></tr></thead>
+        <tbody id="dlc-staff-body"></tbody>
+      </table></div>
+    </div>
     <!-- Barre de filtres livraisons -->
     <div class="liv-filtres-bar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:11px;">
       <!-- Recherche client -->
@@ -1733,6 +1744,66 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
   </div>
 
   <!-- COMMERCIAL: MES CLIENTS (lecture seule) -->
+  <!-- ═══ VOLET 43 — PAGE AGENT « LIVRAISONS CLIENTS » ═══ -->
+  <div id="page-com-livraisons" class="page">
+    <!-- 1. Clients presque à la fin -->
+    <div class="transfert-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;color:var(--accent2);">🏁 Mes clients presque à la fin</div>
+        <span id="dlc-proches-count" style="font-size:11px;color:var(--muted);"></span>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+        <select id="dlc-seuil" onchange="_dlcRenderProches()" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:6px 10px;color:var(--text);font-size:12px;">
+          <option value="50">50 % payé et plus</option>
+          <option value="70" selected>70 % payé et plus</option>
+          <option value="80">80 % payé et plus</option>
+          <option value="90">90 % payé et plus</option>
+          <option value="100">Soldés (100 %)</option>
+        </select>
+        <input type="text" id="dlc-proches-search" placeholder="🔍 Code, nom, téléphone…" oninput="dRender('_dlcRenderProches')"
+          style="flex:1;min-width:160px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:6px 10px;color:var(--text);font-size:12px;">
+      </div>
+      <div class="tw" style="max-height:45vh;overflow:auto;"><table>
+        <thead><tr><th>Client</th><th>Téléphone</th><th>Payé</th><th>Reste</th><th></th></tr></thead>
+        <tbody id="dlc-proches-body"><tr><td colspan="5" class="emp">Chargement…</td></tr></tbody>
+      </table></div>
+    </div>
+
+    <!-- 2. Formulaire de demande -->
+    <div class="transfert-card" id="dlc-form-card" style="margin-top:14px;">
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;color:var(--accent);margin-bottom:10px;">📦 Demande de livraison</div>
+      <div class="fr">
+        <label>Rechercher le client</label>
+        <input type="text" id="dlc-search" placeholder="Code client, nom, téléphone…" oninput="dlcRecherche()" autocomplete="off">
+      </div>
+      <div id="dlc-search-results" style="margin-top:6px;display:none;"></div>
+      <div class="fg" style="margin-top:8px;">
+        <div class="fr"><label>ID client</label><input type="text" id="dlc-client-code" readonly placeholder="—" style="font-weight:700;color:var(--accent);"></div>
+        <div class="fr"><label>Nom</label><input type="text" id="dlc-client-nom" readonly placeholder="—"></div>
+      </div>
+      <div id="dlc-client-info" class="ib ib-blue" style="display:none;margin-top:6px;font-size:12px;"></div>
+      <div class="fr" style="margin-top:8px;">
+        <label>Produit à livrer</label>
+        <select id="dlc-produit"><option value="">— Choisir le produit à livrer —</option></select>
+      </div>
+      <div class="fr"><label>Note (optionnel)</label><input type="text" id="dlc-note" maxlength="300" placeholder="Adresse, disponibilité du client…"></div>
+      <div class="ma" style="margin-top:12px;">
+        <button class="btn btn-ghost" onclick="dlcReset()">✖ Effacer</button>
+        <button class="btn btn-primary" onclick="dlcEnvoyer()">📨 Envoyer la demande</button>
+      </div>
+    </div>
+
+    <!-- 3. Mes demandes -->
+    <div style="margin-top:16px;">
+      <div class="sec-title" style="font-size:12px;margin-bottom:8px;">📋 Mes demandes</div>
+      <div class="tw"><table>
+        <thead><tr><th>Date</th><th>Client</th><th>Produit</th><th>Statut</th><th></th></tr></thead>
+        <tbody id="dlc-mes-body"><tr><td colspan="5" class="emp">Aucune demande envoyée.</td></tr></tbody>
+      </table></div>
+    </div>
+  </div>
+  <!-- FIN PAGE COM-LIVRAISONS -->
+
   <div id="page-com-clients" class="page">
     <div style="margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
       <input type="text" id="com-cl-search" placeholder="🔍  Rechercher par code, nom, téléphone..."
@@ -2158,6 +2229,9 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
                  doivent jamais se confondre dans les totaux ni dans le
                  contrôle des doublons. -->
             <option value="Prime journalière samedi">🗓️ Prime journalière samedi</option>
+            <!-- ── VOLET 42 ── Prime hebdomadaire, saisie à la main. Contrôle
+                 de doublon sur la semaine (lundi → dimanche) dans depEnregistrer. -->
+            <option value="Prime hebdomadaire">📅 Prime hebdomadaire</option>
             <option value="Entraide">🤝 Entraide</option>
             <option value="Carburant">⛽ Carburant</option>
             <option value="Vidange">🛢️ Vidange</option>
