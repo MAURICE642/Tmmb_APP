@@ -17,7 +17,7 @@
 // ⚠️ Incrémenter ce numéro à chaque déploiement pour forcer la mise à jour
 // du shell chez les utilisateurs (sinon ils resteraient bloqués sur une
 // version en cache). Ex : 'mmb-shell-v2', 'mmb-shell-v3', ...
-const CACHE_NAME = 'mmb-shell-v40';   // ── VOLET 40 ── doit contenir APP_VERSION ('v40'), cf. controle 14 de verifier.js
+const CACHE_NAME = 'mmb-shell-v41';   // ── VOLET 41 ── doit contenir APP_VERSION ('v41'), cf. controle 14 de verifier.js
 
 // Fichiers du shell applicatif à mettre en cache dès l'installation.
 // Volontairement minimal et 100% same-origin (pas de CDN externe ici —
@@ -84,6 +84,29 @@ self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
+});
+
+// ── VOLET 41 ── CLIC SUR UNE NOTIFICATION DE CHAT ──
+// Les notifications sont désormais affichées par ce service worker
+// (registration.showNotification dans app.js) : c'est donc ici que le clic
+// arrive. On ferme la notification, on ramène au premier plan une fenêtre
+// de l'app déjà ouverte (ou on en ouvre une), puis on lui demande d'ouvrir
+// le chat. Aucune donnée métier n'est touchée.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  if (!event.notification.data || event.notification.data.type !== 'chat') return;
+  event.waitUntil((async () => {
+    const fenetres = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const cible = fenetres.find((c) => c.url && c.url.startsWith(self.registration.scope)) || fenetres[0];
+    if (cible) {
+      try { await cible.focus(); } catch (e) { /* focus refusé : on envoie quand même l'ordre */ }
+      cible.postMessage({ type: 'CHAT_OPEN' });
+      return;
+    }
+    // Aucune fenêtre ouverte : on ouvre l'app. L'utilisateur verra le badge
+    // de non-lus ; le chat n'est pas forcé (l'app doit d'abord se connecter).
+    if (self.clients.openWindow) await self.clients.openWindow(self.registration.scope);
+  })());
 });
 
 // ── FETCH : stratégie stale-while-revalidate pour le shell same-origin ──
