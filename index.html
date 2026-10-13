@@ -1515,6 +1515,15 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         <button class="btn btn-ghost btn-xs" onclick="document.getElementById('carnet-date-debut').value='';document.getElementById('carnet-date-fin').value='';renderCarnetMvts();">✕ Dates</button>
         <span id="carnet-mvt-count" style="font-size:11px;color:var(--muted);"></span>
       </div>
+      <!-- ── VOLET 45 ── raccourcis de période + bilan attribués / consommés -->
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+        <span style="font-size:11px;color:var(--muted);">Période rapide :</span>
+        <button class="btn btn-ghost btn-xs" onclick="carnetPeriodeRapide('mois')">Ce mois</button>
+        <button class="btn btn-ghost btn-xs" onclick="carnetPeriodeRapide('mois-1')">Mois dernier</button>
+        <button class="btn btn-ghost btn-xs" onclick="carnetPeriodeRapide('7j')">7 derniers jours</button>
+        <button class="btn btn-ghost btn-xs" onclick="carnetPeriodeRapide('annee')">Cette année</button>
+      </div>
+      <div id="carnet-bilan" style="margin-bottom:14px;"></div>
       <div class="tw"><table><thead><tr>
         <th>Date</th><th>Commercial</th><th>Type</th>
         <th style="text-align:center;">Qté</th><th>Motif</th><th>Saisi par</th>
