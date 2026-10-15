@@ -820,8 +820,18 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         <option value="retard-desc">⚠️ Retard (+ élevé)</option>
         <option value="cotis-desc">💰 Cotisation (+ haute)</option>
       </select>
+      <!-- ── VOLET 46 ── filtre par statut du contrat -->
+      <select id="filter-statut-cl" onchange="onClFilterChange()"
+        style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 11px;color:var(--text);font-size:12px;outline:none;cursor:pointer;">
+        <option value="">📋 Tous les statuts</option>
+        <option value="termine">🏆 Terminés (soldés)</option>
+        <option value="en_cours">⏳ En cours</option>
+        <option value="resilie">🚫 Résiliés</option>
+      </select>
       <span id="search-clients-count" style="font-size:11px;color:var(--muted);white-space:nowrap;"></span>
     </div>
+    <!-- ── VOLET 46 ── bilan terminés / total de la liste affichée -->
+    <div class="kpi-row no-print" id="cl-resume" style="margin-bottom:10px;"></div>
     <!-- Barre de sélection multiple (visible quand ≥1 case cochée) -->
     <div id="cl-selection-bar" style="display:none;background:rgba(247,97,79,0.08);border:1px solid rgba(224,92,82,0.28);border-radius:9px;padding:10px 14px;margin-bottom:10px;display:none;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
       <div style="display:flex;align-items:center;gap:10px;">
