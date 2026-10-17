@@ -1069,10 +1069,17 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
 
     <!-- ══ SECTION 1bis : Générateur — Valeur des entrées d'un jour (admin uniquement) ══ -->
     <div id="valeur-entrees-wrap" style="display:none;margin-top:20px;background:var(--surface);border:1px solid rgba(34,212,160,0.25);border-radius:12px;padding:16px;">
-      <div class="sec-title" style="color:var(--accent2);margin-bottom:10px;">💰 Valeur totale des entrées (prix d'achat)</div>
+      <div class="sec-title" style="color:var(--accent2);margin-bottom:10px;">💰 Valeur totale des entrées (prix d'achat) — sur une période</div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+        <label style="font-size:11px;color:var(--muted);">Du</label>
         <input type="date" id="ve-date"
           style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 11px;color:var(--text);font-size:12px;outline:none;">
+        <!-- ── VOLET 47 ── période et code article -->
+        <label style="font-size:11px;color:var(--muted);">au</label>
+        <input type="date" id="ve-date-fin" title="Laisser vide pour un seul jour"
+          style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 11px;color:var(--text);font-size:12px;outline:none;">
+        <input type="text" id="ve-code" placeholder="Code article (option)"
+          style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 11px;color:var(--accent);font-weight:700;text-transform:uppercase;font-size:12px;outline:none;width:150px;">
         <button class="btn btn-primary btn-sm" onclick="calculerValeurEntrees()">Calculer</button>
         <span id="ve-total" style="font-weight:800;font-size:15px;color:var(--accent2);"></span>
       </div>
@@ -1138,6 +1145,13 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         <button class="btn btn-ghost btn-sm" onclick="livAujourdhui()" style="font-size:10px;padding:4px 8px;">Auj.</button>
         <button class="btn btn-ghost btn-sm" onclick="document.getElementById('filter-liv-date').value='';renderLivraisons()" style="font-size:10px;padding:4px 8px;color:var(--muted);">✕ Date</button>
       </div>
+      <!-- ── VOLET 47 ── période (prioritaire sur le jour unique) -->
+      <div style="display:flex;align-items:center;gap:4px;">
+        <label style="font-size:10px;color:var(--muted);">Du</label>
+        <input type="date" id="filter-liv-du" onchange="renderLivraisons()" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 7px;color:var(--text);font-size:11px;">
+        <label style="font-size:10px;color:var(--muted);">au</label>
+        <input type="date" id="filter-liv-au" onchange="renderLivraisons()" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 7px;color:var(--text);font-size:11px;">
+      </div>
       <!-- Filtre agence (admin uniquement) -->
       <select id="filter-liv-agence"
         style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 10px;color:var(--text);font-size:11px;outline:none;"
@@ -1174,6 +1188,8 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     </div>
     <!-- Label résumé filtres actifs -->
     <div id="liv-filtre-label" style="font-size:11px;color:var(--muted);margin-bottom:8px;padding:0 2px;"></div>
+    <!-- ── VOLET 47 ── bilan par produit des livraisons filtrées -->
+    <div id="liv-bilan"></div>
     <div class="tw"><table><thead><tr><th>Date</th><th>Client</th><th>Commercial</th><th>Produit</th><th>Qté</th><th>Montant</th><th>Statut</th><th>Actions</th></tr></thead><tbody id="tb-livraisons"></tbody></table></div>
   </div>
 
