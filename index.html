@@ -895,6 +895,9 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         <option value="attente">⏳ Non contrôlé</option>
         <option value="fait">✅ Contrôlé</option>
       </select>
+      <!-- ── VOLET 49 ── regroupement par quartier (coché par défaut) -->
+      <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px;white-space:nowrap;cursor:pointer;">
+        <input type="checkbox" id="ctrl-group-quartier" checked onchange="renderControle()"> 🏘️ Regrouper par quartier</label>
       <span id="ctrl-search-count" style="font-size:11px;color:var(--muted);white-space:nowrap;"></span>
     </div>
     <div class="tw"><table><thead><tr><th>Client</th><th>Téléphone</th><th class="no-print">Commercial</th><th>Contrat</th><th>Cotisation</th><th>Dernière MàJ</th><th>Niveau</th><th id="ctrl-th-info">Statut</th><th class="no-print">Actions</th></tr></thead><tbody id="tb-controle"></tbody></table></div>
@@ -2600,6 +2603,9 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     <div class="fr">
       <label>Quartier</label>
       <select id="rc-quartier" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px 11px;color:var(--text);font-size:12px;outline:none;"><option value="">— Tous les quartiers —</option></select>
+      <!-- ── VOLET 49 ── -->
+      <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px;margin-top:6px;cursor:pointer;">
+        <input type="checkbox" id="rc-group-quartier" checked> 🏘️ Regrouper la liste détaillée par quartier</label>
     </div>
     <div class="fr">
       <label>Trier par</label>
