@@ -17,7 +17,7 @@
 // ⚠️ Incrémenter ce numéro à chaque déploiement pour forcer la mise à jour
 // du shell chez les utilisateurs (sinon ils resteraient bloqués sur une
 // version en cache). Ex : 'mmb-shell-v2', 'mmb-shell-v3', ...
-const CACHE_NAME = 'mmb-shell-v47';   // ── VOLET 47 ── doit contenir APP_VERSION ('v47'), cf. controle 14 de verifier.js
+const CACHE_NAME = 'mmb-shell-v48';   // ── VOLET 48 ── doit contenir APP_VERSION ('v48'), cf. controle 14 de verifier.js
 
 // Fichiers du shell applicatif à mettre en cache dès l'installation.
 // Volontairement minimal et 100% same-origin (pas de CDN externe ici —
