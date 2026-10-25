@@ -3039,17 +3039,17 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     <div class="md-title">📦 Nouvelle demande de livraison</div>
     <div class="fg">
       <div class="fr">
-        <label>Code / Référence</label>
-        <input type="text" id="dl-ref" placeholder="Ex: ELEC-002" onchange="dlChercherParRef()">
+        <label>Code article</label>
+        <input type="text" id="dl-ref" placeholder="Ex: ART-001" onchange="dlChercherParRef()">
       </div>
       <div class="fr">
-        <label>Produit</label>
-        <select id="dl-produit" onchange="dlSyncRefDepuisSelect()"><option value="">— Sélectionner un produit —</option></select>
+        <label>Article</label>
+        <select id="dl-produit" onchange="dlSyncRefDepuisSelect()"><option value="">— Sélectionner un article —</option></select>
       </div>
       <div class="fr"><label>Quantité</label><input type="number" id="dl-qty" value="1" min="1"></div>
     </div>
     <div style="margin:6px 0 14px;"><button class="btn btn-ghost btn-sm" onclick="dlAjouterLigne()">+ Ajouter à la demande</button></div>
-    <div class="tw"><table><thead><tr><th>Produit</th><th>Qté demandée</th><th></th></tr></thead><tbody id="dl-lignes-body"></tbody></table></div>
+    <div class="tw"><table><thead><tr><th>Article</th><th>Qté demandée</th><th></th></tr></thead><tbody id="dl-lignes-body"></tbody></table></div>
     <div class="fr" style="margin-top:14px;"><label>Note (optionnel)</label><input type="text" id="dl-note" placeholder="Précision, urgence..."></div>
     <div class="ma"><button class="btn btn-ghost" onclick="closeM('m-demande-livraison')">Annuler</button><button class="btn btn-primary" onclick="saveDemandeLivraison()">Envoyer la demande</button></div>
   </div>
