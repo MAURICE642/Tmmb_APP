@@ -3039,8 +3039,8 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     <div class="md-title">📦 Nouvelle demande de livraison</div>
     <div class="fg">
       <div class="fr">
-        <label>Code article</label>
-        <input type="text" id="dl-ref" placeholder="Ex: ART-001" onchange="dlChercherParRef()">
+        <label>Rechercher (nom ou code)</label>
+        <input type="text" id="dl-ref" placeholder="Ex: ART-001 ou mousse" oninput="dlChercherParRef()" autocomplete="off">
       </div>
       <div class="fr">
         <label>Article</label>
