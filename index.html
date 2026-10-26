@@ -1455,6 +1455,58 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
        Accès : admin, chef d'agence (son agence), contrôleur (consultation).
        Le solde n'est PAS un champ stocké : c'est la somme des mouvements,
        calculée par agrégation serveur. Voir _carnetSoldes() dans app.js. -->
+  <!-- ═══ VOLET 52 — ROULEAUX DE PAPIER THERMIQUE (admin, chef d'agence) ═══ -->
+  <div id="page-rouleaux" class="page">
+    <div class="sec-hdr"><div class="sec-title" style="color:var(--accent);">🧾 Rouleaux de papier thermique</div></div>
+    <div class="ib ib-blue" style="font-size:12px;margin-bottom:12px;">
+      Attribuez des rouleaux et suivez leur usage. Les <strong>reçus imprimés</strong> sont comptés depuis la
+      <strong>première attribution</strong> de chaque personne (nouveaux reçus uniquement ; les réimpressions ne sont pas comptées).
+      Cliquez <strong>↻ Actualiser l'usage</strong> pour recompter.
+    </div>
+    <div class="kpi-row" id="rl-kpi"></div>
+
+    <div class="transfert-card" style="margin-top:12px;">
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;color:var(--accent);margin-bottom:10px;">➕ Attribuer des rouleaux</div>
+      <div class="fg">
+        <div class="fr"><label>Personne</label><select id="rl-benef"><option value="">— Choisir la personne —</option></select></div>
+        <div class="fr"><label>Nombre de rouleaux</label><input type="number" id="rl-qty" min="1" placeholder="ex: 5"></div>
+      </div>
+      <div class="fg">
+        <div class="fr"><label>Reçus imprimables par rouleau</label><input type="number" id="rl-par-rouleau" min="1" value="100" placeholder="100"></div>
+        <div class="fr"><label>Date</label><input type="date" id="rl-date"></div>
+      </div>
+      <div class="fr"><label>Note (optionnel)</label><input type="text" id="rl-note" maxlength="200" placeholder="Format, fournisseur…"></div>
+      <div class="ma" style="margin-top:10px;"><button class="btn btn-primary" onclick="rlAttribuer()">🧾 Enregistrer l'attribution</button></div>
+    </div>
+
+    <div class="sec-hdr" style="margin-top:20px;flex-wrap:wrap;gap:8px;">
+      <div class="sec-title" style="font-size:15px;">📊 Suivi par personne</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <span id="rl-agence-wrap" style="display:none;"><select id="rl-agence" onchange="renderRouleaux()" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 9px;color:var(--text);font-size:12px;"><option value="">Toutes les agences</option></select></span>
+        <button class="btn btn-ghost btn-sm" onclick="rlActualiser()">↻ Actualiser l'usage</button>
+        <span id="rl-etat" style="font-size:11px;color:var(--muted);"></span>
+      </div>
+    </div>
+    <div class="tw"><table><thead><tr>
+      <th>Personne</th><th style="text-align:center;">Rouleaux</th><th style="text-align:center;">Capacité (reçus)</th>
+      <th style="text-align:center;">Reçus imprimés</th><th style="text-align:center;">Rouleaux utilisés ≈</th>
+      <th style="text-align:center;">Reste (reçus)</th><th>Suivi depuis</th><th>État</th>
+    </tr></thead><tbody id="rl-body"></tbody></table></div>
+
+    <div class="sec-hdr" style="margin-top:20px;flex-wrap:wrap;gap:8px;">
+      <div class="sec-title" style="font-size:15px;">📋 Historique des attributions</div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+        <select id="rl-hist-benef" onchange="_rlRenderHistorique()" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 9px;color:var(--text);font-size:12px;"><option value="">Toutes les personnes</option></select>
+        <label style="font-size:11px;color:var(--muted);">Du</label><input type="date" id="rl-du" onchange="_rlRenderHistorique()" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:4px 7px;color:var(--text);font-size:11px;">
+        <label style="font-size:11px;color:var(--muted);">au</label><input type="date" id="rl-au" onchange="_rlRenderHistorique()" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:4px 7px;color:var(--text);font-size:11px;">
+        <span id="rl-hist-total" style="font-size:11px;color:var(--muted);"></span>
+      </div>
+    </div>
+    <div class="tw"><table><thead><tr><th>Date</th><th>Personne</th><th style="text-align:center;">Rouleaux</th><th style="text-align:center;">Reçus / rouleau</th><th>Note</th><th>Saisi par</th><th></th></tr></thead>
+      <tbody id="rl-hist-body"></tbody></table></div>
+  </div>
+  <!-- FIN PAGE ROULEAUX -->
+
   <div id="page-carnets" class="page">
     <div class="sec-hdr">
       <div class="sec-title" style="color:var(--accent);">📓 Carnets des commerciaux</div>
