@@ -2009,7 +2009,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         <div style="font-size:9.5px;font-weight:700;color:var(--accent2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Contrat de recouvrement</div>
         <!-- Saisie par code produit -->
         <div class="fr">
-          <label>Code produit <span style="color:var(--muted);font-weight:400;font-size:10px;">(tapez le code ou la référence, puis +)</span></label>
+          <label>Code produit <span style="color:var(--muted);font-weight:400;font-size:10px;">(tapez le code, puis + ; la quantité se règle sur la ligne)</span></label>
           <div style="display:flex;gap:6px;align-items:center;">
             <input type="text" id="com-ncl-art-code" placeholder="ex: PRD-001" style="flex:1;text-transform:uppercase;"
               oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter'){event.preventDefault();ajouterArticleParCode('com-ncl');}">
@@ -2715,7 +2715,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     <div style="font-size:9.5px;font-weight:700;color:var(--accent2);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Contrat de recouvrement</div>
     <!-- Saisie par code produit -->
     <div class="fr">
-      <label>Code produit <span style="color:var(--muted);font-weight:400;font-size:10px;">(tapez le code ou la référence, puis +)</span></label>
+      <label>Code produit <span style="color:var(--muted);font-weight:400;font-size:10px;">(tapez le code, puis + ; la quantité se règle sur la ligne)</span></label>
       <div style="display:flex;gap:6px;align-items:center;">
         <input type="text" id="cl-art-code" placeholder="ex: PRD-001" style="flex:1;text-transform:uppercase;"
           oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter'){event.preventDefault();ajouterArticleParCode('cl');}">
