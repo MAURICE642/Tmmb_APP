@@ -869,10 +869,14 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     <div class="sec-hdr">
       <div class="sec-title">Contrôle des clients</div>
     </div>
+    <!-- ── VOLET 57 ── total / finis & livrés / contrôlés / à contrôler -->
+    <div class="kpi-row" id="ctrl-resume" style="margin-bottom:10px;"></div>
     <!-- Onglets -->
     <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap;">
       <button class="btn btn-sm ctrl-tab active" id="ctrl-tab-attente" onclick="setControleTab('attente')">⏳ À contrôler (<span id="ctrl-count-attente">0</span>)</button>
       <button class="btn btn-sm ctrl-tab" id="ctrl-tab-fait" onclick="setControleTab('fait')">✅ Contrôlés (<span id="ctrl-count-fait">0</span>)</button>
+      <!-- ── VOLET 57 ── clients soldés et livrés : hors des listes à contrôler -->
+      <button class="btn btn-sm ctrl-tab" id="ctrl-tab-fini" onclick="setControleTab('fini')">🏁 Finis & livrés (<span id="ctrl-count-fini">0</span>)</button>
       <!-- ── VOLET 37 ── Trace du travail du contrôleur connecté. Ce n'est PAS
            un onglet : c'est un indicateur. « Contrôlés » compte tout le monde ;
            celui-ci ne compte que les siens, sur le périmètre affiché. -->
@@ -894,6 +898,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 10px;color:var(--text);font-size:11px;outline:none;">
         <option value="attente">⏳ Non contrôlé</option>
         <option value="fait">✅ Contrôlé</option>
+        <option value="fini">🏁 Fini & livré</option>
       </select>
       <!-- ── VOLET 49 ── regroupement par quartier (coché par défaut) -->
       <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px;white-space:nowrap;cursor:pointer;">
