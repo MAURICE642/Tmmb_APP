@@ -3307,6 +3307,27 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
   </div>
 </div>
 
+<!-- ── VOLET 58 ── CHANGEMENT D'E-MAIL (admin) -->
+<div class="mo" id="m-change-email">
+  <div class="md">
+    <div class="md-title">&#9993; Changer l'e-mail de connexion</div>
+    <input type="hidden" id="ce-id">
+    <div class="ib ib-blue" style="font-size:12px;">
+      <strong id="ce-nom">—</strong><br>
+      E-mail actuel : <strong id="ce-ancien">—</strong><br>
+      <span id="ce-info-clients"></span> Son mot de passe ne change pas.
+    </div>
+    <div class="fg">
+      <div class="fr"><label>Nouvel e-mail *</label><input type="email" id="ce-nouvel" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="150"></div>
+      <div class="fr"><label>Confirmer le nouvel e-mail *</label><input type="email" id="ce-confirm" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="150"></div>
+    </div>
+    <div class="fr"><label>Motif <span style="font-weight:400;color:var(--muted);text-transform:none;font-size:10px;">(facultatif, conservé dans l'historique)</span></label><input type="text" id="ce-motif" maxlength="300"></div>
+    <div class="fr"><label>Votre mot de passe administrateur *</label><input type="password" id="ce-mdp" autocomplete="current-password"></div>
+    <div id="ce-err" class="ib ib-red" style="display:none;font-size:12px;"></div>
+    <div class="ma"><button class="btn btn-ghost" onclick="closeM('m-change-email')">Annuler</button><button class="btn btn-primary" id="ce-btn" onclick="validerChangementEmail()">&#10003; Changer l'e-mail</button></div>
+  </div>
+</div>
+
 <!-- TRANSFERT CLIENTS -->
 <div class="mo" id="m-transfert">
   <div class="md md-lg">
