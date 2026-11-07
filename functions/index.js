@@ -27,9 +27,11 @@
 'use strict';
 
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { onDocumentCreated } = require('firebase-functions/v2/firestore');   // ── VOLET 59 ──
 const { initializeApp } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
 const { getFirestore } = require('firebase-admin/firestore');
+const { getMessaging } = require('firebase-admin/messaging');              // ── VOLET 59 ──
 
 initializeApp();
 
@@ -147,5 +149,116 @@ exports.adminChangerEmail = onCall(
 
     console.log('[adminChangerEmail] OK', { uid, ancien, nouvel, par: appelantUid });
     return { ok: true, ancienEmail: ancien, nouvelEmail: nouvel };
+  }
+);
+
+
+/* ══════════════════════════════════════════════════════════════════════
+   ── VOLET 59 ── Notification PUSH d'un nouveau message de chat
+   ──────────────────────────────────────────────────────────────────────
+   POURQUOI
+   Jusqu'ici, la notification d'un nouveau message n'était affichée que par
+   l'application elle-même : application FERMÉE (ou tuée par Android en
+   veille) → aucun signal. Le commercial ne voyait le message qu'en rouvrant
+   l'app.
+
+   COMMENT
+   À chaque création d'un document chatMessages/{id} (écrit par app.js,
+   inchangé), cette fonction :
+   1. vérifie que l'auteur fait bien partie de la conversation (id "uidA__uidB") ;
+   2. identifie le destinataire (l'autre UID de la paire) ;
+   3. lit ses jetons d'appareil dans pushTokens (où uid == destinataire) ;
+   4. envoie un message « data » Firebase Cloud Messaging à ces appareils ;
+      c'est sw.js (événement 'push') qui affiche la notification ;
+   5. supprime les jetons que FCM déclare invalides (appareil désinstallé,
+      permission retirée…), pour ne pas les réessayer indéfiniment.
+
+   CE QUE LA FONCTION NE FAIT PAS
+   - Elle n'écrit RIEN dans chatMessages, chatConversations, clients, etc.
+   - Elle ne relance pas en cas d'échec (retry: false) : au pire une
+     notification manque, le message lui-même est déjà enregistré.
+   - L'admin « superviseur » n'est pas notifié des conversations entre deux
+     autres personnes (seul le destinataire réel l'est).
+   ══════════════════════════════════════════════════════════════════════ */
+
+// true  : la notification montre le début du message (120 caractères max).
+// false : la notification affiche seulement « Nouveau message » (plus discret
+//         sur un écran verrouillé, mais moins utile).
+const PUSH_AFFICHER_EXTRAIT = true;
+const PUSH_TTL_S = 24 * 3600;        // message gardé 24 h par FCM si le téléphone est éteint
+const PUSH_MAX_JETONS = 20;           // garde-fou : 20 appareils max par utilisateur
+const ERREURS_JETON_MORT = new Set([
+  'messaging/registration-token-not-registered',
+  'messaging/invalid-registration-token'
+  // ⚠️ PAS 'messaging/invalid-argument' : il peut venir d'un message mal
+  // formé, et supprimerait alors à tort tous les jetons valides.
+]);
+
+function _pushCorps(msg) {
+  if (!PUSH_AFFICHER_EXTRAIT) return 'Nouveau message';
+  const type = msg.type || 'texte';
+  if (type === 'image') return '📷 Photo';
+  const t = typeof msg.texte === 'string' ? msg.texte.trim() : '';
+  if (type === 'recu') return (t || '📄 Reçu').slice(0, 120);
+  return t ? (t.length > 120 ? t.slice(0, 117) + '…' : t) : 'Nouveau message';
+}
+
+exports.notifierNouveauMessage = onDocumentCreated(
+  { document: 'chatMessages/{msgId}', region: REGION, maxInstances: 5, timeoutSeconds: 30, retry: false },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+    const msg = snap.data() || {};
+    const convId = typeof msg.conversationId === 'string' ? msg.conversationId : '';
+    const auteur = typeof msg.authorId === 'string' ? msg.authorId : '';
+    const uids = convId.split('__');
+    // Même modèle que app.js (_chatPairId) : exactement 2 UID, l'auteur en fait partie.
+    if (uids.length !== 2 || !auteur || !uids.includes(auteur) || uids[0] === uids[1]) {
+      console.warn('[notifierNouveauMessage] message ignoré (conversation invalide)', snap.id, convId);
+      return;
+    }
+    const destinataire = uids[0] === auteur ? uids[1] : uids[0];
+    const db = getFirestore();
+
+    const jetonsSnap = await db.collection('pushTokens')
+      .where('uid', '==', destinataire).limit(PUSH_MAX_JETONS).get();
+    if (jetonsSnap.empty) return;   // destinataire sans appareil inscrit : rien à faire
+    const jetons = jetonsSnap.docs.map(d => d.id);
+
+    // Nom de l'expéditeur relu sur SA fiche (authorNom est écrit par le
+    // navigateur : on ne s'y fie qu'en repli).
+    let nom = '';
+    try {
+      const fiche = await db.doc(`commerciaux/${auteur}`).get();
+      nom = (fiche.exists && fiche.get('nom')) || '';
+    } catch (e) { /* repli ci-dessous */ }
+    if (!nom) nom = (typeof msg.authorNom === 'string' && msg.authorNom.slice(0, 80)) || 'Un utilisateur';
+
+    // Message « data » uniquement : c'est sw.js qui affiche la notification,
+    // ce qui permet de NE PAS doubler la notification quand l'app est déjà
+    // au premier plan (elle a son propre son + bandeau).
+    const data = {
+      type: 'chat',
+      convId,
+      titre: `💬 ${nom}`,
+      corps: _pushCorps(msg)
+    };
+    const res = await getMessaging().sendEachForMulticast({
+      tokens: jetons,
+      data,
+      webpush: { headers: { Urgency: 'high', TTL: String(PUSH_TTL_S) } }
+    });
+
+    // Nettoyage des jetons morts
+    const morts = [];
+    res.responses.forEach((r, i) => {
+      if (!r.success && r.error && ERREURS_JETON_MORT.has(r.error.code)) morts.push(jetons[i]);
+    });
+    if (morts.length) {
+      const batch = db.batch();
+      morts.forEach(t => batch.delete(db.collection('pushTokens').doc(t)));
+      await batch.commit().catch(e => console.error('[notifierNouveauMessage] nettoyage jetons', e));
+    }
+    console.log('[notifierNouveauMessage]', { msg: snap.id, destinataire, envoyes: res.successCount, echecs: res.failureCount, jetonsSupprimes: morts.length });
   }
 );

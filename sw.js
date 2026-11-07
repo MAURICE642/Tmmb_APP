@@ -17,7 +17,7 @@
 // ⚠️ Incrémenter ce numéro à chaque déploiement pour forcer la mise à jour
 // du shell chez les utilisateurs (sinon ils resteraient bloqués sur une
 // version en cache). Ex : 'mmb-shell-v2', 'mmb-shell-v3', ...
-const CACHE_NAME = 'mmb-shell-v58';   // ── VOLET 58 ── doit contenir APP_VERSION ('v58'), cf. controle 14 de verifier.js
+const CACHE_NAME = 'mmb-shell-v59';   // ── VOLET 59 ── doit contenir APP_VERSION ('v59'), cf. controle 14 de verifier.js
 
 // Fichiers du shell applicatif à mettre en cache dès l'installation.
 // Volontairement minimal et 100% same-origin (pas de CDN externe ici —
@@ -84,6 +84,37 @@ self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
+  // ── VOLET 59 ── app.js vérifie que ce service worker sait afficher un
+  // push AVANT d'inscrire l'appareil (un ancien sw.js ne répond pas).
+  if (event.data && event.data.type === 'PUSH_PING' && event.ports && event.ports[0]) {
+    event.ports[0].postMessage({ push: 1 });
+  }
+});
+
+// ── VOLET 59 ── PUSH : nouveau message de chat, application FERMÉE ──
+// Envoyé par la Cloud Function notifierNouveauMessage (message « data »
+// Firebase Cloud Messaging). Aucune donnée métier n'est lue ni écrite ici.
+// Si l'app est déjà au premier plan, on n'affiche rien : elle signale déjà
+// le message elle-même (son + bandeau), inutile de doubler.
+self.addEventListener('push', (event) => {
+  let p = {};
+  try { p = event.data ? event.data.json() : {}; } catch (e) { p = {}; }
+  const d = (p && p.data) || {};
+  const n = (p && p.notification) || {};
+  event.waitUntil((async () => {
+    const fenetres = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    // Même critère que le SDK Firebase (hasVisibleClients) : une fenêtre
+    // visible gère elle-même son + bandeau + notification (app.js).
+    if (fenetres.some((c) => c.visibilityState === 'visible')) return;
+    await self.registration.showNotification(d.titre || n.title || 'MMB Service', {
+      body: d.corps || n.body || 'Nouveau message',
+      icon: 'icons/icon-192x192.png',
+      badge: 'icons/icon-192x192.png',
+      tag: 'chat-assistance',   // même étiquette que app.js : pas de doublon empilé
+      renotify: true,
+      data: { type: 'chat', convId: d.convId || '' }
+    });
+  })());
 });
 
 // ── VOLET 41 ── CLIC SUR UNE NOTIFICATION DE CHAT ──
