@@ -520,6 +520,10 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
      regle manquante rendrait le menu inutilisable. Les selecteurs sont
      prefixes .nav-grp / .nav-sec-clic pour ne rien recouvrir d'existant. -->
 <style>
+  /* ── VOLET 76 ── lignes masquées par la recherche (réapparaissent à l'impression) */
+  .flt-v76-hide{display:none !important;}
+  @media print{ .flt-v76-hide{display:table-row !important;} }
+
   /* ══ VOLET 69 ══ MODE CLAIR — surcharge complète (basée sur le vrai
      styles.min.css fourni). Les variables ET les couleurs « en dur » des
      en-têtes de tableaux / cartes KPI / sidebar / en-têtes chat sont
@@ -1776,6 +1780,12 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
   <!-- ADMIN: UTILISATEURS -->
   <div id="page-commerciaux" class="page">
     <div class="sec-hdr"><div class="sec-title">Utilisateurs</div><button class="btn btn-primary btn-sm" onclick="openM('m-com')">+ Nouveau</button></div>
+    <!-- ── VOLET 76 ── recherche directe (filtre l'affichage uniquement) -->
+    <div class="no-print" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+      <input type="search" id="util-search-v76" placeholder="🔍 Nom, téléphone, zone, rôle, agence, préfixe…" autocomplete="off" oninput="filtrerUtilisateursV76()" style="background:var(--surface2);border:1px solid rgba(201,168,76,0.4);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px;outline:none;flex:1;min-width:180px;">
+      <button class="btn btn-ghost btn-sm" onclick="effacerRechercheV76('util-search-v76')">✖ Effacer</button>
+      <span id="util-search-info-v76" style="font-size:11px;color:var(--muted);"></span>
+    </div>
     <div class="tw"><table><thead><tr><th>Nom</th><th>Téléphone</th><th>Zone</th><th id="th-pin-col" style="color:var(--accent);display:none;">🔑 PIN</th><th>Clients</th><th>Total collecté</th><th>Mises versées</th><th>Solde net</th><th>Actions</th></tr></thead><tbody id="tb-coms"></tbody></table></div>
   </div>
 
@@ -2569,6 +2579,12 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         <button class="btn btn-print btn-sm no-print" onclick="window.print()">🖨️ Imprimer</button>
         <button id="btn-marquer-verse" class="btn btn-sm no-print" onclick="marquerPointsVerses()" style="display:none;background:linear-gradient(135deg,rgba(34,212,160,0.25),rgba(34,212,160,0.12));border:1px solid rgba(34,212,160,0.45);color:var(--accent2);font-weight:700;">✅ Marquer comme versé</button>
       </div>
+    </div>
+    <!-- ── VOLET 76 ── recherche directe dans la fiche (filtre l'affichage uniquement ; les totaux restent ceux de la journée complète) -->
+    <div class="no-print" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+      <input type="search" id="fiche-search-v76" placeholder="🔍 Code client, nom, heure, montant…" autocomplete="off" oninput="filtrerFicheV76()" style="background:var(--surface2);border:1px solid rgba(201,168,76,0.4);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px;outline:none;flex:1;min-width:180px;">
+      <button class="btn btn-ghost btn-sm" onclick="effacerRechercheV76('fiche-search-v76')">✖ Effacer</button>
+      <span id="fiche-search-info-v76" style="font-size:11px;color:var(--muted);"></span>
     </div>
     <div id="fiche-content"></div>
   </div>

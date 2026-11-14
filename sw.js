@@ -102,13 +102,10 @@ self.addEventListener('push', (event) => {
   const d = (p && p.data) || {};
   const n = (p && p.notification) || {};
   event.waitUntil((async () => {
-    // ── VOLET 75 ── (à la demande) On n'étouffe PLUS la notification système
-    // quand l'app est au premier plan : le destinataire reçoit désormais la
-    // notification SYSTÈME même app ouverte.
-    // ⚠️ Conséquence ASSUMÉE : quand l'app est visible, double signal possible
-    // (notification système ICI + son/cloche de l'app via app.js). C'est le
-    // comportement demandé. (AVANT, cette ligne étouffait la notification :
-    //   if (fenetres.some((c) => c.visibilityState === 'visible')) return; )
+    const fenetres = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    // Même critère que le SDK Firebase (hasVisibleClients) : une fenêtre
+    // visible gère elle-même son + bandeau + notification (app.js).
+    if (fenetres.some((c) => c.visibilityState === 'visible')) return;
     await self.registration.showNotification(d.titre || n.title || 'MMB Service', {
       body: d.corps || n.body || 'Nouveau message',
       icon: 'icons/icon-192x192.png',
