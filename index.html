@@ -3,6 +3,30 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- ══ VOLET 68 ══ Mode de visibilité (sombre par défaut / clair). Appliqué
+     AVANT le rendu pour éviter tout clignotement. Le choix est mémorisé par
+     appareil. Disponible sur tous les comptes via le bouton ☀️/🌙 de la barre. -->
+<script>
+(function(){
+  try{ if(localStorage.getItem('mmb_theme')==='light') document.documentElement.setAttribute('data-theme','light'); }catch(e){}
+  function _majBoutonTheme(){
+    var b=document.getElementById('btn-theme'); if(!b) return;
+    var clair = document.documentElement.getAttribute('data-theme')==='light';
+    b.textContent = clair ? '☀️' : '🌙';
+    b.title = clair ? 'Passer en mode sombre' : 'Passer en mode clair';
+  }
+  window._majBoutonTheme=_majBoutonTheme;
+  window.basculerTheme=function(){
+    var clair = document.documentElement.getAttribute('data-theme')==='light';
+    var suivant = clair ? 'dark' : 'light';
+    if(suivant==='light') document.documentElement.setAttribute('data-theme','light');
+    else document.documentElement.removeAttribute('data-theme');
+    try{ localStorage.setItem('mmb_theme', suivant); }catch(e){}
+    _majBoutonTheme();
+  };
+  document.addEventListener('DOMContentLoaded', _majBoutonTheme);
+})();
+</script>
 <!-- CSP : 'unsafe-inline' est nécessaire sur script-src/style-src car l'app
      utilise ~460 attributs onclick/onchange/oninput et des style="" inline.
      Retirer 'unsafe-inline' casserait l'app entière ; ça demanderait de migrer
@@ -496,6 +520,49 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
      regle manquante rendrait le menu inutilisable. Les selecteurs sont
      prefixes .nav-grp / .nav-sec-clic pour ne rien recouvrir d'existant. -->
 <style>
+  /* ══ VOLET 69 ══ MODE CLAIR — surcharge complète (basée sur le vrai
+     styles.min.css fourni). Les variables ET les couleurs « en dur » des
+     en-têtes de tableaux / cartes KPI / sidebar / en-têtes chat sont
+     neutralisées en mode clair. */
+  /* ══ VOLET 69 ══ MODE CLAIR complet (basé sur le vrai styles.min.css) ══ */
+  :root[data-theme="light"]{
+    --bg:#f4f6fa; --surface:#ffffff; --surface2:#eef1f7;
+    --border:#e2e6ee; --text:#1b2130; --muted:#5b6374; --subtle:#6b7488;
+    --accent:#a67f22; --accent-dim:rgba(166,127,34,0.12); --accent-border:rgba(166,127,34,0.30);
+    --accent2:#12a97e; --accent3:#a67f22; --danger:#d14336; --warn:#b5701f;
+  }
+  :root[data-theme="light"] body{ background:var(--bg); color:var(--text); }
+
+  /* ── VOLET 73 (#3) ── sections repliables de la page Rouleaux */
+  .rl-toggle{ cursor:pointer; user-select:none; }
+  .rl-sec-body.rl-collapsed{ display:none; }
+  .rl-chev{ display:inline-block; transition:transform .15s; font-size:12px; }
+  .rl-chev.rl-closed{ transform:rotate(-90deg); }
+  /* En-têtes de tableaux (étaient en dur !important) */
+  :root[data-theme="light"] #page-admin-dashboard .tw thead th{ background:#e9edf5!important; color:var(--text)!important; }
+  :root[data-theme="light"] #page-tous-clients .tw thead th{ background:#e9edf5!important; color:var(--text)!important; }
+  :root[data-theme="light"] #page-controle .tw thead th{ background:#e9edf5!important; color:var(--text)!important; }
+  :root[data-theme="light"] #page-articles .tw thead th{ background:#e9edf5!important; color:var(--text)!important; }
+  :root[data-theme="light"] #page-stock .tw thead th{ background:#e9edf5!important; color:var(--text)!important; }
+  :root[data-theme="light"] #page-livraisons .tw thead th{ background:#e9edf5!important; color:var(--text)!important; }
+  :root[data-theme="light"] #page-saisie-adhesions .tw thead th{ background:#e9edf5!important; color:var(--text)!important; }
+  :root[data-theme="light"] #page-historique .tw thead th{ background:#e9edf5!important; color:var(--text)!important; }
+  :root[data-theme="light"] #page-commerciaux .tw thead th{ background:#e9edf5!important; color:var(--text)!important; }
+  :root[data-theme="light"] #page-recouvrement .tw thead th{ background:#e9edf5!important; color:var(--text)!important; }
+  :root[data-theme="light"] #page-gstock-periode .tw thead th{ background:#e9edf5!important; color:var(--text)!important; }
+  :root[data-theme="light"] #page-transfert-resiliation .tw thead th{ background:#e9edf5!important; color:var(--text)!important; }
+  :root[data-theme="light"] #page-rapport-activite .tw thead th{ background:#e9edf5!important; color:var(--text)!important; }
+  /* Cartes KPI (étaient en dur !important) */
+  :root[data-theme="light"] #page-saisie-adhesions .kpi-card{ background:#ffffff!important; color:var(--text)!important; }
+  :root[data-theme="light"] #page-rapport-activite .kpi-card{ background:#ffffff!important; color:var(--text)!important; }
+  :root[data-theme="light"] #page-admin-dashboard .kpi-card{ background:#ffffff!important; color:var(--text)!important; }
+  :root[data-theme="light"] #page-livraisons .kpi-card{ background:#ffffff!important; color:var(--text)!important; }
+  :root[data-theme="light"] #page-admin-dashboard .kpi-card{ background:#ffffff!important; color:var(--text)!important; }
+  :root[data-theme="light"] #page-stock .kpi-card{ background:#ffffff!important; color:var(--text)!important; }
+  /* Barre latérale + en-têtes chat/notifications (étaient en dur) */
+  :root[data-theme="light"] #sidebar{ background:linear-gradient(180deg,#ffffff 0,#eef1f7 100%)!important; }
+  :root[data-theme="light"] .chat-hdr, :root[data-theme="light"] .notif-hdr{ background:var(--surface2)!important; color:var(--text); }
+
   /* ══ VOLET 22 ══ Habillage « rail doré » du menu repliable.
      Ce bloc est dans le <body>, donc APRES styles.min.css dans l'ordre des
      sources : a specificite egale, ce sont ces regles qui gagnent. Les
@@ -632,6 +699,9 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     <div class="page-title" id="pg-title">—</div>
     <div class="topbar-right">
       <span class="today-pill" id="today-pill"></span>
+      <!-- ══ VOLET 68 ══ bascule mode sombre / clair (tous les comptes) -->
+      <button class="btn btn-ghost no-print" id="btn-theme" onclick="basculerTheme()" title="Passer en mode clair"
+        aria-label="Changer le mode d'affichage" style="padding:8px 14px;font-size:20px;line-height:1;">🌙</button>
       <button class="btn btn-ghost no-print" id="btn-refresh" onclick="actualiserSysteme()" title="Actualiser les données"
         style="padding:8px 14px;font-size:20px;line-height:1;" title="Actualiser">↻</button>
       <button class="btn btn-primary no-print" id="btn-top" style="display:none" onclick="topAction()">+ Action</button>
@@ -1471,7 +1541,11 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     <div class="kpi-row" id="rl-kpi"></div>
 
     <div class="transfert-card" style="margin-top:12px;">
-      <div style="font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;color:var(--accent);margin-bottom:10px;">➕ Attribuer des rouleaux</div>
+      <!-- ── VOLET 73 (#3) ── section repliable -->
+      <div class="rl-toggle" onclick="rlToggleSec('rl-sec-form')" style="font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;color:var(--accent);margin-bottom:10px;display:flex;align-items:center;gap:8px;">
+        <span class="rl-chev" id="rl-chev-rl-sec-form">▾</span> ➕ Attribuer des rouleaux
+      </div>
+      <div class="rl-sec-body" id="rl-sec-form">
       <div class="fg">
         <div class="fr"><label>Personne</label><select id="rl-benef"><option value="">— Choisir la personne —</option></select></div>
         <div class="fr"><label>Nombre de rouleaux</label><input type="number" id="rl-qty" min="1" placeholder="ex: 5"></div>
@@ -1482,24 +1556,25 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
       </div>
       <div class="fr"><label>Note (optionnel)</label><input type="text" id="rl-note" maxlength="200" placeholder="Format, fournisseur…"></div>
       <div class="ma" style="margin-top:10px;"><button class="btn btn-primary" onclick="rlAttribuer()">🧾 Enregistrer l'attribution</button></div>
+      </div><!-- /rl-sec-form -->
     </div>
 
     <div class="sec-hdr" style="margin-top:20px;flex-wrap:wrap;gap:8px;">
-      <div class="sec-title" style="font-size:15px;">📊 Suivi par personne</div>
+      <div class="sec-title rl-toggle" onclick="rlToggleSec('rl-sec-suivi')" style="font-size:15px;display:flex;align-items:center;gap:8px;"><span class="rl-chev" id="rl-chev-rl-sec-suivi">▾</span> 📊 Suivi par personne</div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <span id="rl-agence-wrap" style="display:none;"><select id="rl-agence" onchange="renderRouleaux()" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 9px;color:var(--text);font-size:12px;"><option value="">Toutes les agences</option></select></span>
         <button class="btn btn-ghost btn-sm" onclick="rlActualiser()">↻ Actualiser l'usage</button>
         <span id="rl-etat" style="font-size:11px;color:var(--muted);"></span>
       </div>
     </div>
-    <div class="tw"><table><thead><tr>
+    <div class="rl-sec-body" id="rl-sec-suivi"><div class="tw"><table><thead><tr>
       <th>Personne</th><th style="text-align:center;">Rouleaux</th><th style="text-align:center;">Capacité (reçus)</th>
       <th style="text-align:center;">Reçus imprimés</th><th style="text-align:center;">Rouleaux utilisés ≈</th>
       <th style="text-align:center;">Reste (reçus)</th><th>Suivi depuis</th><th>État</th>
-    </tr></thead><tbody id="rl-body"></tbody></table></div>
+    </tr></thead><tbody id="rl-body"></tbody></table></div></div><!-- /rl-sec-suivi -->
 
     <div class="sec-hdr" style="margin-top:20px;flex-wrap:wrap;gap:8px;">
-      <div class="sec-title" style="font-size:15px;">📋 Historique des attributions</div>
+      <div class="sec-title rl-toggle" onclick="rlToggleSec('rl-sec-hist')" style="font-size:15px;display:flex;align-items:center;gap:8px;"><span class="rl-chev" id="rl-chev-rl-sec-hist">▾</span> 📋 Historique des attributions</div>
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
         <select id="rl-hist-benef" onchange="_rlRenderHistorique()" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 9px;color:var(--text);font-size:12px;"><option value="">Toutes les personnes</option></select>
         <label style="font-size:11px;color:var(--muted);">Du</label><input type="date" id="rl-du" onchange="_rlRenderHistorique()" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:4px 7px;color:var(--text);font-size:11px;">
@@ -1507,8 +1582,8 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         <span id="rl-hist-total" style="font-size:11px;color:var(--muted);"></span>
       </div>
     </div>
-    <div class="tw"><table><thead><tr><th>Date</th><th>Personne</th><th style="text-align:center;">Rouleaux</th><th style="text-align:center;">Reçus / rouleau</th><th>Note</th><th>Saisi par</th><th></th></tr></thead>
-      <tbody id="rl-hist-body"></tbody></table></div>
+    <div class="rl-sec-body" id="rl-sec-hist"><div class="tw"><table><thead><tr><th>Date</th><th>Personne</th><th style="text-align:center;">Rouleaux</th><th style="text-align:center;">Reçus / rouleau</th><th>Note</th><th>Saisi par</th><th></th></tr></thead>
+      <tbody id="rl-hist-body"></tbody></table></div></div><!-- /rl-sec-hist -->
   </div>
   <!-- FIN PAGE ROULEAUX -->
 
