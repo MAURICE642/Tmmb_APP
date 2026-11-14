@@ -674,27 +674,13 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
   </div>
   <nav class="nav" id="nav-menu"></nav>
   <div class="sidebar-footer">
-    <!-- ══ VOLET 81 ══ Menu "outils" pliable. De base on ne voit que
-         « Imprimante Bluetooth » (comme avant) ; un clic ouvre un sous-menu :
-         « Configurer l'imprimante » + « Localisation ». -->
-    <div style="padding:6px 12px 6px 12px;">
-      <button id="tools-menu-btn" onclick="toggleToolsMenu()" style="width:100%;display:flex;align-items:center;gap:7px;background:rgba(26,111,196,0.10);border:1px solid rgba(26,111,196,0.30);border-radius:8px;padding:7px 11px;color:#5aaaf7;font-size:11px;font-weight:700;cursor:pointer;font-family:'Outfit',sans-serif;transition:background 0.15s;" onmouseover="this.style.background='rgba(26,111,196,0.22)'" onmouseout="this.style.background='rgba(26,111,196,0.10)'">
+    <!-- Bouton imprimante Bluetooth -->
+    <div style="padding:6px 12px 4px 12px;">
+      <button onclick="connecterImprimanteBT()" style="width:100%;display:flex;align-items:center;gap:7px;background:rgba(26,111,196,0.10);border:1px solid rgba(26,111,196,0.30);border-radius:8px;padding:7px 11px;color:#5aaaf7;font-size:11px;font-weight:700;cursor:pointer;font-family:'Outfit',sans-serif;transition:background 0.15s;" onmouseover="this.style.background='rgba(26,111,196,0.22)'" onmouseout="this.style.background='rgba(26,111,196,0.10)'">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5"/></svg>
         <span style="flex:1;text-align:left;">Imprimante Bluetooth</span>
         <span id="bt-printer-status" style="font-size:9px;color:var(--muted);">🔴 Non connectée</span>
-        <span id="tools-chev" style="font-size:10px;color:var(--muted);">▸</span>
       </button>
-      <div id="tools-menu" style="display:none;flex-direction:column;gap:6px;margin-top:6px;">
-        <button onclick="connecterImprimanteBT()" style="width:100%;display:flex;align-items:center;gap:7px;background:rgba(26,111,196,0.08);border:1px solid rgba(26,111,196,0.25);border-radius:8px;padding:7px 11px;color:#5aaaf7;font-size:11px;font-weight:700;cursor:pointer;font-family:'Outfit',sans-serif;">
-          <span style="font-size:13px;line-height:1;">🖨️</span>
-          <span style="flex:1;text-align:left;">Configurer l'imprimante</span>
-        </button>
-        <button id="geo-footer-btn" onclick="geoActiver()" style="width:100%;display:flex;align-items:center;gap:7px;background:rgba(201,168,76,0.10);border:1px solid rgba(201,168,76,0.30);border-radius:8px;padding:7px 11px;color:#d7bd63;font-size:11px;font-weight:700;cursor:pointer;font-family:'Outfit',sans-serif;">
-          <span style="font-size:13px;line-height:1;">📍</span>
-          <span style="flex:1;text-align:left;">Localisation</span>
-          <span id="geo-footer-status" style="font-size:9px;color:var(--muted);">—</span>
-        </button>
-      </div>
     </div>
     <div class="user-pill">
       <div class="uavatar" id="s-av">?</div>
@@ -720,15 +706,6 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         style="padding:8px 14px;font-size:20px;line-height:1;" title="Actualiser">↻</button>
       <button class="btn btn-primary no-print" id="btn-top" style="display:none" onclick="topAction()">+ Action</button>
     </div>
-  </div>
-
-  <!-- ══ VOLET 78 ══ Bannière d'activation de la localisation (commerciaux) :
-       demande la permission sur un CLIC (fiable), au lieu de l'appel silencieux
-       au démarrage qui ne faisait pas apparaître le dialogue Android. -->
-  <div id="geo-perm-banner" class="no-print" style="display:none;margin:0 0 10px 0;padding:10px 14px;border-radius:10px;background:rgba(201,168,76,0.14);border:1px solid rgba(201,168,76,0.40);color:var(--text);font-size:13px;align-items:center;gap:10px;">
-    <span style="font-size:18px;">📍</span>
-    <span id="geo-perm-msg" style="flex:1;">La localisation n'est pas activée. Elle accompagne vos encaissements.</span>
-    <button id="geo-perm-btn" class="btn btn-primary no-print" onclick="geoActiver()" style="white-space:nowrap;">Activer la localisation</button>
   </div>
 
   <!-- ADMIN: DASHBOARD -->
