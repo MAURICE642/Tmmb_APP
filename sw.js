@@ -17,7 +17,7 @@
 // ⚠️ Incrémenter ce numéro à chaque déploiement pour forcer la mise à jour
 // du shell chez les utilisateurs (sinon ils resteraient bloqués sur une
 // version en cache). Ex : 'mmb-shell-v2', 'mmb-shell-v3', ...
-const CACHE_NAME = 'mmb-shell-v74';   // ── VOLET 74 ── doit contenir APP_VERSION ('v74'), cf. controle 14 de verifier.js
+const CACHE_NAME = 'mmb-shell-v76';   // ── VOLET 76 ── doit contenir APP_VERSION ('v76'), cf. controle 14 de verifier.js
 
 // Fichiers du shell applicatif à mettre en cache dès l'installation.
 // Volontairement minimal et 100% same-origin (pas de CDN externe ici —
@@ -102,10 +102,13 @@ self.addEventListener('push', (event) => {
   const d = (p && p.data) || {};
   const n = (p && p.notification) || {};
   event.waitUntil((async () => {
-    const fenetres = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    // Même critère que le SDK Firebase (hasVisibleClients) : une fenêtre
-    // visible gère elle-même son + bandeau + notification (app.js).
-    if (fenetres.some((c) => c.visibilityState === 'visible')) return;
+    // ── VOLET 75 ── (à la demande) On n'étouffe PLUS la notification système
+    // quand l'app est au premier plan : le destinataire reçoit désormais la
+    // notification SYSTÈME même app ouverte.
+    // ⚠️ Conséquence ASSUMÉE : quand l'app est visible, double signal possible
+    // (notification système ICI + son/cloche de l'app via app.js). C'est le
+    // comportement demandé. (AVANT, cette ligne étouffait la notification :
+    //   if (fenetres.some((c) => c.visibilityState === 'visible')) return; )
     await self.registration.showNotification(d.titre || n.title || 'MMB Service', {
       body: d.corps || n.body || 'Nouveau message',
       icon: 'icons/icon-192x192.png',
