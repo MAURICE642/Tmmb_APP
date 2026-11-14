@@ -708,6 +708,15 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     </div>
   </div>
 
+  <!-- ══ VOLET 78 ══ Bannière d'activation de la localisation (commerciaux) :
+       demande la permission sur un CLIC (fiable), au lieu de l'appel silencieux
+       au démarrage qui ne faisait pas apparaître le dialogue Android. -->
+  <div id="geo-perm-banner" class="no-print" style="display:none;margin:0 0 10px 0;padding:10px 14px;border-radius:10px;background:rgba(201,168,76,0.14);border:1px solid rgba(201,168,76,0.40);color:var(--text);font-size:13px;align-items:center;gap:10px;">
+    <span style="font-size:18px;">📍</span>
+    <span id="geo-perm-msg" style="flex:1;">La localisation n'est pas activée. Elle accompagne vos encaissements.</span>
+    <button id="geo-perm-btn" class="btn btn-primary no-print" onclick="geoActiver()" style="white-space:nowrap;">Activer la localisation</button>
+  </div>
+
   <!-- ADMIN: DASHBOARD -->
   <div id="page-admin-dashboard" class="page">
     <!-- Filtre agence -->
