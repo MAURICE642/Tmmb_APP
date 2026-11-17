@@ -223,7 +223,12 @@ exports.notifierNouveauMessage = onDocumentCreated(
     const jetonsSnap = await db.collection('pushTokens')
       .where('uid', '==', destinataire).limit(PUSH_MAX_JETONS).get();
     if (jetonsSnap.empty) return;   // destinataire sans appareil inscrit : rien à faire
-    const jetons = jetonsSnap.docs.map(d => d.id);
+    // ── VOLET 78 ── jetons de l'APK Android (ua « TMMB-APK … ») : ils ont
+    // besoin d'une notification affichable par Android (bloc notification),
+    // car l'APK n'a pas de sw.js. Les jetons PWA gardent le message « data ».
+    const estApk = d => String(d.get('ua') || '').startsWith('TMMB-APK');
+    const jetons = jetonsSnap.docs.filter(d => !estApk(d)).map(d => d.id);
+    const jetonsApk = jetonsSnap.docs.filter(estApk).map(d => d.id);
 
     // Nom de l'expéditeur relu sur SA fiche (authorNom est écrit par le
     // navigateur : on ne s'y fie qu'en repli).
@@ -243,22 +248,33 @@ exports.notifierNouveauMessage = onDocumentCreated(
       titre: `💬 ${nom}`,
       corps: _pushCorps(msg)
     };
-    const res = await getMessaging().sendEachForMulticast({
+    const vide = { responses: [], successCount: 0, failureCount: 0 };
+    const res = jetons.length ? await getMessaging().sendEachForMulticast({
       tokens: jetons,
       data,
       webpush: { headers: { Urgency: 'high', TTL: String(PUSH_TTL_S) } }
-    });
+    }) : vide;
+    // ── VOLET 78 ── envoi aux téléphones qui ont l'APK.
+    const resApk = jetonsApk.length ? await getMessaging().sendEachForMulticast({
+      tokens: jetonsApk,
+      data,
+      notification: { title: data.titre, body: data.corps },
+      android: { priority: 'high', ttl: PUSH_TTL_S * 1000, notification: { sound: 'default', tag: 'chat-' + convId } }
+    }) : vide;
 
     // Nettoyage des jetons morts
     const morts = [];
     res.responses.forEach((r, i) => {
       if (!r.success && r.error && ERREURS_JETON_MORT.has(r.error.code)) morts.push(jetons[i]);
     });
+    resApk.responses.forEach((r, i) => {
+      if (!r.success && r.error && ERREURS_JETON_MORT.has(r.error.code)) morts.push(jetonsApk[i]);
+    });
     if (morts.length) {
       const batch = db.batch();
       morts.forEach(t => batch.delete(db.collection('pushTokens').doc(t)));
       await batch.commit().catch(e => console.error('[notifierNouveauMessage] nettoyage jetons', e));
     }
-    console.log('[notifierNouveauMessage]', { msg: snap.id, destinataire, envoyes: res.successCount, echecs: res.failureCount, jetonsSupprimes: morts.length });
+    console.log('[notifierNouveauMessage]', { msg: snap.id, destinataire, envoyes: res.successCount + resApk.successCount, echecs: res.failureCount + resApk.failureCount, jetonsSupprimes: morts.length });
   }
 );
