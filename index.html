@@ -968,6 +968,9 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         oninput="dRender('renderControle')">
       <select id="ctrl-filter-com" onchange="renderControle()"
         style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 10px;color:var(--text);font-size:11px;outline:none;"><option value="">— Tous les commerciaux —</option></select>
+      <!-- ── VOLET 79 ── filtre quartier (liste construite depuis les clients du commercial choisi) -->
+      <select id="ctrl-filter-quartier" onchange="renderControle()"
+        style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 10px;color:var(--text);font-size:11px;outline:none;max-width:220px;"><option value="">🏘️ Tous les quartiers</option></select>
       <select id="ctrl-filter-statut" onchange="setControleTab(this.value)"
         style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 10px;color:var(--text);font-size:11px;outline:none;">
         <option value="attente">⏳ Non contrôlé</option>
@@ -3057,9 +3060,30 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
       </div>
       <div class="fr"><label>Quantité *</label><input type="number" id="mvt-qty" placeholder="0"></div>
       <div class="fr"><label>Date</label><input type="date" id="mvt-date"></div>
+      <!-- ── VOLET 79 ── prix d'achat rectifié : admin, entrées uniquement.
+           Enregistré sur CE mouvement ; le prix d'achat de l'article ne change pas. -->
+      <div class="fr" id="mvt-pa-zone" style="display:none;">
+        <label>Prix d'achat rectifié <span style="font-size:10px;color:var(--muted);font-weight:400;">(facultatif — pour cette entrée seulement)</span></label>
+        <input type="number" id="mvt-pa" min="0" step="1" placeholder="Laisser vide = prix de l'article">
+        <div id="mvt-pa-info" style="font-size:10.5px;color:var(--muted);margin-top:4px;"></div>
+      </div>
     </div>
     <div class="fr"><label>Note (optionnel)</label><input type="text" id="mvt-note" placeholder="Fournisseur, motif complémentaire..."></div>
     <div class="ma"><button class="btn btn-ghost" onclick="closeM('m-stock-mvt')">Annuler</button><button class="btn btn-primary" onclick="saveMvt()">Enregistrer</button></div>
+  </div>
+</div>
+
+<!-- ── VOLET 79 ── RECTIFIER LE PRIX D'ACHAT D'UNE ENTRÉE (admin) -->
+<div class="mo" id="m-mvt-pa">
+  <div class="md">
+    <div class="md-title">✏️ Prix d'achat de l'entrée</div>
+    <div id="mvtpa-info" style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.6;"></div>
+    <div class="fr">
+      <label>Prix d'achat rectifié (FCFA) <span style="font-size:10px;color:var(--muted);font-weight:400;">(vide = revenir au prix de l'article)</span></label>
+      <input type="number" id="mvtpa-val" min="0" step="1">
+    </div>
+    <input type="hidden" id="mvtpa-id">
+    <div class="ma"><button class="btn btn-ghost" onclick="closeM('m-mvt-pa')">Annuler</button><button class="btn btn-primary" onclick="enregistrerPaMvt()">Enregistrer</button></div>
   </div>
 </div>
 
