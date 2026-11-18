@@ -706,6 +706,9 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
       <!-- ══ VOLET 68 ══ bascule mode sombre / clair (tous les comptes) -->
       <button class="btn btn-ghost no-print" id="btn-theme" onclick="basculerTheme()" title="Passer en mode clair"
         aria-label="Changer le mode d'affichage" style="padding:8px 14px;font-size:20px;line-height:1;">🌙</button>
+      <!-- ══ VOLET 83 ══ aide de la page affichée -->
+      <button class="btn btn-ghost no-print" id="btn-aide" onclick="ouvrirGuide()" title="Aide sur cette page" aria-label="Aide sur cette page"
+        style="padding:8px 14px;font-size:19px;line-height:1;">❓</button>
       <button class="btn btn-ghost no-print" id="btn-refresh" onclick="actualiserSysteme()" title="Actualiser les données"
         style="padding:8px 14px;font-size:20px;line-height:1;" title="Actualiser">↻</button>
       <button class="btn btn-primary no-print" id="btn-top" style="display:none" onclick="topAction()">+ Action</button>
@@ -1052,6 +1055,20 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
   <!-- ══════════════════════════════════════════════════════════
        PAGE PRODUITS
   ══════════════════════════════════════════════════════════ -->
+  <!-- ══ VOLET 83 ══ GUIDE D'UTILISATION (contenu filtré selon le type de compte) -->
+  <div id="page-guide" class="page">
+    <div class="g-tete">
+      <div>
+        <div class="sec-title" style="margin:0;">📖 Guide d'utilisation</div>
+        <div class="g-sous">Guide pour : <b id="guide-mon-role">—</b>. Seules les sections qui concernent votre compte sont affichées.</div>
+      </div>
+      <select id="guide-role" onchange="guideChangerRole(this.value)" style="display:none;"></select>
+    </div>
+    <input type="search" id="guide-cherche" class="g-cherche" placeholder="🔍 Décrivez votre problème ou cherchez un mot (ex. reçu, client, livraison, hors ligne…)" oninput="dRender('renderGuide')">
+    <div id="guide-chapitres" class="g-chips"></div>
+    <div id="guide-contenu"></div>
+  </div>
+
   <div id="page-produits" class="page">
     <div class="sec-hdr no-print" id="produits-hdr">
       <div class="sec-title">Produits</div>
@@ -4245,6 +4262,49 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
 }
 </style>
 
+
+<!-- ══ VOLET 83 ══ styles : liste déroulante des catégories (Produits) + guide d'utilisation -->
+<style id="v83-styles">
+@media screen{
+  .v83-cat{ position:relative; display:inline-block; }
+  .v83-cat-btn{ display:inline-flex; align-items:center; gap:7px; background:var(--surface2); border:1px solid var(--border); color:var(--text);
+     border-radius:12px; padding:9px 14px; font-size:14px; font-weight:600; cursor:pointer; min-height:42px; font-family:inherit; }
+  .v83-cat-btn b{ color:var(--muted); font-weight:600; } .v83-cat-btn i{ font-style:normal; color:var(--muted); }
+  .v83-cat-btn.actif{ border-color:var(--accent); color:var(--accent); background:rgba(201,168,76,.10); }
+  .v83-cat-liste{ position:absolute; z-index:60; top:calc(100% + 6px); left:0; min-width:280px; max-width:92vw; max-height:60vh; overflow-y:auto;
+     background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:6px; box-shadow:0 14px 40px rgba(0,0,0,.35); }
+  .v83-cat-cherche{ width:100%; margin:2px 0 6px; background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:9px 12px; color:var(--text); font-size:14px; }
+  .v83-cat-item{ display:flex; width:100%; justify-content:space-between; gap:12px; align-items:center; background:none; border:none; color:var(--text);
+     padding:10px 12px; border-radius:10px; font-size:14px; cursor:pointer; text-align:left; font-family:inherit; }
+  .v83-cat-item b{ color:var(--muted); font-weight:600; font-size:12.5px; }
+  .v83-cat-item:hover{ background:var(--surface2); }
+  .v83-cat-item.on{ background:rgba(201,168,76,.12); color:var(--accent); font-weight:700; }
+  #prod-filter-bar{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+
+  #page-guide{ max-width:900px; }
+  .g-tete{ display:flex; justify-content:space-between; gap:12px; align-items:flex-start; flex-wrap:wrap; margin-bottom:12px; }
+  .g-sous{ color:var(--muted); font-size:13.5px; margin-top:4px; }
+  #guide-role{ background:var(--surface2); border:1px solid var(--accent); color:var(--accent); border-radius:10px; padding:8px 12px; font-size:13.5px; font-weight:700; }
+  .g-cherche{ width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:12px; padding:12px 14px; color:var(--text); font-size:15px; margin-bottom:10px; }
+  .g-chips{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+  .g-chip{ background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:999px; padding:7px 13px; font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; }
+  .g-chip.on{ border-color:var(--accent); color:var(--accent); background:rgba(201,168,76,.12); }
+  .g-chap{ font-size:13px; font-weight:800; letter-spacing:.6px; color:var(--accent); text-transform:uppercase; margin:18px 2px 8px; }
+  .g-sec{ background:var(--surface); border:1px solid var(--border); border-radius:14px; margin-bottom:8px; scroll-margin-top:80px; }
+  .g-sec > summary{ cursor:pointer; padding:14px 16px; font-size:15px; font-weight:700; list-style:none; display:flex; justify-content:space-between; gap:10px; }
+  .g-sec > summary::-webkit-details-marker{ display:none; }
+  .g-sec > summary::after{ content:"▾"; color:var(--muted); transition:transform .15s; }
+  .g-sec[open] > summary::after{ transform:rotate(180deg); }
+  .g-sec[open]{ border-color:rgba(201,168,76,.45); }
+  .g-corps{ padding:0 16px 16px; font-size:14.5px; line-height:1.6; }
+  .g-corps ol, .g-corps ul{ margin:4px 0 8px 20px; } .g-corps li{ margin-bottom:5px; }
+  .g-corps p{ margin:4px 0 8px; } .g-corps a{ color:var(--accent); }
+  .g-note{ font-size:13.5px; color:var(--muted); border-left:3px solid var(--accent); padding-left:10px; }
+  .g-role{ background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:10px 12px; margin:8px 0; font-size:14px; }
+  .g-aller{ margin-top:8px; }
+}
+@media screen and (max-width:900px){ #btn-aide{ padding:8px 11px!important; } }
+</style>
 <script type="module" src="app.min.js"></script>
 </body>
 </html>
