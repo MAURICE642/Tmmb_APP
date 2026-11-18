@@ -4101,6 +4101,150 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
 </div>
 
 
+<!-- ══ VOLET 82 ══ CHARTE GRAPHIQUE COMMUNE (présentation seulement)
+     Placé en fin de <body> : passe après styles.min.css et les blocs des volets
+     précédents. Tout est dans @media screen : impressions (rapports, fiches)
+     et reçus (fenêtres séparées) ne changent PAS.
+     Retour arrière : supprimer ce bloc style « v82-charte ». -->
+<style id="v82-charte">
+@media screen{
+  /* 1. Couleurs : texte secondaire plus lisible en thème sombre (3,3:1 → 7,3:1) */
+  :root:not([data-theme="light"]){ --muted:#9aa5c0; --border:#2a3246; }
+
+  /* 2. Tailles de texte : plancher 11,5 px, texte courant 13–14 px */
+  body{ font-size:14px; -webkit-text-size-adjust:100%; }
+  [style*="font-size:7.5px"],[style*="font-size:8px"],[style*="font-size:8.5px"],
+  [style*="font-size:9px"],[style*="font-size:9.5px"]{ font-size:11.5px!important; }
+  [style*="font-size:10px"],[style*="font-size:10.5px"]{ font-size:12px!important; }
+  [style*="font-size:11px"],[style*="font-size:11.5px"]{ font-size:12.5px!important; }
+  [style*="font-size:12px"]{ font-size:13px!important; }
+  .page-title{ font-size:20px; font-weight:700; }
+  .sec-title{ font-size:16px; }
+  .nav-sec{ font-size:11px; letter-spacing:1.2px; padding:12px 16px 4px; }
+  .nav-item{ font-size:13.5px; padding:9px 16px; }
+  .nav-item svg{ width:16px; height:16px; }
+  .kpi-lbl{ font-size:12px; letter-spacing:.4px; text-transform:none; font-weight:600; }
+  .kpi-val{ font-size:24px; }
+  .kpi-sub{ font-size:12px; }
+  .tw th, table thead th{ font-size:12px; letter-spacing:.4px; }
+  .tw td{ font-size:13.5px; }
+  .sb, .tag{ font-size:12px; padding:3px 9px; }
+  .emp{ font-size:14px; }
+  .tw td span[style*="border-radius"]{ white-space:nowrap; }   /* codes client / badges : jamais coupés */
+
+  /* 3. Boutons : zones de toucher plus grandes, mêmes couleurs */
+  .btn{ font-size:13.5px; font-weight:600; padding:9px 16px; border-radius:10px; min-height:40px; }
+  .btn-sm{ font-size:13px; padding:7px 12px; min-height:36px; }
+  .btn-xs{ font-size:12.5px; padding:5px 10px; min-height:32px; border-radius:8px; }
+  .btn-primary{ font-weight:800; }
+
+  /* 4. Champs de formulaire : libellé lisible, champ plus haut */
+  .fr label{ font-size:12.5px; font-weight:700; letter-spacing:.3px; text-transform:none; margin-bottom:5px; }
+  .fr input,.fr select,.fr textarea{ font-size:15px; height:auto; min-height:42px; padding:9px 12px; border-radius:10px; }
+  .fr textarea{ min-height:72px; }
+  .md{ border-radius:18px; padding:20px; }
+  .md-title{ font-size:18px; }
+  .ma{ gap:10px; margin-top:16px; }
+
+  /* 5. Écran de connexion */
+  .login-box{ border-radius:22px; padding:36px 30px; }
+  .login-sub{ font-size:12px; letter-spacing:1.5px; }
+  .lform label{ font-size:12.5px; font-weight:700; letter-spacing:.3px; text-transform:none; }
+  .lform input,.lform select{ font-size:15px; padding:12px 14px; border-radius:12px; margin-bottom:14px; }
+}
+
+/* ═══ TÉLÉPHONES ET TERMINAUX (≤ 900 px) ═══ */
+@media screen and (max-width:900px){
+  .fr input,.fr select,.fr textarea{ font-size:16px; min-height:46px; }  /* 16 px : pas de zoom automatique */
+  .btn{ min-height:44px; }
+  .ma{ position:sticky; bottom:-20px; background:var(--surface); padding:12px 0 4px; margin-bottom:-4px; }
+  .ma .btn{ flex:1; min-height:48px; font-size:15px; }
+
+  /* Fenêtres : s'ouvrent en bas de l'écran, à portée du pouce */
+  .mo.open{ align-items:flex-end; }
+  .mo .md{ width:100%; max-width:100%; border-radius:22px 22px 0 0; max-height:92vh; padding:14px 16px 20px; border-bottom:none; }
+  .mo .md::before{ content:""; display:block; width:44px; height:5px; border-radius:5px; background:var(--border); margin:0 auto 12px; }
+
+  /* Menu du bas */
+  #bottom-nav{ height:66px; }
+  .bn-item{ font-size:11px; text-transform:none; letter-spacing:0; gap:4px; }
+  .bn-item svg{ width:22px; height:22px; }
+  #main{ padding-bottom:78px!important; }
+  #bn-drawer{ bottom:66px; border-radius:22px 22px 0 0; padding:10px 16px 16px; max-height:72vh; }
+  #bn-drawer::before{ content:""; display:block; width:44px; height:5px; border-radius:5px; background:var(--border); margin:0 auto 6px; }
+  .v82-grp{ font-size:11.5px; font-weight:800; letter-spacing:.8px; color:var(--muted); margin:12px 2px 8px; text-transform:uppercase; }
+  .v82-tuiles{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+  .v82-tuiles .bn-drawer-item{ flex-direction:column; justify-content:center; gap:5px; padding:11px 4px; text-align:center;
+     background:var(--surface2); border:1px solid var(--border); border-radius:14px; font-size:12px; font-weight:600; line-height:1.2; min-height:72px; }
+  .v82-tuiles .bn-drawer-item svg{ width:21px; height:21px; }
+  .v82-tuiles .bn-drawer-item.active{ border-color:var(--accent); background:rgba(201,168,76,.12); }
+  .v82-tuiles #bn-bt-status{ font-size:10.5px!important; }
+  .bn-drawer-item{ font-size:14px; }
+
+  /* Tableaux → cartes : Contrôle, Mes clients, Clients
+     (mêmes cellules, mêmes boutons ; seule la disposition change) */
+  #page-controle .tw, #page-com-clients .tw, #tw-clients{ border:none!important; background:none!important; overflow:visible!important; }
+  #page-controle .tw table, #page-com-clients .tw table, #tw-clients table{ display:block; width:100%; min-width:0!important; border:none; }
+  #page-controle .tw thead, #page-com-clients .tw thead, #tw-clients thead{ display:none; }
+  #tb-controle, #tb-com-clients, #tb-tous-cl{ display:block; }
+  #tb-controle > tr, #tb-com-clients > tr, #tb-tous-cl > tr{
+     display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; background:var(--surface); border:1px solid var(--border);
+     border-radius:16px; padding:14px; margin-bottom:12px; }
+  #tb-controle > tr > td, #tb-com-clients > tr > td, #tb-tous-cl > tr > td{
+     display:block; border:none!important; padding:0!important; font-size:13.5px; min-width:0; white-space:normal; background:none!important; }
+  #tb-controle > tr > td::before, #tb-com-clients > tr > td::before, #tb-tous-cl > tr > td::before{
+     display:block; font-size:11.5px; font-weight:700; color:var(--muted); margin-bottom:2px; }
+  /* Lignes « un seul bloc » (en-tête de quartier, liste vide) */
+  #tb-controle > tr:has(> td[colspan]), #tb-com-clients > tr:has(> td[colspan]), #tb-tous-cl > tr:has(> td[colspan]){
+     display:block; background:none; border:none; padding:0; margin:6px 0 10px; }
+  #tb-controle > tr > td[colspan], #tb-com-clients > tr > td[colspan], #tb-tous-cl > tr > td[colspan]{
+     border-radius:10px; padding:10px 12px!important; font-size:14px!important; }
+  #tb-controle > tr > td[colspan]::before, #tb-com-clients > tr > td[colspan]::before, #tb-tous-cl > tr > td[colspan]::before{ content:none; }
+  #tb-controle > tr > td[colspan], #tb-com-clients > tr > td[colspan], #tb-tous-cl > tr > td[colspan]{ grid-column:1/-1; }  /* repli si :has() non pris en charge */
+  #tb-controle > tr > td[colspan]{ background:rgba(201,168,76,.10)!important; color:var(--accent); }
+  #tb-controle > tr > td.emp[colspan], #tb-com-clients > tr > td.emp[colspan], #tb-tous-cl > tr > td.emp[colspan]{ background:none!important; color:var(--muted); }
+
+  /* Contrôle : 1 Client · 2 Tél · 3 Commercial · 4 Contrat · 5 Cotisation · 6 MàJ · 7 Niveau · 8 Statut · 9 Actions */
+  #tb-controle > tr > td:nth-child(1){ grid-column:1/-1; font-size:16.5px!important; font-weight:800; line-height:1.35; }
+  #tb-controle > tr > td:nth-child(2)::before{ content:"Téléphone"; }
+  #tb-controle > tr > td:nth-child(3)::before{ content:"Commercial"; }
+  #tb-controle > tr > td:nth-child(4)::before{ content:"Contrat"; }
+  #tb-controle > tr > td:nth-child(5)::before{ content:"Cotisation"; }
+  #tb-controle > tr > td:nth-child(6)::before{ content:"Dernière MàJ"; }
+  #tb-controle > tr > td:nth-child(7)::before{ content:"Niveau"; }
+  #tb-controle > tr > td:nth-child(8){ grid-column:1/-1; }
+  #tb-controle > tr > td:nth-child(8)::before{ content:"Statut"; }
+  #tb-controle > tr > td:nth-child(9){ grid-column:1/-1; display:flex; gap:8px; flex-wrap:wrap; padding-top:4px!important; }
+  #tb-controle > tr > td:nth-child(9) .btn{ flex:1; min-height:46px; font-size:14px!important; justify-content:center; }
+
+  /* Mes clients : 1 Code · 2 Client · 3 Tél · 4 Contrat · 5 Cotis. · 6 Avancement · 7 Retard · 8 Détail */
+  #tb-com-clients > tr > td:nth-child(2){ grid-column:1/-1; order:-2; font-size:16.5px!important; font-weight:800; line-height:1.35; }
+  #tb-com-clients > tr > td:nth-child(1){ order:-1; grid-column:1/-1; }
+  #tb-com-clients > tr > td:nth-child(3)::before{ content:"Téléphone"; }
+  #tb-com-clients > tr > td:nth-child(4)::before{ content:"Contrat"; }
+  #tb-com-clients > tr > td:nth-child(5)::before{ content:"Cotisation"; }
+  #tb-com-clients > tr > td:nth-child(7)::before{ content:"Retard"; }
+  #tb-com-clients > tr > td:nth-child(6){ grid-column:1/-1; }
+  #tb-com-clients > tr > td:nth-child(6)::before{ content:"Avancement"; }
+  #tb-com-clients > tr > td:nth-child(8){ grid-column:1/-1; }
+  #tb-com-clients > tr > td:nth-child(8) .btn{ width:100%; min-height:46px; font-size:14px!important; }
+
+  /* Clients : 1 Case · 2 Client · 3 Tél · 4 Commercial · 5 Adhésion · 6 Contrat · 7 Cotis. · 8 Progression · 9 Retard · 10 Actions */
+  #tb-tous-cl > tr > td:nth-child(1){ grid-column:1/-1; order:-1; text-align:left!important; }
+  #tb-tous-cl > tr > td:nth-child(1):empty{ display:none; }
+  #tb-tous-cl > tr > td:nth-child(2){ grid-column:1/-1; order:-2; font-size:16.5px!important; font-weight:800; line-height:1.35; }
+  #tb-tous-cl > tr > td:nth-child(3)::before{ content:"Téléphone"; }
+  #tb-tous-cl > tr > td:nth-child(4)::before{ content:"Commercial"; }
+  #tb-tous-cl > tr > td:nth-child(5)::before{ content:"Adhésion"; }
+  #tb-tous-cl > tr > td:nth-child(6)::before{ content:"Contrat"; }
+  #tb-tous-cl > tr > td:nth-child(7)::before{ content:"Cotisation"; }
+  #tb-tous-cl > tr > td:nth-child(8)::before{ content:"Progression"; }
+  #tb-tous-cl > tr > td:nth-child(9)::before{ content:"Retard"; }
+  #tb-tous-cl > tr > td:nth-child(10){ grid-column:1/-1; display:flex!important; gap:8px!important; }
+  #tb-tous-cl > tr > td:nth-child(10) .btn{ flex:1 1 auto; min-height:44px; font-size:15px!important; }
+}
+</style>
+
 <script type="module" src="app.min.js"></script>
 </body>
 </html>
