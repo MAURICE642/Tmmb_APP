@@ -963,6 +963,7 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         <span id="ctrl-count-moi-jour" style="color:var(--muted);font-size:10px;"></span>
       </span>
       <button class="btn btn-sm no-print" style="margin-left:auto;background:rgba(100,160,247,0.15);color:#64a0f7;border:1px solid rgba(100,160,247,0.4);font-weight:700;" onclick="ouvrirRapportControle()">📊 Rapport de contrôle</button>
+      <button class="btn btn-sm btn-ghost no-print" onclick="ouvrirRapportsEnregistres()">📁 Rapports enregistrés</button>
     </div>
     <!-- Barre recherche + filtre commercial + filtre statut -->
     <div style="margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
@@ -1055,6 +1056,13 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
   <!-- ══════════════════════════════════════════════════════════
        PAGE PRODUITS
   ══════════════════════════════════════════════════════════ -->
+  <!-- ══ VOLET 87 ══ PARAMÈTRES (admin) -->
+  <div id="page-parametres" class="page">
+    <div class="sec-title" style="margin-bottom:4px;">⚙️ Paramètres</div>
+    <div class="prm-desc" style="margin-bottom:14px;">Activer ou désactiver des fonctions, bloquer ou réautoriser des actions par type de compte, bloquer un utilisateur.</div>
+    <div id="param-contenu"></div>
+  </div>
+
   <!-- ══ VOLET 83 ══ GUIDE D'UTILISATION (contenu filtré selon le type de compte) -->
   <div id="page-guide" class="page">
     <div class="g-tete">
@@ -2755,6 +2763,16 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
 </div>
 
 <!-- RAPPORT DE CONTRÔLE -->
+<!-- ══ VOLET 86 ══ RAPPORTS DE CONTRÔLE ENREGISTRÉS -->
+<div class="mo" id="m-rapports-enreg">
+  <div class="md" style="width:640px;">
+    <div class="md-title" style="color:#64a0f7;">📁 Rapports de contrôle enregistrés</div>
+    <input type="search" id="rce-cherche" placeholder="🔍 Commercial, quartier, auteur…" oninput="_rcRendreListe()"
+      style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;color:var(--text);font-size:14px;margin-bottom:10px;">
+    <div id="rce-liste" style="max-height:60vh;overflow-y:auto;"></div>
+    <div class="ma"><button class="btn btn-ghost" onclick="closeM('m-rapports-enreg')">Fermer</button><button class="btn btn-primary" onclick="closeM('m-rapports-enreg');ouvrirRapportControle()">📊 Nouveau rapport</button></div>
+  </div>
+</div>
 <div class="mo" id="m-rapport-controle">
   <div class="md" style="border:1px solid rgba(100,160,247,0.4);max-width:420px;">
     <div class="md-title" style="color:#64a0f7;">📊 Rapport de contrôle</div>
@@ -2801,7 +2819,9 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     </div>
     <div class="ma" style="margin-top:14px;">
       <button class="btn btn-ghost" onclick="closeM('m-rapport-controle')">Annuler</button>
-      <button class="btn btn-primary" onclick="genererRapportControle()">📄 Générer le rapport</button>
+      <button class="btn btn-ghost" onclick="ouvrirRapportsEnregistres()">📁 Rapports enregistrés</button>
+      <button class="btn btn-ghost" onclick="genererRapportControle()">📄 Générer seulement</button>
+      <button class="btn btn-primary" onclick="genererEtEnregistrerRapportControle()">💾 Générer et enregistrer</button>
     </div>
   </div>
 </div>
@@ -4304,6 +4324,52 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
   .g-aller{ margin-top:8px; }
 }
 @media screen and (max-width:900px){ #btn-aide{ padding:8px 11px!important; } }
+</style>
+
+<!-- ══ VOLET 86 ══ couleur --card (utilisée par 6 fenêtres, dont « Historique des contrôles », mais jamais définie → fond transparent) + liste des rapports -->
+<style id="v86-styles">
+:root{ --card: var(--surface); }
+.rce-item{ background:var(--surface2); border:1px solid var(--border); border-radius:12px; padding:12px 14px; margin-bottom:10px; }
+.rce-tete{ display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; font-size:14.5px; }
+.rce-tete span{ color:var(--muted); font-size:12.5px; white-space:nowrap; }
+.rce-meta{ color:var(--muted); font-size:12.5px; margin-top:3px; }
+.rce-kpis{ display:flex; gap:14px; flex-wrap:wrap; font-size:13px; margin-top:8px; }
+.rce-act{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+</style>
+
+<!-- ══ VOLET 87 ══ Paramètres -->
+<div id="param-maintenance-band" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9000;background:#b7791f;color:#14110a;font-weight:800;font-size:13px;text-align:center;padding:6px 10px;">🛠 Maintenance en cours : consultation seule. Les saisies sont suspendues par l'administrateur.</div>
+<style id="v87-styles">
+body.param-sans-messagerie #chat-bubble, body.param-sans-messagerie #chat-panel{ display:none!important; }
+body.param-sans-guide #nav-guide, body.param-sans-guide #btn-aide, body.param-sans-guide #bnd-guide{ display:none!important; }
+#page-parametres{ max-width:1000px; }
+.prm-bloc{ background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:16px; margin-bottom:16px; }
+.prm-titre{ font-size:16px; font-weight:800; margin-bottom:10px; }
+.prm-desc{ font-size:13px; color:var(--muted); line-height:1.5; }
+.prm-fn{ display:flex; justify-content:space-between; align-items:center; gap:16px; padding:12px 0; border-top:1px solid var(--border); cursor:pointer; }
+.prm-fn:first-of-type{ border-top:none; }
+.prm-switch{ position:relative; flex:none; width:50px; height:28px; }
+.prm-switch input{ opacity:0; width:0; height:0; position:absolute; }
+.prm-switch i{ position:absolute; inset:0; background:var(--surface2); border:1px solid var(--border); border-radius:999px; transition:.15s; }
+.prm-switch i::after{ content:""; position:absolute; width:22px; height:22px; top:2px; left:2px; border-radius:50%; background:var(--muted); transition:.15s; }
+.prm-switch input:checked + i{ background:rgba(62,207,142,.25); border-color:var(--accent2,#3ecf8e); }
+.prm-switch input:checked + i::after{ left:24px; background:var(--accent2,#3ecf8e); }
+.prm-tw{ overflow-x:auto; }
+.prm-table{ width:100%; border-collapse:collapse; font-size:13.5px; }
+.prm-table th{ text-align:center; font-size:12px; color:var(--muted); padding:8px 6px; background:var(--surface2); white-space:nowrap; }
+.prm-table th:first-child{ text-align:left; }
+.prm-table td{ text-align:center; padding:6px; border-top:1px solid var(--border); }
+.prm-table td.prm-lib{ text-align:left; font-weight:600; min-width:200px; }
+.prm-na{ color:var(--muted); }
+.prm-cell{ border-radius:999px; padding:6px 10px; font-size:12.5px; font-weight:700; cursor:pointer; white-space:nowrap; font-family:inherit; border:1px solid; }
+.prm-cell.ok{ background:rgba(62,207,142,.12); color:var(--accent2,#3ecf8e); border-color:rgba(62,207,142,.4); }
+.prm-cell.ko{ background:rgba(232,103,94,.14); color:var(--danger,#e8675e); border-color:rgba(232,103,94,.5); }
+.prm-barre{ position:sticky; bottom:8px; z-index:5; display:flex; gap:10px; align-items:center; justify-content:flex-end; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:10px 14px; margin-bottom:16px; }
+.prm-barre span{ margin-right:auto; color:var(--yellow,#f0b54a); font-weight:700; font-size:13px; }
+.prm-barre.visible{ border-color:var(--accent); box-shadow:0 8px 24px rgba(0,0,0,.3); }
+.prm-cherche{ width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:10px 12px; color:var(--text); font-size:14px; margin-bottom:10px; }
+.prm-user{ display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 0; border-top:1px solid var(--border); flex-wrap:wrap; }
+.prm-user.bloque b{ color:var(--danger,#e8675e); }
 </style>
 <script type="module" src="app.min.js"></script>
 </body>
