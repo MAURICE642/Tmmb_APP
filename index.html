@@ -1951,6 +1951,8 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
       Demandes de livraison envoyées par les agents pour leurs clients. <strong>🚚 Créer la livraison</strong> ouvre le formulaire
       de livraison habituel, prérempli : les contrôles de solde, d'adhésion et de stock s'appliquent.
     </div>
+    <!-- ── VOLET 89 ── demandes déjà livrées -->
+    <div id="dla-deja-livrees" style="display:none;background:rgba(56,201,160,0.10);border:1px solid rgba(56,201,160,0.45);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;"></div>
     <div class="kpi-row" id="dla-kpi"></div>
     <div class="no-print" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin:12px 0;">
       <div class="fr" style="margin:0;min-width:120px;"><label>Du</label><input type="date" id="dla-du" onchange="renderDemandesAgents()"></div>
