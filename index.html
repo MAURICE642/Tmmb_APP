@@ -1056,6 +1056,33 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
   <!-- ══════════════════════════════════════════════════════════
        PAGE PRODUITS
   ══════════════════════════════════════════════════════════ -->
+  <!-- ══ VOLET 90 ══ STOCK DE MON AGENCE (lecture de l'application de stock) -->
+  <div id="page-stock-agence" class="page">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+      <div><div class="sec-title" style="margin:0;">📦 Stock — <span id="sa-lieu">—</span></div>
+        <div class="tm" style="font-size:12.5px;margin-top:3px;">Source : application de stock · consultation seule · <span id="sa-maj"></span></div></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <select id="sa-agence" onchange="saChangerAgence()" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:8px 10px;color:var(--text);font-size:13px;"></select>
+        <button class="btn btn-ghost btn-sm" onclick="saActualiser()">↻ Relire</button>
+      </div>
+    </div>
+    <div class="sa-onglets"><button type="button" class="sa-onglet on" data-o="stock" onclick="saOnglet('stock')">📦 Stock</button><button type="button" class="sa-onglet" data-o="mvts" onclick="saOnglet('mvts')">🔁 Mouvements</button></div>
+    <div id="sa-f-stock" class="sa-filtres">
+      <input type="search" id="sa-q" placeholder="🔍 Article ou référence…" oninput="dRender('renderStockAgenceStk')">
+      <select id="sa-cat" onchange="renderStockAgenceStk()"><option value="">Toutes les catégories</option></select>
+      <select id="sa-etat" onchange="renderStockAgenceStk()"><option value="">Tous les états</option><option value="alerte">⚠️ À surveiller (seuil, rupture)</option><option value="ok">✅ Normal</option><option value="bas">⚠️ Sous le seuil</option><option value="rupture">⛔ Rupture</option><option value="neg">⛔ Négatif</option></select>
+    </div>
+    <div id="sa-f-mvts" class="sa-filtres" style="display:none;">
+      <label>Du <input type="date" id="sa-du" onchange="renderStockAgenceStk()"></label>
+      <label>au <input type="date" id="sa-au" onchange="renderStockAgenceStk()"></label>
+      <select id="sa-sens" onchange="renderStockAgenceStk()"><option value="">Entrées et sorties</option><option value="in">📥 Entrées</option><option value="out">📤 Sorties</option></select>
+      <select id="sa-type" onchange="renderStockAgenceStk()"><option value="">Tous les types</option><option value="transfert">Envois / transferts</option><option value="livraison">Livraisons clients</option><option value="sortie">Autres sorties</option><option value="inventaire">Écarts d'inventaire</option><option value="reintegration">Réintégrations</option></select>
+      <input type="search" id="sa-mq" placeholder="🔍 Article ou produit…" oninput="dRender('renderStockAgenceStk')">
+      <label style="white-space:nowrap;"><input type="checkbox" id="sa-annules" onchange="renderStockAgenceStk()"> Afficher les annulés</label>
+    </div>
+    <div id="sa-contenu"></div>
+  </div>
+
   <!-- ══ VOLET 87 ══ PARAMÈTRES (admin) -->
   <div id="page-parametres" class="page">
     <div class="sec-title" style="margin-bottom:4px;">⚙️ Paramètres</div>
@@ -4372,6 +4399,40 @@ body.param-sans-guide #nav-guide, body.param-sans-guide #btn-aide, body.param-sa
 .prm-cherche{ width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:10px 12px; color:var(--text); font-size:14px; margin-bottom:10px; }
 .prm-user{ display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 0; border-top:1px solid var(--border); flex-wrap:wrap; }
 .prm-user.bloque b{ color:var(--danger,#e8675e); }
+</style>
+
+<!-- ══ VOLET 90 ══ Stock de mon agence -->
+<style id="v90-styles">
+.sa-onglets{ display:flex; gap:8px; margin-bottom:10px; }
+.sa-onglet{ background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:999px; padding:8px 14px; font-size:13.5px; font-weight:700; cursor:pointer; font-family:inherit; }
+.sa-onglet.on{ border-color:var(--accent); color:var(--accent); background:rgba(201,168,76,.12); }
+.sa-filtres{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px; }
+.sa-filtres input[type=search], .sa-filtres select, .sa-filtres input[type=date]{ background:var(--surface2); border:1px solid var(--border); border-radius:9px; padding:8px 10px; color:var(--text); font-size:13.5px; }
+.sa-filtres input[type=search]{ flex:1; min-width:180px; }
+.sa-filtres label{ font-size:13px; color:var(--muted); display:flex; gap:6px; align-items:center; }
+.sa-kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:12px; }
+@media screen and (max-width:900px){
+  #sa-contenu .tw{ border:none!important; background:none!important; overflow:visible!important; }
+  #sa-contenu table, #sa-contenu tbody{ display:block; width:100%; min-width:0!important; max-width:100%; }
+  #sa-contenu tbody > tr{ box-sizing:border-box; width:100%; max-width:100%; }
+  #sa-contenu thead{ display:none; }
+  #sa-contenu tbody > tr{ display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:12px 14px; margin-bottom:10px; }
+  #sa-contenu tbody > tr > td{ display:block; border:none!important; padding:0!important; text-align:left!important; min-width:0; }
+  #sa-contenu tbody > tr > td[colspan]{ grid-column:1/-1; }
+  #sa-contenu tbody > tr > td::before{ display:block; font-size:11.5px; font-weight:700; color:var(--muted); margin-bottom:1px; }
+  #sa-contenu tbody > tr > td[colspan]::before{ content:none; }
+  #sa-contenu table.sa-t-stock td:nth-child(1){ grid-column:1/-1; font-size:15.5px!important; }
+  #sa-contenu table.sa-t-stock td:nth-child(2)::before{ content:"Catégorie"; }
+  #sa-contenu table.sa-t-stock td:nth-child(3)::before{ content:"Quantité"; }
+  #sa-contenu table.sa-t-stock td:nth-child(4)::before{ content:"Seuil d'alerte"; }
+  #sa-contenu table.sa-t-stock td:nth-child(5){ grid-column:1/-1; }
+  #sa-contenu table.sa-t-mvts td:nth-child(1)::before{ content:"Date"; }
+  #sa-contenu table.sa-t-mvts td:nth-child(2){ grid-column:1/-1; font-weight:700; }
+  #sa-contenu table.sa-t-mvts td:nth-child(3){ grid-column:1/-1; }
+  #sa-contenu table.sa-t-mvts td:nth-child(4)::before{ content:"Quantité"; }
+  #sa-contenu table.sa-t-mvts td:nth-child(5)::before{ content:"Par"; }
+  #sa-contenu table.sa-t-mvts td:nth-child(1){ order:3; } #sa-contenu table.sa-t-mvts td:nth-child(5){ order:4; }
+}
 </style>
 <script type="module" src="app.min.js"></script>
 </body>
