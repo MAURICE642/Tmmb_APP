@@ -447,7 +447,8 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
 <div id="bn-drawer"></div>
 
 <!-- SETUP SCREEN -->
-<div id="setup-screen">
+<!-- ── VOLET 91 ── masqué par défaut : n'apparaît que si la configuration intégrée manque (voir app.js, démarrage). -->
+<div id="setup-screen" class="hidden">
   <div class="setup-box">
     <div class="setup-title">⚙️ Configuration Firebase</div>
     <div class="setup-sub">Pour mettre le logiciel en ligne avec des données partagées, vous avez besoin d'un compte Firebase gratuit (Google). Suivez ces étapes :</div>
@@ -476,10 +477,24 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
 </div>
 
 <!-- LOADING -->
-<div id="loading-screen" class="hidden">
+<!-- ── VOLET 91 ── visible dès l'ouverture (avant : écran de configuration Firebase affiché le temps du chargement). -->
+<div id="loading-screen">
   <div class="loader"></div>
-  <div class="load-text" id="load-text">Connexion à Firebase...</div>
+  <div class="load-text" id="load-text">Chargement…</div>
+  <div id="load-lent" style="display:none;text-align:center;font-size:13px;color:var(--muted);max-width:320px;line-height:1.6;">
+    Le chargement est long (connexion lente ?).<br>
+    <button class="btn btn-primary" style="margin-top:10px;" onclick="location.reload()">↻ Réessayer</button>
+  </div>
 </div>
+<script>
+  // ── VOLET 91 ── si rien ne s'affiche après 25 s (réseau très lent, script bloqué), proposer de réessayer.
+  setTimeout(function(){
+    var l = document.getElementById('loading-screen'), lg = document.getElementById('login-screen'), su = document.getElementById('setup-screen');
+    if(l && !l.classList.contains('hidden') && lg && lg.classList.contains('hidden') && su && su.classList.contains('hidden')){
+      var b = document.getElementById('load-lent'); if(b) b.style.display = 'block';
+    }
+  }, 25000);
+</script>
 
 <!-- LOGIN -->
 <div id="login-screen" class="hidden">
