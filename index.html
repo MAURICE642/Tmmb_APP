@@ -2845,18 +2845,10 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
       <div id="ctrl-niveau-app" style="font-size:11px;color:var(--muted);margin-bottom:6px;"></div>
       <div class="fr">
         <label>Niveau actuel du client (sur son carnet) *</label>
-        <input type="text" id="ctrl-niveau" placeholder="ex : 15/2 (jour/mois) ou 46 (jours)" style="width:100%;">
+        <input type="text" id="ctrl-niveau" placeholder="ex : 15/2 (jour/mois) ou 46 (jours)" inputmode="numeric" autocomplete="off" oninput="ctrlCalculerEcart()" style="width:100%;">
       </div>
-      <div class="fr">
-        <label id="ctrl-ecart-lbl">Manquant *</label>
-        <div style="display:flex;gap:6px;">
-          <input type="number" id="ctrl-ecart-val" min="0" step="any" inputmode="decimal" placeholder="ex : 3" style="flex:1;min-width:0;">
-          <select id="ctrl-ecart-unite" style="width:130px;">
-            <option value="jours">jours</option>
-            <option value="fcfa">FCFA (montant)</option>
-          </select>
-        </div>
-      </div>
+      <!-- ── VOLET 97 ── écart calculé automatiquement (jours + FCFA) -->
+      <div id="ctrl-ecart-calc" style="font-size:12.5px;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);margin-bottom:10px;"></div>
     </div>
     <div class="fr">
       <label>Note de contrôle <span style="font-size:9px;color:var(--muted);font-weight:400;">(optionnel)</span></label>
