@@ -424,6 +424,13 @@
   // FIX 2 : fonctions PIN supprimees (remplacees par Firebase Auth email+password)
 </script>
 
+<style>
+  /* ── VOLET 95 ── choix du résultat de contrôle */
+  .fr label.ctrl-res-opt,.ctrl-res-opt{display:flex;align-items:center;justify-content:center;gap:5px;padding:6px 4px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);font-size:12px;font-weight:600;cursor:pointer;text-transform:none;letter-spacing:0;color:var(--text);margin:0 !important;min-width:0;min-height:0 !important;height:auto !important;line-height:1.2 !important;padding:7px 4px !important;}
+  .fr label.ctrl-res-opt:has(input:checked),.ctrl-res-opt:has(input:checked){border-color:#64a0f7;background:rgba(100,160,247,0.15);font-weight:700;}
+  .fr .ctrl-res-opt input[type=radio],.ctrl-res-opt input[type=radio]{width:15px !important;height:15px !important;min-height:0 !important;min-width:0;padding:0 !important;margin:0 !important;flex:none;border:none;background:none;accent-color:#64a0f7;}
+  .ctrl-res-opt{white-space:nowrap;}
+</style>
 </head>
 <body>
 <script>
@@ -1023,6 +1030,9 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
         <option value="fait">✅ Contrôlé</option>
         <option value="fini">🏁 Fini & livré</option>
       </select>
+      <!-- ── VOLET 94 ── filtre selon la note du contrôleur (onglet « Contrôlés » uniquement) -->
+      <select id="ctrl-filter-note" onchange="renderControle()" title="Filtrer selon la note du contrôleur"
+        style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 10px;color:var(--text);font-size:11px;outline:none;"><option value="">📝 Toutes les notes</option></select>
       <!-- ── VOLET 49 ── regroupement par quartier (coché par défaut) -->
       <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px;white-space:nowrap;cursor:pointer;">
         <input type="checkbox" id="ctrl-group-quartier" checked onchange="renderControle()"> 🏘️ Regrouper par quartier</label>
@@ -2822,6 +2832,32 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
     <div class="md-title" style="color:#64a0f7;">🔎 Marquer le contrôle</div>
     <input type="hidden" id="ctrl-cl-id">
     <div id="ctrl-cl-info" class="ib" style="font-size:12px;margin-bottom:12px;border-color:rgba(100,160,247,0.35);"></div>
+    <!-- ── VOLET 95 ── résultat du contrôle -->
+    <div class="fr">
+      <label>Résultat du contrôle *</label>
+      <div id="ctrl-resultat" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
+        <label class="ctrl-res-opt"><input type="radio" name="ctrl-res" value="ok" onchange="ctrlResultatChange()"> ✅ OK</label>
+        <label class="ctrl-res-opt"><input type="radio" name="ctrl-res" value="manquant" onchange="ctrlResultatChange()"> ⚠️ Manquant</label>
+        <label class="ctrl-res-opt"><input type="radio" name="ctrl-res" value="excedent" onchange="ctrlResultatChange()"> ➕ Excédent</label>
+      </div>
+    </div>
+    <div id="ctrl-ecart-zone" style="display:none;">
+      <div id="ctrl-niveau-app" style="font-size:11px;color:var(--muted);margin-bottom:6px;"></div>
+      <div class="fr">
+        <label>Niveau actuel du client (sur son carnet) *</label>
+        <input type="text" id="ctrl-niveau" placeholder="ex : 15/2 (jour/mois) ou 46 (jours)" style="width:100%;">
+      </div>
+      <div class="fr">
+        <label id="ctrl-ecart-lbl">Manquant *</label>
+        <div style="display:flex;gap:6px;">
+          <input type="number" id="ctrl-ecart-val" min="0" step="any" inputmode="decimal" placeholder="ex : 3" style="flex:1;min-width:0;">
+          <select id="ctrl-ecart-unite" style="width:130px;">
+            <option value="jours">jours</option>
+            <option value="fcfa">FCFA (montant)</option>
+          </select>
+        </div>
+      </div>
+    </div>
     <div class="fr">
       <label>Note de contrôle <span style="font-size:9px;color:var(--muted);font-weight:400;">(optionnel)</span></label>
       <textarea id="ctrl-note" rows="3" placeholder="ex: Visite effectuée le 17/06, articles conformes, client présent…" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px 11px;color:var(--text);font-size:12px;outline:none;box-sizing:border-box;resize:vertical;"></textarea>
