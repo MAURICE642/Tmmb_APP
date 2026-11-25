@@ -1013,6 +1013,8 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
       </span>
       <button class="btn btn-sm no-print" style="margin-left:auto;background:rgba(100,160,247,0.15);color:#64a0f7;border:1px solid rgba(100,160,247,0.4);font-weight:700;" onclick="ouvrirRapportControle()">📊 Rapport de contrôle</button>
       <button class="btn btn-sm btn-ghost no-print" onclick="ouvrirRapportsEnregistres()">📁 Rapports enregistrés</button>
+      <!-- ── VOLET 98 ── imprime la liste affichée, avec ses filtres -->
+      <button class="btn btn-sm btn-print no-print" onclick="imprimerListeControle()" title="Imprimer exactement la liste affichée (onglet et filtres en cours)">🖨️ Imprimer la liste</button>
     </div>
     <!-- Barre recherche + filtre commercial + filtre statut -->
     <div style="margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
