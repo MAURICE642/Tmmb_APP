@@ -428,6 +428,10 @@
   /* ── VOLET 95 ── choix du résultat de contrôle */
   .fr label.ctrl-res-opt,.ctrl-res-opt{display:flex;align-items:center;justify-content:center;gap:5px;padding:6px 4px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);font-size:12px;font-weight:600;cursor:pointer;text-transform:none;letter-spacing:0;color:var(--text);margin:0 !important;min-width:0;min-height:0 !important;height:auto !important;line-height:1.2 !important;padding:7px 4px !important;}
   .fr label.ctrl-res-opt:has(input:checked),.ctrl-res-opt:has(input:checked){border-color:#64a0f7;background:rgba(100,160,247,0.15);font-weight:700;}
+  .ctrl-niv-modes{display:flex !important;flex-direction:row !important;gap:6px;margin-bottom:6px;}
+  .ctrl-niv-modes .ctrl-niv-mode{flex:1 1 0 !important;width:auto !important;min-width:0 !important;margin:0 !important;}
+  .ctrl-niv-mode{padding:6px 4px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;}
+  .ctrl-niv-mode.on{border-color:#64a0f7;background:rgba(100,160,247,0.15);color:var(--text);}
   .fr .ctrl-res-opt input[type=radio],.ctrl-res-opt input[type=radio]{width:15px !important;height:15px !important;min-height:0 !important;min-width:0;padding:0 !important;margin:0 !important;flex:none;border:none;background:none;accent-color:#64a0f7;}
   .ctrl-res-opt{white-space:nowrap;}
 </style>
@@ -2847,7 +2851,20 @@ window.addEventListener('orientationchange', function(){ setTimeout(setAppHeight
       <div id="ctrl-niveau-app" style="font-size:11px;color:var(--muted);margin-bottom:6px;"></div>
       <div class="fr">
         <label>Niveau actuel du client (sur son carnet) *</label>
-        <input type="text" id="ctrl-niveau" placeholder="ex : 15/2 (jour/mois) ou 46 (jours)" inputmode="numeric" autocomplete="off" oninput="ctrlCalculerEcart()" style="width:100%;">
+        <!-- ── VOLET 99 ── saisie du niveau sans la touche « / » (absente du clavier numérique Android) -->
+        <input type="hidden" id="ctrl-niveau" value="">
+        <div class="ctrl-niv-modes">
+          <button type="button" id="ctrl-niv-mode-jm" class="ctrl-niv-mode" onclick="ctrlNiveauMode('jm')">Jour / Mois</button>
+          <button type="button" id="ctrl-niv-mode-j" class="ctrl-niv-mode" onclick="ctrlNiveauMode('j')">Nombre de jours</button>
+        </div>
+        <div id="ctrl-niv-jm" style="display:flex;align-items:center;gap:8px;">
+          <input type="text" id="ctrl-niv-jour" inputmode="numeric" pattern="[0-9]*" maxlength="2" autocomplete="off" placeholder="Jour" oninput="ctrlNiveauSaisie(this)" style="flex:1;min-width:0;text-align:center;">
+          <span style="font-size:22px;font-weight:700;color:var(--muted);">/</span>
+          <input type="text" id="ctrl-niv-mois" inputmode="numeric" pattern="[0-9]*" maxlength="2" autocomplete="off" placeholder="Mois" oninput="ctrlNiveauSaisie(this)" style="flex:1;min-width:0;text-align:center;">
+        </div>
+        <div id="ctrl-niv-j" style="display:none;">
+          <input type="text" id="ctrl-niv-nb" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="ex : 46" oninput="ctrlNiveauSaisie(this)" style="width:100%;text-align:center;">
+        </div>
       </div>
       <!-- ── VOLET 97 ── écart calculé automatiquement (jours + FCFA) -->
       <div id="ctrl-ecart-calc" style="font-size:12.5px;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);margin-bottom:10px;"></div>
